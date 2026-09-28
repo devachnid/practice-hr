@@ -22,6 +22,7 @@ class EmploymentInline(TabularInline):
     extra = 0
     fields = ("start_date", "end_date", "leaving_reason", "continuous_service_date")
     show_change_link = True
+    can_delete = False
 
 
 @admin.register(Employee)
@@ -45,15 +46,18 @@ class EmployeeAdmin(ModelAdmin):
         return f"{pos.title}, {pos.team}" if pos else ""
 
     def save_model(self, request, obj, form, change):
-        data = {k: form.cleaned_data[k] for k in form.changed_data}
         if change:
-            employees.update(request.user, obj, **data)
+            data = {k: form.cleaned_data[k] for k in form.changed_data if k in employees.EDITABLE}
+            fresh = Employee.objects.get(pk=obj.pk)
+            employees.update(request.user, fresh, **data)
+            obj.refresh_from_db()
         else:
             new = employees.create(request.user, **form.cleaned_data)
             obj.pk = new.pk
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
+        changed_by_pk = {obj.pk: changed for obj, changed in formset.changed_objects}
         for inst in instances:
             if isinstance(inst, Employment):
                 if inst.pk is None:
@@ -63,13 +67,24 @@ class EmployeeAdmin(ModelAdmin):
                     except ValidationError as e:
                         messages.error(request, "; ".join(e.messages))
                     continue
-                inst.full_clean()
-                inst.save()
-                audit.record(request.user, inst, {"end_date": ("", inst.end_date)})
+                changed = changed_by_pk.get(inst.pk, [])
+                fresh = Employment.objects.get(pk=inst.pk)
+                try:
+                    if "end_date" in changed or "leaving_reason" in changed:
+                        employments.end(request.user, fresh, inst.end_date, inst.leaving_reason)
+                    if "start_date" in changed or "continuous_service_date" in changed:
+                        employments.amend(request.user, fresh, inst.start_date,
+                                          inst.continuous_service_date)
+                except ValidationError as e:
+                    messages.error(request, "; ".join(e.messages))
             else:
+                is_new = inst.pk is None
+                before = "" if is_new else str(EmergencyContact.objects.get(pk=inst.pk))
                 inst.save()
+                audit.record(request.user, form.instance, {"emergency_contact": (before, str(inst))})
         for inst in formset.deleted_objects:
-            if not isinstance(inst, Employment):
+            if isinstance(inst, EmergencyContact):
+                audit.record(request.user, form.instance, {"emergency_contact": (str(inst), "")})
                 inst.delete()
 
 
@@ -77,12 +92,14 @@ class PositionInline(TabularInline):
     model = Position
     form = admin_forms.PositionForm
     extra = 0
+    can_delete = False
 
 
 class ContractInline(TabularInline):
     model = Contract
     form = admin_forms.ContractForm
     extra = 0
+    can_delete = False
 
 
 class PatternDayInline(TabularInline):
@@ -92,15 +109,25 @@ class PatternDayInline(TabularInline):
 
 
 class WorkingPatternInline(StackedInline):
+    """Read-only here: a pattern needs its days, which only the
+    WorkingPattern page's PatternDayInline can set. Add and edit there;
+    this inline is for seeing what exists and following the link."""
     model = WorkingPattern
     extra = 0
     fields = ("effective_from",)
+    readonly_fields = ("effective_from",)
     show_change_link = True
+    can_delete = False
+    verbose_name_plural = "Working pattern versions (add on the pattern page)"
+
+    def has_add_permission(self, request, obj):
+        return False
 
 
 class PayRecordInline(TabularInline):
     model = PayRecord
     extra = 0
+    can_delete = False
 
 
 @admin.register(Employment)
@@ -116,19 +143,34 @@ class EmploymentAdmin(ModelAdmin):
             inlines.append(PayRecordInline)
         return inlines
 
+    def get_readonly_fields(self, request, obj=None):
+        # The employee a spell belongs to is fixed at start(); a change
+        # here would silently move history to a different person.
+        return ["employee"] if obj else []
+
     def change_view(self, request, object_id, form_url="", extra_context=None):
         if access.can_view_restricted(request.user) and request.method == "GET":
             obj = self.get_object(request, object_id)
-            if obj is not None and obj.pay_records.exists():
+            if obj is not None and self.has_view_permission(request, obj) and obj.pay_records.exists():
                 audit.viewed(request.user, obj, "pay")
         return super().change_view(request, object_id, form_url, extra_context)
 
     def save_model(self, request, obj, form, change):
         if change:
-            changes = {k: (form.initial.get(k), form.cleaned_data[k]) for k in form.changed_data}
-            obj.full_clean()
-            obj.save()
-            audit.record(request.user, obj, changes)
+            # obj already carries the form's new values (ModelForm._post_
+            # clean copied them on); a fresh row from the database is what
+            # end()/amend() need to compute a correct before/after diff.
+            obj_fresh = Employment.objects.get(pk=obj.pk)
+            try:
+                if "end_date" in form.changed_data or "leaving_reason" in form.changed_data:
+                    employments.end(request.user, obj_fresh, form.cleaned_data["end_date"],
+                                    form.cleaned_data["leaving_reason"])
+                if "start_date" in form.changed_data or "continuous_service_date" in form.changed_data:
+                    employments.amend(request.user, obj_fresh, form.cleaned_data.get("start_date"),
+                                      form.cleaned_data.get("continuous_service_date"))
+            except ValidationError as e:
+                messages.error(request, "; ".join(e.messages))
+            obj.refresh_from_db()
         else:
             new = employments.start(request.user, obj.employee, obj.start_date,
                                     obj.continuous_service_date)
@@ -136,14 +178,30 @@ class EmploymentAdmin(ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
+        changed_by_pk = {obj.pk: changed for obj, changed in formset.changed_objects}
         for inst in instances:
             try:
-                if isinstance(inst, Position) and inst.pk is None:
-                    positions.add(request.user, form.instance, inst.title, inst.team,
-                                  inst.line_manager, inst.from_date, inst.primary, inst.to_date)
-                elif isinstance(inst, Contract) and inst.pk is None:
-                    contracts.add(request.user, form.instance, inst.contract_type, inst.weekly_amount,
-                                  inst.from_date, inst.basis, inst.to_date, inst.notes)
+                if isinstance(inst, Position):
+                    if inst.pk is None:
+                        positions.add(request.user, form.instance, inst.title, inst.team,
+                                      inst.line_manager, inst.from_date, inst.primary, inst.to_date)
+                    elif set(changed_by_pk.get(inst.pk, [])) - {"to_date"}:
+                        messages.error(request, "Existing positions and contracts only end; "
+                                                "add a new row for a change.")
+                    else:
+                        fresh = Position.objects.get(pk=inst.pk)
+                        positions.end(request.user, fresh, inst.to_date)
+                elif isinstance(inst, Contract):
+                    if inst.pk is None:
+                        contracts.add(request.user, form.instance, inst.contract_type,
+                                      inst.weekly_amount, inst.from_date, inst.basis,
+                                      inst.to_date, inst.notes)
+                    elif set(changed_by_pk.get(inst.pk, [])) - {"to_date"}:
+                        messages.error(request, "Existing positions and contracts only end; "
+                                                "add a new row for a change.")
+                    else:
+                        fresh = Contract.objects.get(pk=inst.pk)
+                        contracts.end(request.user, fresh, inst.to_date)
                 elif isinstance(inst, PayRecord):
                     inst.save()
                     audit.record(request.user, inst, {"amount": ("", inst.amount)})
@@ -153,8 +211,6 @@ class EmploymentAdmin(ModelAdmin):
                     audit.record(request.user, inst, {"saved": ("", str(inst))})
             except ValidationError as e:
                 messages.error(request, "; ".join(e.messages))
-        for inst in formset.deleted_objects:
-            messages.error(request, f"{inst} was not deleted: rows here end, they are not removed.")
 
 
 @admin.register(WorkingPattern)

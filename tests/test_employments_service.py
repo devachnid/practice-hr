@@ -49,6 +49,17 @@ def test_service_years_on_the_anniversary_is_whole(db):
     assert employments.service_years(leap, date(2025, 2, 28)) == Decimal("1.00")
 
 
+def test_amend_refuses_a_start_date_overlapping_an_earlier_spell(hr_admin):
+    e = make_employee()
+    first = employments.start(hr_admin, e, date(2024, 1, 1))
+    employments.end(hr_admin, first, date(2024, 12, 31), Employment.LeavingReason.RESIGNED)
+    second = employments.start(hr_admin, e, date(2025, 1, 1))
+    with pytest.raises(ValidationError):
+        employments.amend(hr_admin, second, start_date=date(2024, 6, 1))
+    second.refresh_from_db()
+    assert second.start_date == date(2025, 1, 1)
+
+
 def test_active_on_filters_by_day(db):
     a = make_employment(start=date(2026, 1, 1), end_date=date(2026, 6, 30),
                         leaving_reason="resigned")

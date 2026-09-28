@@ -52,6 +52,25 @@ def end(actor, employment, end_date, leaving_reason):
     return employment
 
 
+@transaction.atomic
+def amend(actor, employment, start_date=None, continuous_service_date=None):
+    """Change the dates of an existing spell. Re-runs the overlap check."""
+    new_start = start_date or employment.start_date
+    if _overlaps(employment.employee, new_start, employment.end_date, exclude_pk=employment.pk):
+        raise ValidationError("Another employment covers those dates.")
+    changes = {}
+    if start_date and start_date != employment.start_date:
+        changes["start_date"] = (employment.start_date, start_date)
+        employment.start_date = start_date
+    if continuous_service_date and continuous_service_date != employment.continuous_service_date:
+        changes["continuous_service_date"] = (employment.continuous_service_date, continuous_service_date)
+        employment.continuous_service_date = continuous_service_date
+    employment.full_clean()
+    employment.save()
+    audit.record(actor, employment, changes)
+    return employment
+
+
 def _anniversary(start, year):
     try:
         return start.replace(year=year)
