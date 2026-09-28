@@ -11,6 +11,7 @@ there.
 | Page | Covers |
 |---|---|
 | [People](people.md) | Employees, employments, positions, teams, contract types, contracts, working patterns, pay records, the audit log |
+| [Payroll changes report](payroll.md) | The monthly spreadsheet for the payroll bureau: what each sheet holds, which absence types reach it, where the files live |
 | [Login accounts and signing in](sign-in.md) | Login accounts, admin status, passkeys, invitations, nightly housekeeping, and the OpenID Connect provider |
 
 ## The mental model

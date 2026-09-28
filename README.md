@@ -92,6 +92,7 @@ files the app has to read unreadable:
     cat >> /etc/practice-hr.env <<'EOF'
     DEBUG=0
     DB_PATH=/var/lib/practice-hr/db.sqlite3
+    MEDIA_ROOT=/var/lib/practice-hr/media
     ALLOWED_HOSTS=hr.example.org
     CSRF_TRUSTED_ORIGINS=https://hr.example.org
     EOF
@@ -105,6 +106,7 @@ files the app has to read unreadable:
 | `SECRET_KEY` | Django's signing key. Required with `DEBUG` off. |
 | `DEBUG` | `0` in production (the default); `1` only for development. |
 | `DB_PATH` | Where the SQLite database lives. Unset, it sits beside `manage.py`, which is what development wants; production points it at `/var/lib/practice-hr/db.sqlite3`, out of the read-only code tree, because SQLite needs to write the directory its database is in. |
+| `MEDIA_ROOT` | Where the app writes files: the payroll changes reports, in `payroll/` beneath it. Unset, it is `media/` beside `manage.py`, which is what development wants (git-ignored); production points it at `/var/lib/practice-hr/media`, because the code tree is read-only. Django never serves it; the payroll page streams a report to an HR admin. The nightly backup archives it. |
 | `ALLOWED_HOSTS` | Comma-separated hostnames the app answers for. |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |

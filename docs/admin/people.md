@@ -225,9 +225,9 @@ The contract's own dated span. Must fall inside the employment's own dates.
 ### Notes
 
 A short free-text note on the arrangement — "maternity cover for X", "phased
-return, review June". Nothing depends on it: it appears on the payroll
-changes report in a later release, and nothing else in the app reads it, so
-there is nothing to get wrong beyond being unhelpful to whoever reads it
+return, review June". Nothing depends on it: it appears on the
+[payroll changes report](payroll.md) and nothing else in the app reads it,
+so there is nothing to get wrong beyond being unhelpful to whoever reads it
 next.
 
 ### The one-unit-at-a-time rule

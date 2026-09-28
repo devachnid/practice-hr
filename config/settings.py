@@ -196,6 +196,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Files the app writes (the payroll reports). Never served by Django: the
+# HR-admin-only view streams them. Production points MEDIA_ROOT into the
+# state directory (/var/lib/practice-hr/media), as DB_PATH does, because the
+# code tree is read-only there; backup.sh archives it.
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT") or BASE_DIR / "media")
+MEDIA_URL = "media/"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     # The manifest storage requires a collectstatic run, which the test suite

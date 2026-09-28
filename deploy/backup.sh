@@ -10,8 +10,9 @@ umask 077
 state="${STATE_DIRECTORY:-/var/lib/practice-hr}"
 mkdir -p "$state/backups"
 sqlite3 "$state/db.sqlite3" ".backup '$state/backups/db-$(date +%F).sqlite3'"
-# There is no media root yet (plan 3 adds one); skip the archive rather
-# than fail the whole backup until then.
+# MEDIA_ROOT (the payroll reports) is $state/media in production. Nothing
+# creates it until the first report is generated, so skip the archive
+# rather than fail the whole backup before then.
 if [ -d "$state/media" ]; then
     tar -czf "$state/backups/media-$(date +%F).tgz" -C "$state" media
 fi

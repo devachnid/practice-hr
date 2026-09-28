@@ -1,6 +1,6 @@
 from django.urls import path
 
-from absence.views import approvals, balances, calendar, requests
+from absence.views import approvals, balances, calendar, payroll, requests
 
 app_name = "absence"
 urlpatterns = [
@@ -11,6 +11,7 @@ urlpatterns = [
     path("balances/team/", balances.team, name="balances_team"),
     path("balances/<int:pk>/", balances.balances_for, name="balances_for"),
     path("ledger/<int:pk>/", balances.ledger_view, name="ledger"),
+    path("payroll/", payroll.payroll_view, name="payroll"),
     path("queue/", approvals.queue, name="queue"),
     # exactly notify.DECIDE_PATH: the link in the approver's email
     path("decide/<int:pk>/", approvals.decide, name="decide"),
