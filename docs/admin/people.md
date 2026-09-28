@@ -210,6 +210,14 @@ same day to get the total — see above.
 The contract's own dated span. Must fall inside the employment's own dates.
 **Existing contracts only end** — see [Changing something](#changing-something).
 
+### Notes
+
+A short free-text note on the arrangement — "maternity cover for X", "phased
+return, review June". Nothing depends on it: it appears on the payroll
+changes report in a later release, and nothing else in the app reads it, so
+there is nothing to get wrong beyond being unhelpful to whoever reads it
+next.
+
 ### The one-unit-at-a-time rule
 
 **An employment cannot hold contracts in two different units at once.** A
@@ -250,7 +258,7 @@ week, not an incremental edit.
 amount**, and it is not an error when it does not — a pattern totalling
 more or fewer sessions than the contract is a legitimate temporary state
 (a phased return, a pattern change mid-negotiation). But the admin warns:
-"Pattern totals *X* a week; contracts total *Y* a week." when they differ
+"Pattern totals *X* a week; contracts total *Y*." when they differ
 and a contract is active that day, so a mismatch is never silent. Treat the
 warning as a prompt to check whether the pattern or the contract is the one
 that is wrong, not as something to clear before saving — saving with the
