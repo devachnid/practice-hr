@@ -353,6 +353,77 @@ body.page-grid {
   margin: var(--sp-5) 0 0;
 }
 
+/* -------------------------------------------------------- my record --- */
+
+/* The facts list on My record (employed since, continuous service,
+   position, contracted hours). A label/value grid rather than a table:
+   there's one column of labels and one of values, no rows to compare
+   across, so dl/dt/dd is the right element and this only lays it out. */
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  margin: 0;
+}
+.facts dt {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.facts dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* The AM/PM-by-weekday grid on My record and (implicitly, via the same
+   markup shape) anywhere else a working pattern is shown. Same table
+   idiom as .day-roster: hairline row dividers, an uppercase muted head. */
+.pattern {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--sp-4);
+}
+.pattern th,
+.pattern td {
+  text-align: center;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums;
+}
+.pattern thead th {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.pattern tbody th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* The plain row-per-record table on My team (and any other simple listing
+   screen): a header row plus hairline dividers, no zebra striping. */
+.list {
+  width: 100%;
+  border-collapse: collapse;
+}
+.list th,
+.list td {
+  text-align: left;
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--hairline);
+}
+.list thead th {
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.list tbody tr:last-child td {
+  border-bottom: none;
+}
+
 /* ----------------------------------------------------------- reports --- */
 
 /* Cross-links between the four report pages. Sits inside .page-head next to

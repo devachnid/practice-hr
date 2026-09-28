@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}My team{% endblock %}
+{% block content %}
+<h1>My team</h1>
+<table class="list">
+  <thead><tr><th>Name</th><th>Position</th><th>Contracted</th><th>Pattern</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.employee.name }}</td><td>{% if r.position %}{{ r.position.title }}, {{ r.position.team }}{% endif %}</td>
+        <td>{{ r.contracted|floatformat:"-2" }} {{ r.unit|default:"" }}</td>
+        <td>{% if r.pattern_total is not None %}{{ r.pattern_total|floatformat:"-2" }}{% else %}none{% endif %}</td></tr>
+  {% empty %}<tr><td colspan="4">Nobody reports to you today.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,8 +1,9 @@
-from django.http import HttpResponse
 from django.urls import path
+
+from . import views
 
 app_name = "people"
 urlpatterns = [
-    path("me/", lambda r: HttpResponse("me"), name="me"),
-    path("team/", lambda r: HttpResponse("team"), name="team"),
+    path("me/", views.me, name="me"),
+    path("team/", views.team, name="team"),
 ]
