@@ -28,11 +28,12 @@ def test_contract_change_writes_one_revision(db, hr_admin):
     pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
     ledger.sync_entitlement(pot)
     contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), date(2026, 10, 1))
-    row = ledger.sync_entitlement(pot, hr_admin, cause="contract added 1 Oct")
-    assert row.kind == LedgerEntry.Kind.REVISION
+    # the contract signal has already re-synced; a further sync finds nothing to do
+    row = pot.entries.filter(kind=LedgerEntry.Kind.REVISION).get()
+    assert ledger.sync_entitlement(pot) is None
     # 105 + 5.6 × 18.75 × 182/365 = 105 + 52.36 → 157.25 total; revision is the difference
     assert ledger.entitlement_lines_total(pot) == D("157.25")
-    assert row.units == D("52.25") and row.note == "contract added 1 Oct"
+    assert row.units == D("52.25") and row.note.startswith("contract added")
 
 
 def test_change_that_rounds_to_nothing_writes_nothing(db, hr_admin):
@@ -64,5 +65,5 @@ def test_line_dates(db, hr_admin):
     first = ledger.sync_entitlement(pot)
     assert first.date == pot.year_start
     contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), date(2026, 10, 1))
-    revision = ledger.sync_entitlement(pot)
+    revision = pot.entries.filter(kind=LedgerEntry.Kind.REVISION).get()   # written by the signal
     assert revision.date == timezone.localdate()
