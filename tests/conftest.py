@@ -41,3 +41,18 @@ def superuser_client(db):
 def configured(settings):
     settings.EMAIL_HOST = "smtp.example"
     settings.DEFAULT_FROM_EMAIL = "Practice HR <hr@example.org>"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _oidc_test_key():
+    """The suite signs ID tokens with a throwaway key generated per run.
+    Nothing here reaches the environment."""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from django.conf import settings
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                            serialization.NoEncryption()).decode()
+    settings.OAUTH2_PROVIDER["OIDC_RSA_PRIVATE_KEY"] = pem
+    from oauth2_provider import settings as oauth2_settings
+    oauth2_settings.oauth2_settings.OIDC_RSA_PRIVATE_KEY = pem
