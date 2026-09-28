@@ -150,12 +150,16 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
+# The address the site is served at, for links in emails. Unfold's "back to
+# site" link reads the same value, so the two agree.
+SITE_URL = os.environ.get("SITE_URL", "/")
+
 # The admin's chrome. Plain values and dotted paths only — unfold resolves
 # the paths per request, so hr.admin_site is never imported here.
 UNFOLD = {
     "SITE_TITLE": "HR",
     "SITE_HEADER": "Practice HR",
-    "SITE_URL": "/",
+    "SITE_URL": SITE_URL,
     "SITE_SYMBOL": "badge",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,

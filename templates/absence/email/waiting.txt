@@ -1,0 +1,5 @@
+{% autoescape off %}These leave requests are waiting for a decision:
+{% for row in rows %}
+{{ row.a.employment.employee.name }}, {{ row.a.absence_type }}, {% include "absence/email/_dates.txt" with a=row.a %}
+{{ row.url }}
+{% endfor %}{% endautoescape %}

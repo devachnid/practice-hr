@@ -1,0 +1,6 @@
+{% autoescape off %}{{ a.employment.employee.name }} has requested {{ a.absence_type }}:
+{% include "absence/email/_dates.txt" %}.
+Cost: {{ a.cost_units }}.
+
+Decide it here: {{ url }}
+{% endautoescape %}

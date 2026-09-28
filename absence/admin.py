@@ -6,8 +6,8 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from unfold.admin import ModelAdmin, TabularInline
 
-from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, LedgerEntry, Policy,
-                            PolicyTier, Pot)
+from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
+                            Policy, PolicyTier, Pot)
 from absence.services import ledger
 from people.models import ContractType
 from people.services import audit
@@ -159,6 +159,21 @@ class AbsenceAdmin(ModelAdmin):
                     and self.has_view_permission(request, obj)):
                 audit.viewed(request.user, obj, "health")
         return super().change_view(request, object_id, form_url, extra_context)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(EmailFailure)
+class EmailFailureAdmin(ModelAdmin):
+    """The emails that did not go: listed, never added to, changed or deleted."""
+    list_display = ("created_at", "subject", "error")
 
     def has_add_permission(self, request):
         return False
