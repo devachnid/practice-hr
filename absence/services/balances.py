@@ -1,9 +1,10 @@
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError
 from django.db.models import Sum
 
-from absence.models import Absence, LedgerEntry
-from absence.services import ledger
+from absence.models import Absence, AbsenceType, LedgerEntry
+from absence.services import ledger, pots
 
 K = LedgerEntry.Kind
 
@@ -30,3 +31,24 @@ def summary(pot, today):
         "adjustments": _sum(entries.filter(kind__in=(K.ADJUSTMENT, K.TOIL_EARNED))),
         "remaining": ledger.balance(pot),
     }
+
+
+def rows(employment, today, include_bh=False):
+    """One row per active pot-backed type for the leave year containing
+    `today`: {"type", "pot", "summary", "error"}. Reads only: a pot not yet
+    opened has pot and summary None; a type with no policy or contract
+    carries the service's message in "error"."""
+    types = AbsenceType.objects.filter(active=True, uses_pot=True)
+    if not include_bh:
+        types = types.exclude(code="BH")
+    out = []
+    for t in types:
+        row = {"type": t, "pot": None, "summary": None, "error": ""}
+        try:
+            row["pot"] = pots.lookup(employment, t, today)
+        except ValidationError as e:
+            row["error"] = " ".join(e.messages)
+        if row["pot"] is not None:
+            row["summary"] = summary(row["pot"], today)
+        out.append(row)
+    return out

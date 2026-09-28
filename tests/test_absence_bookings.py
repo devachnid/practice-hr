@@ -256,3 +256,71 @@ def test_opening_the_annual_pot_charges_the_years_bank_holidays_once(db, hr_admi
         assert ledger.balance(al) == D("187.50")
     else:
         assert ledger.balance(al) == D("112.50")            # 210 - 75 bank holidays - 22.50
+
+
+def test_preview_costs_without_writing(db, employee_user):
+    emp = hours_employee()
+    a = bookings.preview(emp, absence_type("AL"), MON, WED)
+    assert a.pk is None and a.cost_units == D("22.50")
+    assert not Absence.objects.exists() and not Pot.objects.exists()
+    bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    with pytest.raises(ValidationError, match="already an absence"):
+        bookings.preview(emp, absence_type("AL"), WED)
+
+
+def test_request_stores_expected_family_dates(db, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31),
+                         expected_start=date(2026, 7, 1), expected_return=date(2027, 4, 1))
+    a.refresh_from_db()
+    assert (a.expected_start, a.expected_return) == (date(2026, 7, 1), date(2027, 4, 1))
+    with pytest.raises(ValidationError, match="Only family leave"):
+        bookings.request(employee_user, emp, absence_type("AL"), MON, expected_return=WED)
+    with pytest.raises(ValidationError, match="after the expected start"):
+        bookings.request(employee_user, emp, absence_type("PAT"), date(2027, 6, 1),
+                         expected_start=date(2027, 6, 1), expected_return=date(2027, 5, 1))
+
+
+def test_set_family_dates_audits_each_change(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31),
+                         expected_start=date(2026, 7, 1))
+    out = bookings.set_family_dates(hr_admin, a, expected_start=date(2026, 7, 1), actual_start=date(2026, 7, 6),
+                                    expected_return=date(2027, 4, 5))
+    assert out is a and a.actual_start == date(2026, 7, 6)
+    a.refresh_from_db()
+    assert (a.expected_start, a.actual_start, a.expected_return) == (
+        date(2026, 7, 1), date(2026, 7, 6), date(2027, 4, 5))
+    rows = AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, actor=hr_admin)
+    assert {(r.field, r.before, r.after) for r in rows} == {
+        ("actual_start", "", "2026-07-06"), ("expected_return", "", "2027-04-05")}
+
+
+def test_set_family_dates_refuses_a_return_before_the_start_or_another_type(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31))
+    with pytest.raises(ValidationError, match="after the actual start"):
+        bookings.set_family_dates(hr_admin, a, actual_start=date(2026, 7, 6), expected_return=date(2026, 7, 1))
+    a.refresh_from_db()
+    assert a.actual_start is None
+    leave = bookings.request(employee_user, emp, absence_type("AL"), MON)
+    with pytest.raises(ValidationError, match="Only family leave"):
+        bookings.set_family_dates(hr_admin, leave, actual_start=MON)
+
+
+def test_add_kit_day_within_live_family_leave_once(db, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31))
+    bookings.add_kit_day(employee_user, a, date(2026, 9, 15))
+    bookings.add_kit_day(employee_user, a, date(2026, 9, 15))
+    assert a.kit_days.count() == 1
+    assert AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, field="kit_day",
+                                     after="2026-09-15").count() == 1
+    with pytest.raises(ValidationError, match="within the leave"):
+        bookings.add_kit_day(employee_user, a, date(2027, 4, 1))
+    leave = bookings.request(employee_user, emp, absence_type("AL"), MON)
+    with pytest.raises(ValidationError, match="family leave"):
+        bookings.add_kit_day(employee_user, leave, MON)
+    bookings.cancel(employee_user, a)
+    with pytest.raises(ValidationError, match="requested or approved"):
+        bookings.add_kit_day(employee_user, a, date(2026, 9, 16))

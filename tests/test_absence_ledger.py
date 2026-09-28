@@ -52,3 +52,35 @@ def test_open_pots(db):
     pots.for_day(emp, absence_type("AL"), date(2025, 6, 1))
     current = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
     assert list(pots.open_pots(date(2026, 6, 1))) == [current]
+
+
+def test_lookup_finds_an_open_pot_and_never_creates_one(db):
+    emp = hours_employee()
+    al = absence_type("AL")
+    assert pots.lookup(emp, al, date(2026, 6, 1)) is None
+    assert not Pot.objects.exists()
+    pot = pots.for_day(emp, al, date(2026, 6, 1))
+    assert pots.lookup(emp, al, date(2027, 3, 31)) == pot          # the same leave year
+    assert pots.lookup(emp, al, date(2027, 4, 1)) is None          # the next is not open
+    assert Pot.objects.count() == 1
+
+
+def test_lookup_names_a_missing_policy(db):
+    emp = hours_employee()
+    emp.contracts.first().contract_type.policies.all().delete()
+    with pytest.raises(ValidationError, match="No Annual leave policy"):
+        pots.lookup(emp, absence_type("AL"), date(2026, 6, 1))
+
+
+def test_balance_rows_read_open_pots_only(db):
+    from absence.services import balances
+    emp = hours_employee()
+    today = date(2026, 6, 1)
+    rows = {r["type"].code: r for r in balances.rows(emp, today)}
+    assert "BH" not in rows and rows["AL"]["pot"] is None and rows["AL"]["summary"] is None
+    assert "No Study leave policy" in rows["STUDY"]["error"]
+    assert not Pot.objects.exists()
+    pot = pots.for_day(emp, absence_type("AL"), today)
+    rows = {r["type"].code: r for r in balances.rows(emp, today, include_bh=True)}
+    assert "BH" in rows
+    assert rows["AL"]["pot"] == pot and rows["AL"]["summary"]["remaining"] == Decimal("210.00")
