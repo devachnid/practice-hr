@@ -12,6 +12,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Sum
+from django.utils import timezone
 
 from absence.models import LedgerEntry, Pot
 from absence.services import ledger, policies, pots, rounding
@@ -22,7 +23,6 @@ ZERO = Decimal("0")
 CLOSE = "year end close"             # the closing line's note starts with this: the pot is closed
 CARRY_IN_EXPIRED = "carry-in expired"
 TOIL_EXPIRED = "toil expired"
-TAKEN = (K.BOOKING, K.TOIL_TAKEN, K.CANCELLATION)
 
 
 def _sum(qs):
@@ -59,15 +59,108 @@ def _cap(pot, day):
                              policy.rounding)
 
 
+def _bookings(pot):
+    """What each absence drawing on the pot uses, in the order it was
+    booked: [(booked_on, units used)]. An absence is booked on the local
+    date its booking (or TOIL-taken) line was written, that is when it was
+    approved, whatever the date of the leave. Its use is the net of all its
+    lines on the pot (the booking, a cancellation, a re-costing), so a
+    cancellation reverses its own booking's use."""
+    booked_on, used = {}, {}
+    for line in pot.entries.filter(absence__isnull=False).order_by("created_at", "id"):
+        if line.kind in (K.BOOKING, K.TOIL_TAKEN) and line.absence_id not in booked_on:
+            booked_on[line.absence_id] = timezone.localdate(line.created_at)
+        used[line.absence_id] = used.get(line.absence_id, ZERO) - line.units
+    return [(day, used[absence]) for absence, day in booked_on.items()]
+
+
+def _toil_marker(earned):
+    return f"{TOIL_EXPIRED}: earned {earned.date:%d %b %Y} (entry {earned.pk})"
+
+
+def _toil_lots(pot):
+    """The pot's TOIL-earned lines as lots, oldest first, each with its
+    deadline (the policy in force on the day it was earned; None for no
+    expiry), what of it is left after its own expiry, and what bookings
+    have used of it.
+
+    The rule, shared with expire_carry_in: leave counts as using TOIL only
+    if it was booked on or before the lot's deadline. Bookings are taken in
+    the order they were booked (see _bookings) and each is used up first in,
+    first out: from the oldest lot still within its deadline on the day it
+    was booked and with something left."""
+    already = {e.note: ZERO - e.units
+               for e in pot.entries.filter(kind=K.EXPIRY, note__startswith=TOIL_EXPIRED)}
+    lots = []
+    for line in pot.entries.filter(kind=K.TOIL_EARNED).order_by("date", "id"):
+        days = policies.policy_for(pot.employment, pot.absence_type, line.date).toil_expires_after_days
+        marker = _toil_marker(line)
+        lots.append({"line": line, "marker": marker, "expired": marker in already,
+                     "deadline": line.date + timedelta(days=days) if days else None,
+                     "left": line.units - already.get(marker, ZERO), "used": ZERO})
+    for booked_on, units in _bookings(pot):
+        for lot in lots:
+            if units <= 0:
+                break
+            if lot["deadline"] is not None and booked_on > lot["deadline"]:
+                continue
+            take = min(units, lot["left"] - lot["used"])
+            if take > 0:
+                lot["used"] += take
+                units -= take
+    return lots
+
+
+def _close_toil(pot, remaining, new_start, actor):
+    """A TOIL pot's positive balance carries forward uncapped, as each
+    earned line's unused remainder: a TOIL-earned line on the next pot dated
+    the day it was originally earned, so expire_toil runs its deadline on
+    unchanged. A line whose deadline has passed by the new year expires
+    instead. Never more than the balance carries: a shortfall (an
+    adjustment, TOIL booked beyond what was earned) is taken from the oldest
+    lines first. Returns the amount carried."""
+    carry = [(lot["line"], lot["left"] - lot["used"]) for lot in _toil_lots(pot)
+             if not lot["expired"] and lot["left"] - lot["used"] > 0
+             and (lot["deadline"] is None or lot["deadline"] >= new_start)]
+    short = sum((units for _, units in carry), ZERO) - remaining
+    trimmed = []
+    for line, units in carry:
+        cut = min(units, max(short, ZERO))
+        short -= cut
+        if units - cut > 0:
+            trimmed.append((line, units - cut))
+    if not trimmed:
+        return ZERO
+    nxt = _next_pot(pot, new_start, actor)
+    for line, units in trimmed:
+        ledger.write(nxt, K.TOIL_EARNED, units, actor, date=line.date,
+                     note=f"carried from {pot.year_start:%d %b %Y}–{pot.year_end:%d %b %Y}")
+    return sum((units for _, units in trimmed), ZERO)
+
+
+def _next_pot(pot, new_start, actor):
+    # A pot that cannot open (no policy next year) or is in another unit
+    # fails the whole close, and the caller's atomic block rolls it back.
+    nxt = pots.for_day(pot.employment, pot.absence_type, new_start, actor=actor)
+    if nxt.unit != pot.unit:
+        raise ValidationError(
+            f"{pot} is in {pot.unit}, but {nxt} is in {nxt.unit}. "
+            f"Settle the balance by adjustment and the year end will close it at zero.")
+    return nxt
+
+
 @transaction.atomic
 def close(pot, actor=None):
     """Close a pot whose leave year has ended.
 
-    One expiry line on the pot takes its whole remaining balance, so a
-    closed pot stands at exactly zero; the part within the carry cap (the
-    policy on the new year's first day) is written as a carry-in on the next
-    year's pot, opened synced if need be. A negative balance carries in
-    full. A zero balance still writes a zero line, which marks the closure.
+    The pot's entitlement is re-synced first, so a contract change or
+    leaving date recorded after the year ended still reaches it. Then one
+    expiry line on the pot takes its whole remaining balance, so a closed
+    pot stands at exactly zero; the part within the carry cap (the policy
+    on the new year's first day) is written as a carry-in on the next year's
+    pot, opened synced if need be. A negative balance carries in full. A
+    zero balance still writes a zero line, which marks the closure. A TOIL
+    pot carries its unused earned lines instead, uncapped (_close_toil).
 
     A leaver (no employment or contract on the new year's first day) has a
     positive balance expired; a negative one is left on the pot untouched
@@ -76,6 +169,7 @@ def close(pot, actor=None):
     _lock(pot)
     if is_closed(pot):
         return {"carried": ZERO, "expired": ZERO, "skipped": True}
+    ledger.sync_entitlement(pot, actor, cause="year end")
     remaining = ledger.balance(pot)
     new_start = pot.year_end + timedelta(days=1)
     if not _stays(pot.employment, new_start):
@@ -84,24 +178,19 @@ def close(pot, actor=None):
         ledger.write(pot, K.EXPIRY, ZERO - remaining, actor,
                      note=f"{CLOSE}: leaver, {remaining:.2f} expired", date=pot.year_end)
         return {"carried": ZERO, "expired": remaining}
-    if remaining > 0:
-        carried = min(remaining, _cap(pot, new_start))
+    toil = pot.absence_type.code == "TOIL"
+    if toil and remaining > 0:
+        carried = _close_toil(pot, remaining, new_start, actor)
     else:
-        carried = remaining
+        carried = min(remaining, _cap(pot, new_start)) if remaining > 0 else remaining
+        if carried:
+            nxt = _next_pot(pot, new_start, actor)
+            ledger.write(nxt, K.CARRY_IN, carried, actor, date=nxt.year_start,
+                         note=f"year end: carried in from {pot.year_start:%Y}/{pot.year_end:%y}")
     expired = remaining - carried
-    if carried:
-        # A pot that cannot open (no policy next year) or is in another unit
-        # fails the whole close, and the atomic block rolls it back.
-        nxt = pots.for_day(pot.employment, pot.absence_type, new_start, actor=actor)
-        if nxt.unit != pot.unit:
-            raise ValidationError(
-                f"{pot} is in {pot.unit}, but {nxt} is in {nxt.unit}. "
-                f"Settle the balance by adjustment and the year end will close it at zero.")
-        ledger.write(nxt, K.CARRY_IN, carried, actor,
-                     note=f"year end: carried in from {pot.year_start:%Y}/{pot.year_end:%y}", date=nxt.year_start)
+    what = "TOIL carried forward" if toil and remaining > 0 else f"carried to {new_start:%Y-%m-%d}"
     ledger.write(pot, K.EXPIRY, ZERO - remaining, actor,
-                 note=f"{CLOSE}: {carried:.2f} carried to {new_start:%Y-%m-%d}, {expired:.2f} expired",
-                 date=pot.year_end)
+                 note=f"{CLOSE}: {carried:.2f} {what}, {expired:.2f} expired", date=pot.year_end)
     return {"carried": carried, "expired": expired}
 
 
@@ -110,11 +199,13 @@ def expire_carry_in(pot, today, actor=None):
     """Expire carried-in leave unused by the policy's deadline (year start
     plus carry_over_expires_after_days; usable through that day).
 
-    Leave taken on or before the deadline (bookings, TOIL taken, net of
-    cancellations, by the date of the leave) is taken from the carry-in
-    first; what is left of the carry-in expires, never more than the pot's
-    balance. A negative carry-in never expires. One line at most, noted
-    "carry-in expired"; returns it, or None."""
+    The rule, shared with expire_toil: leave counts as using the carry-in
+    only if it was booked on or before the deadline (approved by then,
+    whatever the date of the leave; a cancellation reverses its booking;
+    see _bookings), and it is taken from the carry-in first. What is left of
+    the carry-in expires, never more than the pot's balance. A negative
+    carry-in never expires. One line at most, noted "carry-in expired";
+    returns it, or None."""
     _lock(pot)
     carried = _sum(pot.entries.filter(kind=K.CARRY_IN))
     if carried <= 0 or pot.entries.filter(kind=K.EXPIRY, note=CARRY_IN_EXPIRED).exists():
@@ -125,56 +216,36 @@ def expire_carry_in(pot, today, actor=None):
     deadline = pot.year_start + timedelta(days=days)
     if today <= deadline:
         return None
-    taken = max(ZERO - _sum(pot.entries.filter(kind__in=TAKEN, date__lte=deadline)), ZERO)
-    unused = min(carried - taken, max(ledger.balance(pot), ZERO))
+    used = sum((units for booked_on, units in _bookings(pot) if booked_on <= deadline and units > 0), ZERO)
+    unused = min(carried - used, max(ledger.balance(pot), ZERO))
     if unused <= 0:
         return None
     return ledger.write(pot, K.EXPIRY, ZERO - unused, actor, note=CARRY_IN_EXPIRED,
                         date=deadline + timedelta(days=1))
 
 
-def _toil_marker(earned):
-    return f"{TOIL_EXPIRED}: earned {earned.date:%d %b %Y} (entry {earned.pk})"
-
-
 @transaction.atomic
 def expire_toil(pot, today, actor=None):
-    """Expire each TOIL-earned line unused toil_expires_after_days after it
-    was earned (the policy in force on the day it was earned; usable
-    through the deadline).
+    """Expire each TOIL-earned line unused by its deadline: the day it was
+    earned plus toil_expires_after_days of the policy then in force; usable
+    through that day. A line carried from last year keeps its earned date,
+    so its deadline runs on.
 
-    Consumption is first in, first out: all the TOIL taken on the pot (net
-    of cancellations, whatever its date) is used up from the oldest earned
-    line first, skipping what of each has already expired. An earned line
-    past its deadline with no expiry of its own yet expires what of it is
-    unconsumed, never more than the pot's balance. One expiry per earned
-    line at most; returns the lines written."""
+    Used means booked on or before the deadline, first in, first out, in
+    the order the bookings were made (see _toil_lots; the same rule as
+    expire_carry_in). A line past its deadline with no expiry of its own
+    yet expires what of it is unused, never more than the pot's balance.
+    One expiry per earned line at most; returns the lines written."""
     _lock(pot)
-    earned = list(pot.entries.filter(kind=K.TOIL_EARNED).order_by("date", "id"))
-    if not earned:
-        return []
-    already = {e.note: ZERO - e.units
-               for e in pot.entries.filter(kind=K.EXPIRY, note__startswith=TOIL_EXPIRED)}
-    to_consume = max(ZERO - _sum(pot.entries.filter(kind__in=(K.TOIL_TAKEN, K.CANCELLATION))), ZERO)
     out = []
-    for line in earned:
-        marker = _toil_marker(line)
-        left = line.units - already.get(marker, ZERO)
-        used = min(to_consume, max(left, ZERO))
-        to_consume -= used
-        if marker in already:
+    for lot in _toil_lots(pot):
+        if lot["expired"] or lot["deadline"] is None or today <= lot["deadline"]:
             continue
-        days = policies.policy_for(pot.employment, pot.absence_type, line.date).toil_expires_after_days
-        if not days:
-            continue
-        deadline = line.date + timedelta(days=days)
-        if today <= deadline:
-            continue
-        unused = min(left - used, max(ledger.balance(pot), ZERO))
+        unused = min(lot["left"] - lot["used"], max(ledger.balance(pot), ZERO))
         if unused <= 0:
             continue
-        out.append(ledger.write(pot, K.EXPIRY, ZERO - unused, actor, note=marker,
-                                date=deadline + timedelta(days=1)))
+        out.append(ledger.write(pot, K.EXPIRY, ZERO - unused, actor, note=lot["marker"],
+                                date=lot["deadline"] + timedelta(days=1)))
     return out
 
 

@@ -82,5 +82,6 @@ def run(today):
     return {"pots_opened": opened, "pots_synced": synced, "revisions": revisions,
             "bank_holiday_created": created, "bank_holiday_removed": removed,
             "bank_holiday_recosted": recosted, "year_end_closed": ended["closed"],
+            "carried_total": ended["carried_total"], "expired_total": ended["expired_total"],
             "carry_in_expired": ended["carry_in_expired"], "toil_expired": ended["toil_expired"],
             "leaver_debts": ended["leaver_debts"], "failed": failed}

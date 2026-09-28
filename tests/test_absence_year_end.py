@@ -1,8 +1,11 @@
-from datetime import date, timedelta
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from absence.models import LedgerEntry, Policy
 from absence.services import bookings, ledger, nightly, pots, toil, year_end
@@ -31,9 +34,21 @@ def _toil_employee(days=90):
     return emp
 
 
-def _take_toil(hr_admin, employee_user, emp, day):
-    a = bookings.request(employee_user, emp, absence_type("TOIL"), day)
-    return bookings.approve(hr_admin, a)
+@contextmanager
+def _booked_on(day):
+    """Ledger lines written inside are stamped (created_at) at noon on `day`."""
+    moment = timezone.make_aware(datetime.combine(day, time(12)))
+    with mock.patch("django.utils.timezone.now", return_value=moment):
+        yield
+
+
+def _book(hr_admin, employee_user, emp, code, day, booked_on):
+    with _booked_on(booked_on):
+        return bookings.approve(hr_admin, bookings.request(employee_user, emp, absence_type(code), day))
+
+
+def _take_toil(hr_admin, employee_user, emp, day, booked_on):
+    return _book(hr_admin, employee_user, emp, "TOIL", day, booked_on)
 
 
 # --- close ------------------------------------------------------------------
@@ -93,6 +108,16 @@ def test_a_zero_balance_still_marks_the_pot_closed(db):
     assert year_end.close(pot) == {"carried": D("0"), "expired": D("0")}
     assert pot.entries.get(kind=K.EXPIRY).units == D("0")
     assert year_end.close(pot)["skipped"] is True
+
+
+def test_close_resyncs_the_old_year_first(db):
+    emp = hours_employee(start=date(2025, 4, 1))
+    Policy.objects.update(carry_over_max_weeks=D("10"))                  # a cap of 187.50 hours
+    pot = _pot_2026(emp)                                                  # 210
+    emp.contracts.update(weekly_amount=D("18.75"))    # recorded after 1 April, behind the signals' back
+    assert year_end.close(pot) == {"carried": D("105.00"), "expired": D("0")}
+    assert pot.entries.get(kind=K.REVISION, note="year end").units == D("-105.00")
+    assert ledger.balance(pot) == D("0")
 
 
 def test_negative_balance_carries_in_full(db, hr_admin, employee_user):
@@ -173,14 +198,41 @@ def test_carry_in_expires_after_days(db):
     assert year_end.expire_carry_in(nxt, date(2027, 7, 2)) is None
 
 
-def test_leave_taken_by_the_deadline_uses_the_carry_in_first(db, hr_admin, employee_user):
+def test_leave_booked_by_the_deadline_uses_the_carry_in_first(db, hr_admin, employee_user):
     emp = hours_employee(start=date(2025, 4, 1))
-    nxt = _carried(emp)
+    nxt = _carried(emp)                                              # 37.50, deadline 30 Jun 2027
     for day in (date(2027, 6, 7), date(2027, 6, 8)):                # 15 hours taken before the deadline
-        bookings.approve(hr_admin, bookings.request(employee_user, emp, absence_type("AL"), day))
-    bookings.approve(hr_admin, bookings.request(employee_user, emp, absence_type("AL"), date(2027, 7, 5)))
+        _book(hr_admin, employee_user, emp, "AL", day, booked_on=date(2027, 5, 20))
     row = year_end.expire_carry_in(nxt, date(2027, 7, 1))
     assert row.units == D("-22.50")
+
+
+def test_leave_booked_by_the_deadline_for_after_it_still_uses_the_carry_in(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)
+    _book(hr_admin, employee_user, emp, "AL", date(2027, 7, 5), booked_on=date(2027, 6, 30))
+    row = year_end.expire_carry_in(nxt, date(2027, 7, 1))
+    assert row.units == D("-30.00")
+
+
+def test_leave_booked_after_the_deadline_does_not_use_the_carry_in(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)
+    _book(hr_admin, employee_user, emp, "AL", date(2027, 6, 28), booked_on=date(2027, 7, 1))   # backdated
+    _book(hr_admin, employee_user, emp, "AL", date(2027, 7, 12), booked_on=date(2027, 7, 1))
+    row = year_end.expire_carry_in(nxt, date(2027, 7, 2))
+    assert row.units == D("-37.50")
+
+
+def test_a_cancelled_booking_does_not_use_the_carry_in(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)
+    a = _book(hr_admin, employee_user, emp, "AL", date(2027, 6, 7), booked_on=date(2027, 5, 20))
+    _book(hr_admin, employee_user, emp, "AL", date(2027, 6, 8), booked_on=date(2027, 5, 20))
+    with _booked_on(date(2027, 6, 1)):
+        bookings.cancel(hr_admin, a)
+    row = year_end.expire_carry_in(nxt, date(2027, 7, 1))
+    assert row.units == D("-30.00")
 
 
 def test_carry_in_expiry_never_takes_more_than_remains(db):
@@ -235,7 +287,7 @@ def test_toil_taken_is_consumed_oldest_first(db, hr_admin, employee_user):
     emp = _toil_employee()
     first = toil.earn(hr_admin, emp, D("5"), date(2026, 6, 1), "clinic")      # deadline 30 Aug
     toil.earn(hr_admin, emp, D("5"), date(2026, 7, 1), "clinic")              # deadline 29 Sep
-    _take_toil(hr_admin, employee_user, emp, date(2026, 6, 15))               # 7.5: all of the first, 2.5 of the second
+    _take_toil(hr_admin, employee_user, emp, date(2026, 6, 15), booked_on=date(2026, 6, 10))  # 7.5: 5 + 2.5
     pot = first.pot
     assert year_end.expire_toil(pot, date(2026, 9, 1)) == []
     expired = year_end.expire_toil(pot, date(2026, 9, 30))
@@ -249,9 +301,77 @@ def test_toil_taken_after_an_expiry_draws_on_what_is_left(db, hr_admin, employee
     toil.earn(hr_admin, emp, D("10"), date(2026, 7, 1), "clinic")
     pot = first.pot
     assert [e.units for e in year_end.expire_toil(pot, date(2026, 9, 1))] == [D("-5")]
-    _take_toil(hr_admin, employee_user, emp, date(2026, 9, 7))               # 7.5 from the second
+    _take_toil(hr_admin, employee_user, emp, date(2026, 9, 7), booked_on=date(2026, 9, 2))    # 7.5 from the second
     assert [e.units for e in year_end.expire_toil(pot, date(2026, 9, 30))] == [D("-2.50")]
     assert ledger.balance(pot) == D("0")
+
+
+def test_toil_booked_by_the_deadline_for_after_it_still_uses_it(db, hr_admin, employee_user):
+    emp = _toil_employee()
+    pot = toil.earn(hr_admin, emp, D("7.5"), date(2026, 6, 1), "clinic").pot            # deadline 30 Aug
+    toil.earn(hr_admin, emp, D("7.5"), date(2026, 8, 1), "clinic")                      # deadline 30 Oct
+    _take_toil(hr_admin, employee_user, emp, date(2026, 9, 7), booked_on=date(2026, 8, 30))
+    assert year_end.expire_toil(pot, date(2026, 8, 31)) == []                          # the first was used
+    assert [e.units for e in year_end.expire_toil(pot, date(2026, 11, 1))] == [D("-7.50")]  # the second was not
+    assert ledger.balance(pot) == D("0")
+
+
+def test_toil_booked_after_the_deadline_draws_on_the_next_line(db, hr_admin, employee_user):
+    emp = _toil_employee()
+    pot = toil.earn(hr_admin, emp, D("7.5"), date(2026, 6, 1), "clinic").pot
+    toil.earn(hr_admin, emp, D("7.5"), date(2026, 8, 1), "clinic")
+    _take_toil(hr_admin, employee_user, emp, date(2026, 9, 7), booked_on=date(2026, 8, 31))
+    assert [e.units for e in year_end.expire_toil(pot, date(2026, 8, 31))] == [D("-7.50")]
+    assert year_end.expire_toil(pot, date(2026, 11, 1)) == []
+    assert ledger.balance(pot) == D("0")
+
+
+def _toil_2026_27(hr_admin, days=90):
+    emp = _toil_employee(days)
+    return emp, toil.earn(hr_admin, emp, D("3"), date(2027, 3, 25), "clinic")
+
+
+def test_toil_at_year_end_carries_forward_with_its_earned_date(db, hr_admin):
+    emp, earned = _toil_2026_27(hr_admin)                          # deadline 23 Jun 2027
+    old = earned.pot
+    result = year_end.run(date(2027, 4, 1))
+    assert result["closed"] == 1 and result["carried_total"] == D("3") and result["toil_expired"] == 0
+    assert ledger.balance(old) == D("0")
+    closing = old.entries.get(kind=K.EXPIRY)
+    assert closing.units == D("-3") and closing.note == "year end close: 3.00 TOIL carried forward, 0.00 expired"
+    new = pots.for_day(emp, absence_type("TOIL"), date(2027, 4, 1))
+    carried = new.entries.get(kind=K.TOIL_EARNED)
+    assert carried.units == D("3") and carried.date == date(2027, 3, 25)
+    assert carried.note == "carried from 01 Apr 2026–31 Mar 2027"
+    assert not new.entries.filter(kind=K.CARRY_IN).exists()
+    assert year_end.expire_toil(new, date(2027, 6, 23)) == []
+    assert [e.units for e in year_end.expire_toil(new, date(2027, 6, 24))] == [D("-3")]
+
+
+def test_toil_at_year_end_carries_only_the_unused_part(db, hr_admin, employee_user):
+    emp = _toil_employee()
+    toil.earn(hr_admin, emp, D("10"), date(2027, 3, 1), "clinic")
+    _take_toil(hr_admin, employee_user, emp, date(2027, 3, 15), booked_on=date(2027, 3, 10))
+    year_end.run(date(2027, 4, 1))
+    new = pots.for_day(emp, absence_type("TOIL"), date(2027, 4, 1))
+    assert [(e.units, e.date) for e in new.entries.filter(kind=K.TOIL_EARNED)] == [(D("2.50"), date(2027, 3, 1))]
+
+
+def test_toil_past_its_deadline_at_year_end_expires(db, hr_admin):
+    emp = _toil_employee()
+    old = toil.earn(hr_admin, emp, D("3"), date(2026, 12, 1), "clinic").pot         # deadline 1 Mar 2027
+    toil.earn(hr_admin, emp, D("2"), date(2027, 3, 25), "clinic")
+    assert year_end.close(old) == {"carried": D("2"), "expired": D("3")}
+    new = pots.for_day(emp, absence_type("TOIL"), date(2027, 4, 1))
+    assert [e.units for e in new.entries.filter(kind=K.TOIL_EARNED)] == [D("2")]
+
+
+def test_toil_year_end_twice_writes_nothing(db, hr_admin):
+    emp, earned = _toil_2026_27(hr_admin)
+    year_end.run(date(2027, 4, 1))
+    count = LedgerEntry.objects.count()
+    second = year_end.run(date(2027, 4, 1))
+    assert second["closed"] == 0 and LedgerEntry.objects.count() == count
 
 
 def test_a_toil_expiry_reversed_by_an_adjustment_stays_reversed(db, hr_admin):
@@ -314,6 +434,7 @@ def test_nightly_runs_the_year_end_and_keeps_its_failures(db):
     bad = _no_policy_next_year()
     result = nightly.run(date(2027, 4, 2))
     assert result["year_end_closed"] == 1
+    assert result["carried_total"] == D("0") and result["expired_total"] == D("210.00")
     assert result["carry_in_expired"] == 0 and result["toil_expired"] == 0 and result["leaver_debts"] == []
     assert any(str(bad) in f for f in result["failed"])
     assert nightly.run(date(2027, 4, 2))["year_end_closed"] == 0
