@@ -57,11 +57,14 @@ pot is closed.
 
 If the policy sets *carry over expires after days*, carried-in leave not
 **booked by the deadline** (the year's first day plus that many days,
-usable through that day) expires. "Booked" means *approved* by then,
-whatever the date of the leave; a cancellation reverses its booking. Leave
-is taken from the carried-in amount first. One line at most, noted
-"carry-in expired", written the day after the deadline; never more than the
-pot's balance, and a negative carry-in never expires.
+usable through that day) expires. "Booked" means *requested* by then and
+approved, whatever the date of the leave or of the approval: a slow
+approver never costs the employee. While a request made by the deadline is
+still waiting, the expiry waits too and runs the first night after it is
+decided. A cancellation reverses its booking. Leave is taken from the
+carried-in amount first. One line at most, noted "carry-in expired",
+written the day after the deadline; never more than the pot's balance, and
+a negative carry-in never expires.
 
 ### TOIL
 
@@ -70,8 +73,9 @@ line's unused remainder, written to the next pot as a TOIL earned line dated
 the day it was originally earned, so its deadline runs on unchanged. Each
 lot expires by its own policy days: *TOIL expires after days* from the day it
 was earned (blank means never), the policy in force on the day it was earned.
-The same "booked by the deadline" rule applies, first in first out, in the
-order bookings were made. An earned line whose deadline has passed by the
+The same "booked by the deadline" rule applies (requested by then; a lot
+waits while a request made by its deadline is undecided), first in first
+out, in the order the requests were made. An earned line whose deadline has passed by the
 new year expires at the close instead of carrying. One expiry line per
 earned line at most, never more than the balance.
 

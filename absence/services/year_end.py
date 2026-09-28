@@ -79,17 +79,26 @@ def _cap(pot, day):
 
 def _bookings(pot):
     """What each absence drawing on the pot uses, in the order it was
-    booked: [(booked_on, units used, order key)]. An absence is booked on the local
-    date its booking (or TOIL-taken) line was written, that is when it was
-    approved, whatever the date of the leave. Its use is the net of all its
-    lines on the pot (the booking, a cancellation, a re-costing), so a
-    cancellation reverses its own booking's use."""
+    booked: [(booked_on, units used, order key)]. An absence is booked on the
+    local date it was requested (the Absence is the booking, whatever its
+    status; spec §4), so a slow approver never costs the employee; only an
+    approved one has lines here. Its use is the net of all its lines on the
+    pot (the booking, a cancellation, a re-costing), so a cancellation
+    reverses its own booking's use."""
     booked, used = {}, {}
-    for line in pot.entries.filter(absence__isnull=False).order_by("created_at", "id"):
+    for line in pot.entries.filter(absence__isnull=False).select_related("absence").order_by("created_at", "id"):
         if line.kind in (K.BOOKING, K.TOIL_TAKEN) and line.absence_id not in booked:
-            booked[line.absence_id] = (timezone.localdate(line.created_at), (line.created_at, line.pk))
+            requested = line.absence.requested_at
+            booked[line.absence_id] = (timezone.localdate(requested), (requested, line.absence_id))
         used[line.absence_id] = used.get(line.absence_id, ZERO) - line.units
     return [(day, used[absence], key) for absence, (day, key) in booked.items()]
+
+
+def _undecided_by(pot, day):
+    """A request drawing on the pot, made on or before `day`, still waiting:
+    once decided it may count as booked by then, so an expiry with that
+    deadline waits for it (and runs the next night after)."""
+    return waiting(pot).filter(requested_at__date__lte=day).exists()
 
 
 def _toil_marker(earned):
@@ -235,12 +244,14 @@ def expire_carry_in(pot, today, actor=None):
     plus carry_over_expires_after_days; usable through that day).
 
     The rule, shared with expire_toil: leave counts as using the carry-in
-    only if it was booked on or before the deadline (approved by then,
-    whatever the date of the leave; a cancellation reverses its booking;
-    see _bookings), and it is taken from the carry-in first. What is left of
-    the carry-in expires, never more than the pot's balance. A negative
-    carry-in never expires. One line at most, noted "carry-in expired";
-    returns it, or None."""
+    only if it was booked on or before the deadline (requested by then and
+    approved, whatever the date of the leave or of the approval; a
+    cancellation reverses its booking; see _bookings), and it is taken from
+    the carry-in first. While a request made by the deadline is still
+    waiting nothing is written (None), and the next run tries again. What is
+    left of the carry-in expires, never more than the pot's balance. A
+    negative carry-in never expires. One line at most, noted "carry-in
+    expired"; returns it, or None."""
     _lock(pot)
     carried = _sum(pot.entries.filter(kind=K.CARRY_IN))
     if carried <= 0 or pot.entries.filter(kind=K.EXPIRY, note=CARRY_IN_EXPIRED).exists():
@@ -249,7 +260,7 @@ def expire_carry_in(pot, today, actor=None):
     if not days:
         return None
     deadline = pot.year_start + timedelta(days=days)
-    if today <= deadline:
+    if today <= deadline or _undecided_by(pot, deadline):
         return None
     used = sum((units for booked_on, units, _ in _bookings(pot) if booked_on <= deadline and units > 0), ZERO)
     unused = min(carried - used, max(ledger.balance(pot), ZERO))
@@ -269,13 +280,17 @@ def expire_toil(pot, today, actor=None):
     Used means booked on or before the deadline, first in, first out, in
     the order the bookings were made (see _toil_lots; the same rule as
     expire_carry_in). A line past its deadline with no expiry of its own
-    yet expires what of it is unused, never more than the pot's balance.
-    One expiry per earned line at most; returns the lines written."""
+    yet expires what of it is unused, never more than the pot's balance,
+    unless a request made by its deadline is still waiting: then it waits
+    for the decision, and a later run expires it. One expiry per earned line
+    at most; returns the lines written."""
     _lock(pot)
     out = []
     for lot in _toil_lots(pot):
         if lot["expired"] or lot["deadline"] is None or today <= lot["deadline"]:
             continue
+        if _undecided_by(pot, lot["deadline"]):
+            continue                    # a request made in time may use it: wait for the decision
         unused = min(lot["left"] - lot["used"], max(ledger.balance(pot), ZERO))
         if unused <= 0:
             continue

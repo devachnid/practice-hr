@@ -553,3 +553,55 @@ def test_admin_recalculation_of_a_closed_pot_is_refused(admin_client, hr_admin):
                              follow=True)
     assert "closed" in resp.content.decode() and "0 pot(s) revised." in resp.content.decode()
     assert pot.entries.count() == count
+
+
+# --- a booking is dated from its request (I3) -----------------------------------------
+
+def _request_on(employee_user, emp, code, day, requested_on):
+    with _booked_on(requested_on):
+        return bookings.request(employee_user, emp, absence_type(code), day)
+
+
+def test_leave_requested_by_the_deadline_and_approved_after_it_uses_the_carry_in(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)                                              # 37.50
+    Policy.objects.update(carry_over_expires_after_days=30)          # deadline 1 May 2027
+    a = _request_on(employee_user, emp, "AL", date(2027, 5, 10), requested_on=date(2027, 4, 28))
+    with _booked_on(date(2027, 5, 4)):                               # a slow approver
+        bookings.approve(hr_admin, a)
+    row = year_end.expire_carry_in(nxt, date(2027, 5, 5))
+    assert row.units == D("-30.00")                                  # the 7.50 requested in time was used
+
+
+def test_a_request_waiting_on_the_deadline_defers_the_carry_in_expiry(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)
+    Policy.objects.update(carry_over_expires_after_days=30)
+    a = _request_on(employee_user, emp, "AL", date(2027, 5, 10), requested_on=date(2027, 4, 28))
+    _request_on(employee_user, emp, "AL", date(2027, 5, 11), requested_on=date(2027, 5, 2))   # after: no hold
+    assert year_end.expire_carry_in(nxt, date(2027, 5, 2)) is None   # still waiting: try again tomorrow
+    assert year_end.run(date(2027, 5, 3))["carry_in_expired"] == 0
+    with _booked_on(date(2027, 5, 4)):
+        bookings.approve(hr_admin, a)
+    assert year_end.expire_carry_in(nxt, date(2027, 5, 5)).units == D("-30.00")
+
+
+def test_a_request_declined_after_the_deadline_lets_the_carry_in_expire_whole(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    nxt = _carried(emp)
+    Policy.objects.update(carry_over_expires_after_days=30)
+    a = _request_on(employee_user, emp, "AL", date(2027, 5, 10), requested_on=date(2027, 4, 28))
+    assert year_end.expire_carry_in(nxt, date(2027, 5, 3)) is None
+    bookings.decline(hr_admin, a)
+    assert year_end.expire_carry_in(nxt, date(2027, 5, 3)).units == D("-37.50")
+
+
+def test_toil_requested_by_the_deadline_and_approved_after_it_uses_the_lot(db, hr_admin, employee_user):
+    emp = _toil_employee()
+    pot = toil.earn(hr_admin, emp, D("7.5"), date(2026, 6, 1), "clinic").pot            # deadline 30 Aug
+    a = _request_on(employee_user, emp, "TOIL", date(2026, 9, 7), requested_on=date(2026, 8, 28))
+    assert year_end.expire_toil(pot, date(2026, 9, 1)) == []                           # waiting: deferred
+    with _booked_on(date(2026, 9, 2)):
+        bookings.approve(hr_admin, a)
+    assert year_end.expire_toil(pot, date(2026, 9, 3)) == []                           # used in time
+    assert ledger.balance(pot) == D("0")
