@@ -72,3 +72,25 @@ def test_line_dates(db, hr_admin):
     contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), start + timedelta(days=183))
     revision = pot.entries.filter(kind=LedgerEntry.Kind.REVISION).get()   # written by the signal
     assert revision.date == timezone.localdate()
+
+
+def test_resync_contract_type_touches_only_open_pots_of_that_type_and_contract_type(db, hr_admin):
+    from absence.models import Policy
+    from tests.factories import make_contract, make_employment, make_pattern, make_policy
+    start, _ = current_leave_year()
+    reception = make_contract_type()
+    other = make_contract_type("Other")
+    ours = hours_employee(start=start)                        # Reception all year
+    theirs = make_employment(start=start)                     # Other only
+    make_contract(theirs, other)
+    make_policy(other)
+    make_pattern(theirs)
+    last_year = hours_employee(start=start.replace(year=start.year - 1))   # Reception, a closed pot too
+    al = absence_type("AL")
+    open_pots = [pots.for_day(e, al, start) for e in (ours, theirs, last_year)]
+    closed = pots.for_day(last_year, al, start - timedelta(days=1))
+    Policy.objects.filter(contract_type=reception).update(weeks_per_year=D("6"))
+    result = ledger.resync_contract_type(reception, al, actor=hr_admin, cause="policy changed")
+    assert result == {"revised": 2, "failed": []}
+    revised = {p.pk for p in open_pots + [closed] if p.entries.filter(kind=LedgerEntry.Kind.REVISION).exists()}
+    assert revised == {open_pots[0].pk, open_pots[2].pk}

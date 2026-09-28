@@ -9,6 +9,8 @@ from unfold.admin import ModelAdmin, TabularInline
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, LedgerEntry, Policy,
                             PolicyTier, Pot)
 from absence.services import ledger
+from people.models import ContractType
+from people.services import audit
 
 
 @admin.register(AbsenceType)
@@ -23,12 +25,56 @@ class PolicyTierInline(TabularInline):
     extra = 0
 
 
+def _policy_snapshot(pk):
+    """The policy's fields and tiers as strings, read fresh, for the audit."""
+    if pk is None:
+        return {}
+    policy = Policy.objects.select_related("contract_type", "absence_type").get(pk=pk)
+    out = {f.name: str(getattr(policy, f.name) if getattr(policy, f.name) is not None else "")
+           for f in Policy._meta.concrete_fields if f.name != "id"}
+    out["tiers"] = ", ".join(str(t) for t in policy.tiers.all())
+    return out
+
+
 @admin.register(Policy)
 class PolicyAdmin(ModelAdmin):
+    """A saved policy re-syncs the pots it can change once, after the tiers
+    inline has saved too, as the admin who saved it. A pot that can no
+    longer be synced (say, the only policy now ends mid-year) is shown as an
+    error; the edit itself stands and the nightly reports the pot until a
+    policy covers it."""
     list_display = ("contract_type", "absence_type", "effective_from", "effective_to", "weeks_per_year",
                     "leave_year_basis", "bank_holiday_handling")
     list_filter = ("contract_type", "absence_type")
     inlines = [PolicyTierInline]
+
+    def save_model(self, request, obj, form, change):
+        # read before the save: the audit's "before" and, if the form moved the
+        # policy to another contract or absence type, the pots it used to cover
+        obj._audit_before = _policy_snapshot(obj.pk if change else None)
+        obj._pair_before = (Policy.objects.filter(pk=obj.pk).values_list("contract_type", "absence_type").first()
+                            if change else None)
+        super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        policy = form.instance
+        before = getattr(policy, "_audit_before", {})
+        after = _policy_snapshot(policy.pk)
+        audit.record(request.user, policy, {k: (before.get(k, ""), v) for k, v in after.items()})
+        pairs = {(policy.contract_type_id, policy.absence_type_id)}
+        if getattr(policy, "_pair_before", None):
+            pairs.add(policy._pair_before)
+        revised, failed = 0, []
+        for ct_id, type_id in sorted(pairs):
+            result = ledger.resync_contract_type(
+                ContractType.objects.get(pk=ct_id), AbsenceType.objects.get(pk=type_id),
+                actor=request.user, cause=f"policy changed: {policy}")
+            revised += result["revised"]
+            failed += result["failed"]
+        for line in failed:
+            messages.error(request, line)
+        messages.info(request, f"{revised} pot(s) revised.")
 
 
 @admin.register(BankHoliday)
