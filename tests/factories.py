@@ -47,3 +47,16 @@ def make_contract(employment, ctype=None, amount=Decimal("37.5"), start=None, **
     return Contract.objects.create(
         employment=employment, contract_type=ctype, weekly_amount=amount,
         from_date=start or employment.start_date, **kw)
+
+
+from people.models import PatternDay, WorkingPattern  # noqa: E402
+
+
+def make_pattern(employment, days=None, effective_from=None):
+    days = days if days is not None else {d: (Decimal("3.75"), Decimal("3.75")) for d in range(5)}
+    pattern = WorkingPattern.objects.create(
+        employment=employment, effective_from=effective_from or employment.start_date)
+    for weekday in range(7):
+        am, pm = days.get(weekday, (Decimal("0"), Decimal("0")))
+        PatternDay.objects.create(pattern=pattern, weekday=weekday, am_units=am, pm_units=pm)
+    return pattern
