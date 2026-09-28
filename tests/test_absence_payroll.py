@@ -1,8 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import openpyxl
 from django.core.management import call_command
+from django.utils import timezone
 
 from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
 from absence.services import bookings, ledger, payroll, toil
@@ -190,13 +191,18 @@ def test_a_spanning_sickness_absence_is_clipped_to_the_month(db, employee_user):
 
 
 def test_leaver_balance_ignores_lines_dated_after_the_leaving_date_but_keeps_the_proration(db, hr_admin):
-    emp = hours_employee(start=date(2025, 1, 1))
-    pot = make_pot(emp, "AL", date(2026, 6, 1))
-    employments.end(hr_admin, emp, date(2026, 6, 20), "resigned")     # pro-rates the entitlement
+    # recorded the day after the last day, whatever today is: the pro-rating
+    # revision is dated today, after the leaving date
+    today = timezone.localdate()
+    leaving = today - timedelta(days=1)
+    emp = hours_employee(start=leaving - timedelta(days=500))
+    pot = make_pot(emp, "AL", leaving)
+    employments.end(hr_admin, emp, leaving, "resigned")               # pro-rates the entitlement
+    ledger.sync_entitlement(pot)      # the signal only re-syncs open pots: yesterday's year may have ended
     at_leaving = ledger.balance(pot)
-    assert pot.entries.filter(kind=LedgerEntry.Kind.REVISION, date__gt=date(2026, 6, 20)).exists()
-    ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, Decimal("-40"), hr_admin, note="later", date=date(2026, 6, 25))
-    rows = _sheet(payroll.build(*JUNE), "Leavers")
+    assert pot.entries.filter(kind=LedgerEntry.Kind.REVISION, date__gt=leaving).exists()
+    ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, Decimal("-40"), hr_admin, note="later", date=today)
+    rows = _sheet(payroll.build(*payroll.month(f"{leaving:%Y-%m}")), "Leavers")
     assert rows[1][rows[0].index("Annual leave balance")] == float(at_leaving)
     assert ledger.balance(pot) == at_leaving - 40
 
