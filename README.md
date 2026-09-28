@@ -54,7 +54,14 @@ running; that guide is the reference for what the settings actually mean.
    an invitation, chooses their own password from its link, and can then
    add a passkey. The superuser's from step 1 is the only password an admin
    ever types. See [Login accounts](docs/admin/sign-in.md#login-accounts).
-5. If the rota (or another relying party) is signing in against this
+5. Set up [absence and leave](docs/admin/absence.md): check each contract
+   type's annual-leave [policy](docs/admin/absence.md#policies) (the seeded
+   ones carry nothing over until you set a
+   [carry cap](docs/admin/absence.md#carry-over-max-weeks-carry_over_max_weeks)),
+   add a policy for TOIL and study leave if you use them, and set each
+   person's line manager, who approves their leave. If you enter balances by
+   hand, run the [year end](docs/admin/year-end.md#running-it-by-hand) first.
+6. If the rota (or another relying party) is signing in against this
    system, register it — see [Registering a relying
    party](docs/admin/sign-in.md#registering-a-relying-party); that needs
    `OIDC_RSA_PRIVATE_KEY_FILE` set first (below).
@@ -95,6 +102,7 @@ files the app has to read unreadable:
     MEDIA_ROOT=/var/lib/practice-hr/media
     ALLOWED_HOSTS=hr.example.org
     CSRF_TRUSTED_ORIGINS=https://hr.example.org
+    SITE_URL=https://hr.example.org
     EOF
     )
 
@@ -109,6 +117,10 @@ files the app has to read unreadable:
 | `MEDIA_ROOT` | Where the app writes files: the payroll changes reports, in `payroll/` beneath it. Unset, it is `media/` beside `manage.py`, which is what development wants (git-ignored); production points it at `/var/lib/practice-hr/media`, because the code tree is read-only. Django never serves it; the payroll page streams a report to an HR admin. The nightly backup archives it. |
 | `ALLOWED_HOSTS` | Comma-separated hostnames the app answers for. |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
+| `SITE_URL` | The address the site is served at, `https://hr.example.org`. The links in emails (a request waiting for a decision) are built from it; unset they are relative and unusable, and `check --deploy` warns (`hr.W002`). |
+| `HR_API_TOKENS` | Comma-separated bearer tokens the rota's read API accepts (`openssl rand -hex 32` makes one). Unset, the API refuses everything and `check --deploy` warns (`hr.W001`). See [the read API](docs/admin/api.md). |
+| `CHASE_AFTER_WORKING_DAYS` | A leave request undecided after this many working days (weekends, England and Wales bank holidays and closed days excluded) is shown on the admin dashboard and the HR admins are emailed once. Default `3`. |
+| `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`, `RETENTION_DAYS_HEALTH`, `RETENTION_DAYS_AUDIT` | Days after an employment ends that the [retention report](docs/admin/people.md#retention-report) starts listing that kind of record. Defaults 2190, 2190, 2190 and 2555 (six years, seven for the audit log). It only lists; nothing is deleted. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
 | `DEFAULT_FROM_EMAIL` | The From address on every email the app sends. |
 | `CSP_REPORT_ONLY` | `1` sends the Content-Security-Policy as report-only, blocking nothing — the way back if it blocks something after a deploy. Unset (the default), it is enforced. |
@@ -165,12 +177,16 @@ binds to loopback only, on purpose; see `deploy/gunicorn.service`.
 Backups land in `/var/lib/practice-hr/backups/`, kept 30 days, readable
 only by the `practice-hr` user: a SQLite copy every night
 (`hr-backup.timer`), and a `media/` archive alongside it once a `media/`
-directory exists in the state directory (plan 3 adds one; until then the
-backup silently skips it rather than failing). Expired sessions are
+directory exists in the state directory (`MEDIA_ROOT` above: the payroll
+reports; until it exists the backup skips it rather than failing). Expired sessions are
 cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
 runs `manage.py hr_nightly`, which disables the login of anyone whose
-employment has ended — see [Nightly
-housekeeping](docs/admin/sign-in.md#nightly-housekeeping).
+employment has ended, closes each leave year that has ended, opens the
+current leave pots, charges bank holidays and chases waiting leave requests
+— see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping) and
+[Year end](docs/admin/year-end.md). `deploy/manage absence_year_end` runs
+the year-end part by hand, and `deploy/manage payroll_report --period
+2026-06` builds a month's [payroll report](docs/admin/payroll.md).
 
 `systemd-analyze security practice-hr` scores the sandbox.
 

@@ -334,3 +334,27 @@ the time, as text, so a later change to that login's email does not
 rewrite the log. A login that has written to the log cannot be deleted,
 not even by a superuser — deactivate it instead (see
 [Deactivating](sign-in.md#deactivating)).
+
+## Retention report
+
+`/people/retention/` (**Retention** in the admin menu, HR admins only) lists
+the people whose records are past their retention period, so HR can act on
+them. **It lists and deletes nothing**: there is no automatic deletion, and
+deleting is a manual decision in this release.
+
+The period runs from the end of the person's **last employment**. Anyone with
+a current or future employment (a returner) is never listed. Each row is one
+person with the categories that are overdue, since when, and by how many days.
+No figures or absence detail appear. The four categories and their defaults:
+
+| Category | Default |
+|---|---|
+| Personal record | 2190 days (six years) |
+| Pay records | 2190 days |
+| Health records | 2190 days |
+| Audit log | 2555 days (seven years) |
+
+Change one with `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`,
+`RETENTION_DAYS_HEALTH` or `RETENTION_DAYS_AUDIT` in `/etc/practice-hr.env`. The
+value is a whole number of days, 1 or more; anything else stops the app
+starting, with a message naming the variable.

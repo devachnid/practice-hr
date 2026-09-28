@@ -3,6 +3,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 DEPLOY = ROOT / "deploy"
 
@@ -80,3 +82,28 @@ def test_production_environment_sets_media_root_in_the_state_directory():
     for text in ((DEPLOY / "gunicorn.service").read_text(), (ROOT / "README.md").read_text()):
         assert "DB_PATH=/var/lib/practice-hr/db.sqlite3" in text
         assert "MEDIA_ROOT=/var/lib/practice-hr/media" in text
+
+
+# --- hr.W002: emailed links need the site's address -------------------------
+
+@pytest.mark.parametrize("value", ["", "/"])
+def test_check_warns_when_site_url_is_unset_outside_debug(settings, value):
+    from hr.checks import site_url
+    settings.DEBUG = False
+    settings.SITE_URL = value
+    (warning,) = site_url(None)
+    assert warning.id == "hr.W002" and warning.level == 30
+
+
+@pytest.mark.parametrize("debug, value", [(False, "https://hr.example.org"), (True, "/")])
+def test_check_quiet_with_a_site_url_or_in_debug(settings, debug, value):
+    from hr.checks import site_url
+    settings.DEBUG = debug
+    settings.SITE_URL = value
+    assert site_url(None) == []
+
+
+def test_site_url_check_is_registered_for_deploy():
+    from django.core import checks
+    from hr.checks import site_url
+    assert site_url in checks.registry.registry.deployment_checks

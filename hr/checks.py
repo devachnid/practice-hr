@@ -43,3 +43,17 @@ def api_tokens(app_configs, **kwargs):
              "(comma-separated for more than one), and restart.",
         id="hr.W001",
     )]
+
+
+def site_url(app_configs, **kwargs):
+    """Emailed links (a decision waiting, a request decided) are the site's
+    address plus a path. With SITE_URL unset it is "/", so they arrive as
+    bare paths that no mail client can open."""
+    if settings.DEBUG or settings.SITE_URL.strip("/"):
+        return []
+    return [checks.Warning(
+        "SITE_URL is unset, so the links in emails are relative and cannot be opened.",
+        hint="Set SITE_URL=https://hr.example.org (the address the site is served at) "
+             "in /etc/practice-hr.env, and restart.",
+        id="hr.W002",
+    )]
