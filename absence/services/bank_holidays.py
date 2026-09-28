@@ -40,6 +40,10 @@ def sync_auto_absences(employment, year_start, year_end, actor=None):
             continue
         units = patterns.units_on(employment, bh.date, "AM") + patterns.units_on(employment, bh.date, "PM")
         if units:
+            if target.code == "BH":
+                # the bank-holiday pot needs its own policy (leave year, rounding);
+                # without one, say so rather than charge nothing
+                policies.policy_for(employment, target, bh.date)
             wanted[bh.date] = target
     for day, absence in list(existing.items()):
         if wanted.get(day) != absence.absence_type:

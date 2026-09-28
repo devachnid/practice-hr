@@ -56,13 +56,19 @@ def test_tier_extra_weeks_highest_reached(db):
 @pytest.mark.seeded_policies
 def test_seeded_policies(db):
     from absence.models import Policy
-    rows = {p.contract_type.name: p for p in Policy.objects.select_related("contract_type", "absence_type")}
-    assert set(rows) == {"Partner", "Salaried GP", "GP trainee", "Practice nurse", "HCA", "Reception",
-                         "Administration", "Management"}
-    for name, p in rows.items():
-        assert p.absence_type.code == "AL" and p.weeks_per_year == Decimal("5.6")
+    rows = {(p.contract_type.name, p.absence_type.code): p
+            for p in Policy.objects.select_related("contract_type", "absence_type")}
+    hours = {"Practice nurse", "HCA", "Reception", "Administration", "Management"}
+    sessions = {"Partner", "Salaried GP", "GP trainee"}
+    assert set(rows) == {(n, "AL") for n in hours | sessions} | {(n, "BH") for n in hours}
+    for (name, code), p in rows.items():
         assert (p.leave_year_basis, p.year_start_month, p.year_start_day) == ("fixed", 4, 1)
-        if p.contract_type.unit == "sessions":
-            assert (p.rounding, p.bank_holiday_handling) == (Decimal("0.5"), "closed")
+        assert p.effective_from == date(2020, 1, 1) and p.effective_to is None
+        if code == "BH":
+            # the bank-holiday pot's weeks come from the calendar (accrual.bank_holiday_entitlement),
+            # so the policy carries none of its own
+            assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("0"), Decimal("0.25"), "pot")
+        elif name in sessions:
+            assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.5"), "closed")
         else:
-            assert (p.rounding, p.bank_holiday_handling) == (Decimal("0.25"), "pot")
+            assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.25"), "pot")

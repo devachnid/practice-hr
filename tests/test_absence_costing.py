@@ -1,9 +1,12 @@
 from datetime import date, time
 from decimal import Decimal
 
+import pytest
+from django.core.exceptions import ValidationError
+
 from absence.models import Absence, BankHoliday, ClosedDay
 from absence.services import costing
-from tests.factories import absence_type, hours_employee, make_pattern
+from tests.factories import absence_type, hours_employee, make_pattern, make_policy
 
 D = Decimal
 MON, TUE, WED = date(2026, 6, 1), date(2026, 6, 2), date(2026, 6, 3)
@@ -84,3 +87,20 @@ def test_single_day_half_markers(db):
     assert costing.halves_covered(absence(emp, MON, start_half="PM")) == [(MON, "PM")]
     assert costing.halves_covered(absence(emp, MON, end_half="AM")) == [(MON, "AM")]
     assert costing.cost(absence(emp, MON, start_half="PM")) == D("3.75")
+
+
+def test_pot_backed_type_with_no_policy_is_an_error_not_a_zero(db):
+    emp = hours_employee()
+    emp.contracts.first().contract_type.policies.all().delete()
+    with pytest.raises(ValidationError) as e:
+        costing.cost(absence(emp, MON, WED))
+    assert "No Annual leave policy for Reception" in str(e.value)
+
+
+def test_automatic_bank_holiday_is_charged_whatever_its_own_policy_handling_says(db):
+    BankHoliday.objects.get_or_create(date=MON, nation="EW", defaults={"name": "Test"})
+    emp = hours_employee()
+    make_policy(emp.contracts.first().contract_type, "BH")        # handling left at "closed"
+    auto = absence(emp, MON, absence_type=absence_type("BH"), auto_bank_holiday=True)
+    assert costing.cost(auto) == D("7.50")
+    assert costing.cost(absence(emp, MON, WED)) == D("15.00")     # an ordinary booking skips it

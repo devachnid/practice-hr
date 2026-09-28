@@ -4,8 +4,6 @@ pattern in force on each day. Pure."""
 from datetime import time, timedelta
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
-
 from absence.models import BankHoliday, ClosedDay
 from absence.services import policies, rounding
 from people.services import patterns
@@ -27,11 +25,13 @@ def halves_covered(absence):
     return out
 
 
-def _handling(absence):
-    try:
-        return policies.policy_for(absence.employment, absence.absence_type, absence.start_date)
-    except ValidationError:
+def _policy(absence):
+    """The policy whose rounding step applies. A pot-backed type with no
+    policy is an error naming the missing policy (spec §6: never a silent
+    zero); a pot-less type has none and rounds to the quarter."""
+    if not absence.absence_type.uses_pot:
         return None
+    return policies.policy_for(absence.employment, absence.absence_type, absence.start_date)
 
 
 def _skip(day, absence):
@@ -47,7 +47,7 @@ def _skip(day, absence):
 
 
 def cost(absence):
-    policy = _handling(absence)
+    policy = _policy(absence)
     step = policy.rounding if policy else Decimal("0.25")
     emp = absence.employment
     if absence.is_partial:

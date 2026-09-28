@@ -46,3 +46,14 @@ def test_bank_holiday_keys_count_created_then_nothing(db):
     assert first["bank_holiday_created"] == 10 and first["failed"] == []
     second = nightly.run(date(2026, 6, 1))
     assert second["bank_holiday_created"] == 0 and second["bank_holiday_removed"] == 0
+
+
+def test_missing_bank_holiday_policy_is_reported_in_failed(db):
+    from absence.models import Policy
+    emp = hours_employee()
+    pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    emp.contracts.first().contract_type.policies.filter(absence_type__code="AL").update(
+        bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
+    result = nightly.run(date(2026, 6, 1))
+    assert any("No Bank holiday policy for Reception" in f for f in result["failed"])
+    assert result["bank_holiday_created"] == 0

@@ -2,6 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 
 from absence.models import Absence, LedgerEntry, Policy
 from absence.services import bank_holidays, bookings, ledger, pots
@@ -113,3 +114,23 @@ def test_week_off_over_a_bank_holiday_when_closed(db, hr_admin):
     assert leave.cost_units == D("30.00")
     assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 0, "removed": 0}
     assert not Absence.objects.filter(employment=emp, auto_bank_holiday=True).exists()
+
+
+def test_pot_handling_with_no_bank_holiday_policy_is_an_error_naming_it(db):
+    emp = hours_employee()
+    ct = emp.contracts.first().contract_type
+    ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
+    with pytest.raises(ValidationError) as e:
+        bank_holidays.sync_auto_absences(emp, Y0, Y1)
+    assert "No Bank holiday policy for Reception" in str(e.value)
+    assert not Absence.objects.filter(employment=emp, auto_bank_holiday=True).exists()
+
+
+@pytest.mark.seeded_policies
+def test_seeded_policies_charge_every_working_bank_holiday_for_hours_staff(db):
+    emp = hours_employee()                   # seeded Reception: AL "pot" plus a BH policy
+    assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 10, "removed": 0}
+    autos = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
+    assert {a.cost_units for a in autos} == {D("7.50")}
+    pot = pots.for_day(emp, absence_type("BH"), Y0)
+    assert sum(e.units for e in pot.entries.filter(kind=LedgerEntry.Kind.BOOKING)) == D("-75.00")
