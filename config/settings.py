@@ -182,7 +182,11 @@ UNFOLD = {
         },
     },
     "STYLES": ["hr.admin_site.style_fonts", "hr.admin_site.style_admin"],
+    "DASHBOARD_CALLBACK": "absence.admin_dashboard.dashboard",
 }
+
+# A leave request still undecided after this many working days is chased, once.
+CHASE_AFTER_WORKING_DAYS = int(os.environ.get("CHASE_AFTER_WORKING_DAYS", "3"))
 
 LANGUAGE_CODE = "en-gb"
 TIME_ZONE = "Europe/London"

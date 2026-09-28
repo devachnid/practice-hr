@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 
 from absence.models import AbsenceType, Policy, Pot
-from absence.services import bank_holidays, ledger, policies, pots, year_end
+from absence.services import bank_holidays, chase, ledger, policies, pots, year_end
 from people.services import employments
 
 
@@ -79,9 +79,14 @@ def run(today):
         created += r["created"]
         removed += r["removed"]
         recosted += r["recosted"]
+    chased = 0
+    try:
+        chased = chase.notify_once(today)
+    except Exception as e:  # noqa: BLE001 - notify never raises, but the query might; the rest of the night stands
+        failed.append(f"chase: {e.__class__.__name__}: {e}")
     return {"pots_opened": opened, "pots_synced": synced, "revisions": revisions,
             "bank_holiday_created": created, "bank_holiday_removed": removed,
             "bank_holiday_recosted": recosted, "year_end_closed": ended["closed"],
             "carried_total": ended["carried_total"], "expired_total": ended["expired_total"],
             "carry_in_expired": ended["carry_in_expired"], "toil_expired": ended["toil_expired"],
-            "leaver_debts": ended["leaver_debts"], "failed": failed}
+            "leaver_debts": ended["leaver_debts"], "chased": chased, "failed": failed}
