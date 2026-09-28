@@ -210,3 +210,24 @@ def test_the_code_flow_needs_pkce(capsys, employee_client):
         "response_type": "code", "client_id": client_id, "redirect_uri": REDIRECT,
         "scope": "openid email", "state": "st"})
     assert "code=" not in r.get("Location", "")
+
+
+def test_an_inactive_login_cannot_refresh(capsys, employee_client, employee_user):
+    """Review minor: the refresh token outlives the ten-minute tokens, so
+    deactivating a login must stop it too."""
+    client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user)
+    # _signed_in_flow keeps its secret to itself; rotating gives one to use here.
+    call_command("register_oidc_client", name="rota", redirect_uri=REDIRECT, rotate=True)
+    secret = re.search(r"client_secret=(\S+)", capsys.readouterr().out).group(1)
+
+    def refresh(token):
+        return Client().post("/o/token/", {"grant_type": "refresh_token", "refresh_token": token,
+                                           "client_id": client_id, "client_secret": secret})
+
+    r = refresh(tokens["refresh_token"])
+    assert r.status_code == 200, r.content[:300]
+    employee_user.is_active = False
+    employee_user.save()
+    r = refresh(r.json()["refresh_token"])
+    assert r.status_code in (400, 401)
+    assert "access_token" not in r.content.decode()

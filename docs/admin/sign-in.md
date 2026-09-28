@@ -205,8 +205,11 @@ The `openid` and `email` scopes only: an ID token carrying `email` and
 `employee_id`. Consent is skipped (`skip_authorization=True` on every
 registration) — a relying party is a practice app the practice itself
 operates, not a third party a person needs to approve access for each
-time. PKCE is required on every authorization, and tokens are signed RS256
-and expire after ten minutes. Only the authorization-code flow works: the
+time. PKCE is required on every authorization, and ID and access tokens
+are signed RS256 and expire after ten minutes. A refresh token is issued
+alongside them (the rota does not use it); it changes on every use, a
+replayed one revokes the whole family, and it stops working as soon as the
+login is made inactive. Only the authorization-code flow works: the
 implicit and password grants are refused even for a client registered for
 them, and nothing but `register_oidc_client` can register a client — the
 provider's own client-management pages are not mounted.

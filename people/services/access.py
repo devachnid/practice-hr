@@ -34,8 +34,8 @@ def can_view_restricted(user):
 
 
 def can_view(user, employee, day=None):
-    from datetime import date
-    day = day or date.today()
+    from django.utils import timezone
+    day = day or timezone.localdate()
     if can_view_restricted(user):
         return True
     me = employee_for(user)

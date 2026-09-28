@@ -56,3 +56,19 @@ def test_no_contract_does_not_warn(hr_admin):
     emp = make_employment(start=date(2026, 4, 6))
     _, warning = patterns.set_pattern(hr_admin, emp, date(2026, 4, 6), {0: (D("3"), D("0"))})
     assert warning is None
+
+
+def test_set_pattern_validates_each_day(hr_admin):
+    """A day's units must fit the column; save() alone would not say so."""
+    from decimal import Decimal
+
+    import pytest
+    from django.core.exceptions import ValidationError
+
+    from people.models import WorkingPattern
+    from people.services import patterns
+    from tests.factories import make_employment
+    emp = make_employment()
+    with pytest.raises(ValidationError):
+        patterns.set_pattern(hr_admin, emp, emp.start_date, {0: (Decimal("1000"), Decimal("0"))})
+    assert not WorkingPattern.objects.filter(employment=emp).exists()

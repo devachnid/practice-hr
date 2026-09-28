@@ -1,10 +1,9 @@
-from datetime import date
-
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
+from django.utils import timezone
 
 from people.models import Employee
 from people.services import access, contracts, employees, employments, patterns, positions
@@ -21,7 +20,7 @@ def me(request):
     employee = access.employee_for(request.user)
     if employee is None:
         return render(request, "people/me.html", {"employee": None})
-    today = date.today()
+    today = timezone.localdate()
     if request.method == "POST":
         form = PersonalDetailsForm(request.POST, instance=employee)
         if form.is_valid():
@@ -50,7 +49,7 @@ def me(request):
 @login_required
 def team(request):
     me_ = access.employee_for(request.user)
-    today = date.today()
+    today = timezone.localdate()
     if not (me_ and access.is_approver(request.user, today)):
         raise PermissionDenied
     rows = []

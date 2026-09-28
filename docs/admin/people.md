@@ -33,13 +33,15 @@ someone who goes by their first name.
 
 ### Work email
 
-**The login identity.** Matched case-insensitively against login accounts —
-"Tom.Hodges@…" and "tom.hodges@…" are the same address, and each is unique
-across all employees. This is not the login account itself (see
-[Login accounts](sign-in.md#login-accounts)); it is what the OIDC sign-in
-claim and any future integration match against. Get it wrong and the
-person's login can never be linked to their record, or gets linked to the
-wrong one.
+The person's practice email address, unique across all employees whatever
+its case — "Tom.Hodges@…" and "tom.hodges@…" are the same address. **Sign-in
+does not read it.** What links this record to a login is the
+[User](#user) field, set by hand; the `email` the rota receives when someone
+signs in through this system is their *login account's* email (see
+[Login accounts](sign-in.md#login-accounts)), not this one. Keep the two the
+same: saving an Employee whose linked login has a different email shows a
+warning saying so, because the rota matches its own accounts by the email it
+receives.
 
 ### Personal email / Phone / Date of birth / Address / Postcode
 
@@ -60,7 +62,9 @@ beyond being wrong on a report that reads it.
 ### User
 
 Links this Employee to a **login account** — see
-[Login accounts](sign-in.md#login-accounts). Optional: leave it blank for
+[Login accounts](sign-in.md#login-accounts). This link, not the work email,
+is what sign-in uses: the `employee_id` a relying party receives is this
+Employee's, found through it. Optional: leave it blank for
 someone who has no need to sign in. Without it, `hr_nightly` cannot find an
 account to disable when they leave (there is nothing to disable), and they
 cannot appear as themselves anywhere the app checks who is signed in.
@@ -186,7 +190,8 @@ contract at the same time.
 What a full working week is, in this type's unit — 9 sessions, 37.5 hours.
 This is the only input to FTE: `contracts.fte()` divides an employment's
 summed contracted amount by this figure. Set it wrong and every FTE figure
-for that type of staff is wrong, silently.
+for that type of staff is wrong, silently. It must be more than zero; the
+admin refuses 0.
 
 ### Display order
 

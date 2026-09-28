@@ -309,3 +309,20 @@ def test_no_ni_number_no_view_to_audit(admin_client):
     e = make_employee()
     assert admin_client.get(f"/admin/people/employee/{e.pk}/change/").status_code == 200
     assert not AuditEntry.objects.filter(kind="viewed").exists()
+
+
+def test_a_login_whose_email_differs_from_the_work_email_is_warned_about(admin_client, employee_user):
+    """Review minor: sign-in sends the login's email, not the work email."""
+    e = make_employee(email="sam.patel@example.org")
+    base = {"first_name": e.first_name, "last_name": e.last_name, "work_email": e.work_email,
+            "preferred_name": "", "personal_email": "", "phone": "", "address_line1": "",
+            "address_line2": "", "town": "", "postcode": "", "ni_number": "",
+            "emergency_contacts-TOTAL_FORMS": 0, "emergency_contacts-INITIAL_FORMS": 0,
+            "employments-TOTAL_FORMS": 0, "employments-INITIAL_FORMS": 0, "_save": "Save"}
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/",
+                          {**base, "user": employee_user.pk}, follow=True)
+    assert "is not the work email" in r.content.decode()
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/",
+                          {**base, "user": employee_user.pk, "work_email": "SAM@example.com"},
+                          follow=True)
+    assert "is not the work email" not in r.content.decode()

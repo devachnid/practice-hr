@@ -1,4 +1,7 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from .employment import Employment
@@ -14,6 +17,9 @@ class ContractType(models.Model):
     unit = models.CharField(max_length=8, choices=Unit.choices)
     full_time_weekly = models.DecimalField(
         max_digits=5, decimal_places=2,
+        # FTE divides by it (people.services.contracts.fte): zero would be a
+        # ZeroDivisionError on every page that shows one.
+        validators=[MinValueValidator(Decimal("0.01"))],
         help_text="What full time is in this unit: 9 sessions, 37.5 hours. FTE is derived from it.")
     display_order = models.PositiveIntegerField(default=100)
 

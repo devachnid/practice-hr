@@ -41,9 +41,10 @@ class EmployeeAdmin(ModelAdmin):
 
     @admin.display(description="Position")
     def current_position(self, obj):
-        from datetime import date
-        emp = employments.current(obj, date.today())
-        pos = positions.primary_on(emp, date.today()) if emp else None
+        from django.utils import timezone
+        today = timezone.localdate()
+        emp = employments.current(obj, today)
+        pos = positions.primary_on(emp, today) if emp else None
         return f"{pos.title}, {pos.team}" if pos else ""
 
     def has_delete_permission(self, request, obj=None):
@@ -68,6 +69,13 @@ class EmployeeAdmin(ModelAdmin):
         else:
             new = employees.create(request.user, **form.cleaned_data)
             obj.pk = new.pk
+        user = form.cleaned_data.get("user")
+        if user is not None and user.email.casefold() != form.cleaned_data["work_email"].casefold():
+            # Not an error — a login may use another address — but sign-in
+            # sends the login's email to the rota, not this one, so say so.
+            messages.warning(request, f"The linked login account's email ({user.email}) is not "
+                                      f"the work email ({form.cleaned_data['work_email']}). The "
+                                      "rota receives the login account's email when they sign in.")
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)

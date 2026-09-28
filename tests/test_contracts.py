@@ -95,3 +95,16 @@ def test_open_ended_clashes_with_a_later_different_unit(hr_admin):
     contracts.add(hr_admin, emp, sessions, Decimal("4"), date(2026, 9, 1))
     with pytest.raises(ValidationError):
         contracts.add(hr_admin, emp, hours, Decimal("30"), date(2026, 1, 1))
+
+
+def test_full_time_weekly_must_be_more_than_zero(db):
+    """contracts.fte() divides by it."""
+    from decimal import Decimal
+
+    import pytest
+    from django.core.exceptions import ValidationError
+
+    from people.models import ContractType
+    with pytest.raises(ValidationError) as exc:
+        ContractType(name="Broken", unit="hours", full_time_weekly=Decimal("0")).full_clean()
+    assert "full_time_weekly" in exc.value.message_dict

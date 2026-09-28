@@ -46,7 +46,9 @@ def set_pattern(actor, employment, effective_from, days):
     pattern.days.all().delete()
     for weekday in range(7):
         am, pm = days.get(weekday, (Decimal("0"), Decimal("0")))
-        PatternDay.objects.create(pattern=pattern, weekday=weekday, am_units=am, pm_units=pm)
+        day = PatternDay(pattern=pattern, weekday=weekday, am_units=am, pm_units=pm)
+        day.full_clean()
+        day.save()
     after = ", ".join(f"{d.weekday}:{d.am_units}/{d.pm_units}" for d in pattern.days.all())
     audit.record(actor, pattern, {"days": (before, after)})
     total = weekly_total(pattern)

@@ -41,3 +41,23 @@ def test_team_lists_reports_only_for_approver(employee_client, employee_user, ad
     assert employee_client.get("/people/team/").status_code == 403
     r = admin_client.get("/people/team/")
     assert r.status_code == 200 and "Sam Patel" in r.content.decode()
+
+
+def test_flashes_carry_their_level(employee_client, employee_user):
+    make_employee(user=employee_user)
+    r = employee_client.post("/people/me/", {"phone": "0113", "personal_email": "",
+                                             "address_line1": "", "address_line2": "",
+                                             "town": "", "postcode": ""}, follow=True)
+    assert 'class="flash flash-success" role="status">Saved.' in r.content.decode()
+
+
+def test_the_pages_use_the_practices_day(employee_client, employee_user, monkeypatch):
+    """timezone.localdate(), not the server's date.today()."""
+    from django.utils import timezone
+    e = make_employee(user=employee_user)
+    make_employment(employee=e, start=date(2026, 1, 1), end_date=date(2026, 3, 31),
+                    leaving_reason="resigned")
+    monkeypatch.setattr(timezone, "localdate", lambda *a, **k: date(2026, 2, 1))
+    assert employee_client.get("/people/me/").context["employment"] is not None
+    monkeypatch.setattr(timezone, "localdate", lambda *a, **k: date(2026, 5, 1))
+    assert employee_client.get("/people/me/").context["employment"] is None
