@@ -146,9 +146,16 @@ through `deploy/manage` (see the README's Deploy section for why every
     deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
 
 `--name` identifies the relying party for future runs — using the same name
-again updates its redirect URI instead of registering a second client.
+again updates its redirect URIs instead of registering a second client (and
+refuses, saying so, if two clients of that name exist).
 `--redirect-uri` is the exact URL the relying party will be sent back to
-after authenticating; it must match what that app is configured to expect.
+after authenticating; it must match what that app is configured to expect,
+and in production it must be `https`.
+`--post-logout-redirect-uri` is where the relying party's sign-out lands
+after signing the person out here too; left out, it is the redirect URI's
+origin plus `/accounts/login/` — the rota's login page. Every run also puts
+the client's fixed settings back (confidential, authorization-code, RS256,
+consent skipped) in case they were edited by hand.
 
 The command prints a `client_id` and a `client_secret` **once** — the
 secret is stored hashed here and cannot be shown again. Paste both into the
@@ -159,7 +166,7 @@ the same `--name` and add `--rotate`:
     deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/ --rotate
 
 Without `--rotate`, re-running the command for an existing name only
-updates the redirect URI and leaves the secret as it is — the message says
+updates the redirect URIs and leaves the secret as it is — the message says
 so. With it, a new secret is printed and the old one stops working
 immediately, so the relying party's environment file must be updated before
 its next sign-in.
@@ -171,4 +178,14 @@ The `openid` and `email` scopes only: an ID token carrying `email` and
 registration) — a relying party is a practice app the practice itself
 operates, not a third party a person needs to approve access for each
 time. PKCE is required on every authorization, and tokens are signed RS256
-and expire after ten minutes.
+and expire after ten minutes. Only the authorization-code flow works: the
+implicit and password grants are refused even for a client registered for
+them, and nothing but `register_oidc_client` can register a client — the
+provider's own client-management pages are not mounted.
+
+Because consent is skipped, a session here is a session in the rota. So a
+session here ends when the browser closes, and after twelve hours at most;
+and signing out of the rota signs the person out here too (the rota sends
+them to this system's `/o/logout/`, which returns them to the rota's login
+page). On a shared surgery PC, the next person to press *Sign in with the
+practice account* is asked who they are rather than signed in as the last.

@@ -278,4 +278,46 @@ OAUTH2_PROVIDER = {
     "PKCE_REQUIRED": True,
     "ACCESS_TOKEN_EXPIRE_SECONDS": 600,
     "ID_TOKEN_EXPIRE_SECONDS": 600,
+    # A relying party's redirect URI is https in production; http is allowed
+    # only on a dev box and in the suite, for a rota on localhost.
+    "ALLOWED_REDIRECT_URI_SCHEMES": ["https"] if not DEBUG and not _TESTING else ["https", "http"],
+    # django-oauth-toolkit has no setting that restricts grant types server-
+    # wide: the grant a client may use is its Application row's
+    # authorization_grant_type, which register_oidc_client pins to
+    # authorization-code, and nothing else creates clients (config/urls.py).
+    # Discovery advertises only what that client can do.
+    "OIDC_RESPONSE_TYPES_SUPPORTED": ["code"],
+    # RFC 9700 (OAuth 2.0 Security BCP). Every gate django-oauth-toolkit 3.4
+    # offers, on: no implicit or password grant even for a client registered
+    # for one, no "plain" PKCE, no access token in a query string, the iss
+    # parameter on every authorization response, tokens stored hashed, and
+    # refresh-token replay revoking the whole family. The last four turn
+    # `check --deploy`'s warnings about the covered settings into errors, so
+    # an insecure value cannot pass it.
+    "COMPLIANT_BCP_RFC9700_IMPLICIT_GRANT": True,
+    "COMPLIANT_BCP_RFC9700_PASSWORD_GRANT": True,
+    "COMPLIANT_BCP_RFC9700_PKCE_METHOD": True,
+    "COMPLIANT_BCP_RFC9700_ACCESS_TOKEN_TRANSPORT": True,
+    "COMPLIANT_BCP_RFC9700_AUTHZ_RESPONSE_ISS": True,
+    "COMPLIANT_BCP_RFC9700_TOKEN_STORAGE": True,
+    "COMPLIANT_BCP_RFC9700_REFRESH_TOKEN": True,
+    "COMPLIANT_BCP_RFC9700_REDIRECT_URI_SCHEME": True,
+    "COMPLIANT_BCP_RFC9700_REDIRECT_URI_MATCHING": True,
+    "COMPLIANT_BCP_RFC9700_PKCE_REQUIRED": True,
+    "REFRESH_TOKEN_REUSE_PROTECTION": True,
+    # Signing out of the rota signs the person out here too (the rota sends
+    # them to /o/logout/ after its own logout), so the next person at a
+    # shared PC is not signed straight back in as them. With the rota's
+    # id_token_hint there is no "are you sure" page; without one, django-
+    # oauth-toolkit asks, as the OIDC spec requires.
+    "OIDC_RP_INITIATED_LOGOUT_ENABLED": True,
+    "OIDC_RP_INITIATED_LOGOUT_ALWAYS_PROMPT": False,
 }
+
+# A session lasts a working day at most, and ends when the browser closes.
+# Consent is skipped for the rota (register_oidc_client), so a session here
+# is a session there: on a shared surgery PC, a two-week session meant the
+# next person to press "Sign in with the practice account" was signed
+# straight in as the last one.
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 12 * 60 * 60
