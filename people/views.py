@@ -4,9 +4,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_safe
 
 from people.models import Employee
-from people.services import access, contracts, employees, employments, patterns, positions
+from people.services import access, contracts, employees, employments, patterns, positions, retention
 
 
 class PersonalDetailsForm(forms.ModelForm):
@@ -63,3 +64,33 @@ def team(request):
             "pattern_total": patterns.weekly_total(pattern) if pattern else None,
         })
     return render(request, "people/team.html", {"rows": rows})
+
+
+CATEGORY_LABELS = {
+    "personal": "Personal record",
+    "pay": "Pay records",
+    "health": "Health records",
+    "audit": "Audit log",
+}
+
+
+@login_required
+@require_safe
+def retention_report(request):
+    """What is past its retention period, for HR to act on. Lists only: who,
+    which category, when their employment ended and how long overdue. No
+    figures, no absence detail, and nothing here deletes anything."""
+    if not access.can_view_restricted(request.user):
+        raise PermissionDenied
+    today = timezone.localdate()
+    people = {}
+    for r in retention.due(today):
+        entry = people.setdefault(r["employee"].pk, {
+            "employee": r["employee"], "ended": r["ended"], "categories": []})
+        entry["categories"].append({
+            "label": CATEGORY_LABELS.get(r["category"], r["category"].title()),
+            "due_since": r["due_since"],
+            "overdue_days": (today - r["due_since"]).days,
+        })
+    rows = sorted(people.values(), key=lambda p: (p["ended"], p["employee"].name))
+    return render(request, "people/retention.html", {"rows": rows})

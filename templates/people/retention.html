@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Retention{% endblock %}
+{% block content %}
+<h1>Retention</h1>
+<p>People whose records are past their retention period. This page only lists them: nothing is deleted
+automatically, and deletion is manual in this release.</p>
+{% for r in rows %}
+<h2>{{ r.employee.name }}</h2>
+<p>Employment ended {{ r.ended|date:"j M Y" }}.</p>
+<table class="list">
+  <thead><tr><th>Category</th><th>Past its period since</th><th>Overdue</th></tr></thead>
+  <tbody>
+  {% for c in r.categories %}
+    <tr><td>{{ c.label }}</td><td>{{ c.due_since|date:"j M Y" }}</td><td>{{ c.overdue_days }} day{{ c.overdue_days|pluralize }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% empty %}
+<p>Nothing is past its retention period.</p>
+{% endfor %}
+{% endblock %}

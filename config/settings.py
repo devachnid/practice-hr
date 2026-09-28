@@ -188,6 +188,32 @@ UNFOLD = {
 # A leave request still undecided after this many working days is chased, once.
 CHASE_AFTER_WORKING_DAYS = int(os.environ.get("CHASE_AFTER_WORKING_DAYS", "3"))
 
+# How long after an employment ends each category of record may be kept, in
+# days: six years, and seven for the audit trail. Each is overridable by a
+# RETENTION_DAYS_<CATEGORY> environment variable. The retention report only
+# lists what is past its period; nothing is deleted automatically.
+def _retention_days():
+    from django.core.exceptions import ImproperlyConfigured
+
+    days = {}
+    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555)):
+        name = f"RETENTION_DAYS_{category.upper()}"
+        raw = os.environ.get(name)
+        if raw is None:
+            days[category] = default
+            continue
+        try:
+            days[category] = int(raw)
+        except ValueError:
+            days[category] = 0
+        if days[category] < 1:
+            raise ImproperlyConfigured(
+                f"{name} must be a whole number of days, 1 or more; got {raw!r}.")
+    return days
+
+
+RETENTION_DAYS = _retention_days()
+
 LANGUAGE_CODE = "en-gb"
 TIME_ZONE = "Europe/London"
 USE_I18N = True
