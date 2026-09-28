@@ -96,6 +96,7 @@ def navigation(request):
     groups = [
         {"title": "People", "separator": False, "items": [
             _nav_item("Employees", "badge", "admin:people_employee_changelist"),
+            _nav_item("Employments", "work", "admin:people_employment_changelist"),
             _nav_item("Teams", "groups", "admin:people_team_changelist"),
             _nav_item("Contract types", "description", "admin:people_contracttype_changelist"),
             _nav_item("Audit log", "history", "admin:people_auditentry_changelist"),
