@@ -51,7 +51,8 @@ def set_pattern(actor, employment, effective_from, days):
     audit.record(actor, pattern, {"days": (before, after)})
     total = weekly_total(pattern)
     contracted = contracts.contracted_amount(employment, effective_from)
+    has_contract = contracts.active_on(employment, effective_from).exists()
     warning = None
-    if contracted and total != contracted:
+    if has_contract and total != contracted:
         warning = f"Pattern totals {_fmt(total)} a week; contracts total {_fmt(contracted)}."
     return pattern, warning

@@ -43,3 +43,16 @@ def test_same_effective_from_replaces_days(hr_admin):
     assert patterns.units_on(emp, date(2026, 4, 6), "AM") == D("0")
     assert patterns.units_on(emp, date(2026, 4, 7), "AM") == D("1")
     assert contracts.unit(emp, date(2026, 4, 6)) is None
+
+
+def test_zero_hours_contract_still_warns(hr_admin):
+    emp = make_employment(start=date(2026, 4, 6))
+    make_contract(emp, amount=D("0"))
+    _, warning = patterns.set_pattern(hr_admin, emp, date(2026, 4, 6), {0: (D("3"), D("0"))})
+    assert warning == "Pattern totals 3 a week; contracts total 0."
+
+
+def test_no_contract_does_not_warn(hr_admin):
+    emp = make_employment(start=date(2026, 4, 6))
+    _, warning = patterns.set_pattern(hr_admin, emp, date(2026, 4, 6), {0: (D("3"), D("0"))})
+    assert warning is None
