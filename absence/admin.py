@@ -144,6 +144,16 @@ class AbsenceAdmin(ModelAdmin):
     list_filter = ("status", "absence_type", "auto_bank_holiday")
     date_hierarchy = "start_date"
 
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        # A health-sensitive absence shown is one viewed: audited like NI and
+        # pay (people.admin), for the person it is shown to.
+        if request.method == "GET":
+            obj = self.get_object(request, object_id)
+            if (obj is not None and obj.absence_type.health_sensitive
+                    and self.has_view_permission(request, obj)):
+                audit.viewed(request.user, obj, "health")
+        return super().change_view(request, object_id, form_url, extra_context)
+
     def has_add_permission(self, request):
         return False
 

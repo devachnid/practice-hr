@@ -170,3 +170,21 @@ def test_adding_a_policy_in_admin_audits_it_and_syncs_nothing_it_cannot_reach(ad
     policy = Policy.objects.get(contract_type=ct, absence_type__code="BH")
     assert AuditEntry.objects.filter(model="absence.policy", object_id=policy.pk, actor=hr_admin,
                                      field="weeks_per_year", before="", after="0.00").exists()
+
+
+def test_viewing_sickness_is_audited_and_leave_is_not(admin_client, hr_admin, db):
+    from datetime import date
+
+    from absence.services import bookings
+    from people.models import AuditEntry
+    from tests.factories import absence_type, hours_employee
+    emp = hours_employee()
+    sick = bookings.request(hr_admin, emp, absence_type("SICK"), date(2026, 6, 1), category="illness")
+    leave = bookings.request(hr_admin, emp, absence_type("AL"), date(2026, 6, 8))
+    viewed = AuditEntry.objects.filter(kind=AuditEntry.Kind.VIEWED, model="absence.absence")
+    assert admin_client.get(f"/admin/absence/absence/{sick.pk}/change/").status_code == 200
+    assert viewed.count() == 1
+    row = viewed.get()
+    assert (row.object_id, row.actor, row.field) == (sick.pk, hr_admin, "health")
+    assert admin_client.get(f"/admin/absence/absence/{leave.pk}/change/").status_code == 200
+    assert viewed.count() == 1
