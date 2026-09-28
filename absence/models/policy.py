@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -52,6 +53,12 @@ class Policy(models.Model):
             raise ValidationError({"absence_type": "Only pot-backed types have a policy."})
         if self.effective_to and self.effective_to < self.effective_from:
             raise ValidationError({"effective_to": "Ends before it starts."})
+        if not 1 <= (self.year_start_month or 0) <= 12:
+            raise ValidationError({"year_start_month": "A month is 1 to 12."})
+        try:
+            date(2001, self.year_start_month, self.year_start_day or 0)   # a common year: no 29 February
+        except ValueError:
+            raise ValidationError({"year_start_day": "Not a day of that month."}) from None
 
     def is_active_on(self, day):
         return self.effective_from <= day and (self.effective_to is None or day <= self.effective_to)

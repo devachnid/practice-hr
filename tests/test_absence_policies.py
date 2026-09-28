@@ -72,3 +72,20 @@ def test_seeded_policies(db):
             assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.5"), "closed")
         else:
             assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.25"), "pot")
+
+
+@pytest.mark.parametrize("month,day,field", [(13, 1, "year_start_month"), (4, 31, "year_start_day"),
+                                             (0, 1, "year_start_month"), (2, 30, "year_start_day")])
+def test_leave_year_start_must_be_a_real_date(db, month, day, field):
+    from absence.models import Policy
+    p = Policy(contract_type=make_contract_type(), absence_type=absence_type("AL"),
+               effective_from=date(2026, 4, 1), year_start_month=month, year_start_day=day)
+    with pytest.raises(ValidationError) as e:
+        p.full_clean()
+    assert field in e.value.message_dict
+
+
+def test_leave_year_start_on_a_real_date_is_accepted(db):
+    from absence.models import Policy
+    Policy(contract_type=make_contract_type(), absence_type=absence_type("AL"), effective_from=date(2026, 4, 1),
+           year_start_month=1, year_start_day=31).full_clean()
