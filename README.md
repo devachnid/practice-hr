@@ -15,8 +15,9 @@ rota (`devachnid/rota`) reads people, patterns and absences from here.
     pytest
 
 `DEBUG=1` is what lets `manage.py` start on a box with no `SECRET_KEY` in
-the environment; with debug off, the settings refuse to run without a real
-key (see Deploy). The suite needs neither — it detects pytest and never
+the environment. It then uses a key of this checkout's own, generated once
+into the git-ignored `.dev_secret_key`. With debug off, the settings refuse
+to run without a real key (see Deploy). The suite needs neither — it detects pytest and never
 reaches a mail relay. With no `EMAIL_HOST` set, a dev box behaves as
 production does without a relay: an admin is shown each invitation or
 password link on screen instead of it being sent. With no OIDC signing key
@@ -169,6 +170,17 @@ employment has ended — see [Nightly
 housekeeping](docs/admin/sign-in.md#nightly-housekeeping).
 
 `systemd-analyze security practice-hr` scores the sandbox.
+
+**Logs** go to the journal: `journalctl -u practice-hr`. There is one line
+per request (`hr.access`: the client's address from Cloudflare,
+`user=<id>` or `anon`, method, path, status, time), with no query strings,
+and with a password link's token replaced by `<redacted>`. Also logged:
+server errors with tracebacks, CSRF failures and disallowed hosts
+(`django.security`), and lockouts (`axes`).
+
+**HTTPS.** With `DEBUG` off the app sends any plain-http request to https
+itself (`SECURE_SSL_REDIRECT`), trusting cloudflared's `X-Forwarded-Proto`
+— one more reason gunicorn binds to loopback only.
 
 ### Redeploying
 
