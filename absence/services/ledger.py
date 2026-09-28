@@ -16,3 +16,27 @@ def write(pot, kind, units, actor=None, absence=None, note="", date=None):
 
 def balance(pot):
     return pot.entries.aggregate(t=Sum("units"))["t"] or Decimal("0")
+
+
+def entitlement_lines_total(pot):
+    kinds = (LedgerEntry.Kind.ENTITLEMENT, LedgerEntry.Kind.REVISION)
+    return pot.entries.filter(kind__in=kinds).aggregate(t=Sum("units"))["t"] or Decimal("0")
+
+
+@transaction.atomic
+def sync_entitlement(pot, actor=None, cause=""):
+    """Bring the entitlement lines up to accrual.entitlement(pot). Writes
+    one line for the difference, or nothing. Idempotent."""
+    from absence.services import accrual
+    if pot.absence_type.code == "BH":
+        expected = accrual.bank_holiday_entitlement(pot)
+    else:
+        expected = accrual.entitlement(pot)
+    existing = entitlement_lines_total(pot)
+    delta = expected - existing
+    if delta == 0:
+        return None
+    kind = LedgerEntry.Kind.ENTITLEMENT if existing == 0 and not pot.entries.filter(
+        kind=LedgerEntry.Kind.ENTITLEMENT).exists() else LedgerEntry.Kind.REVISION
+    return write(pot, kind, delta, actor, note=cause or "entitlement recalculated",
+                 date=pot.year_start if kind == LedgerEntry.Kind.ENTITLEMENT else None)
