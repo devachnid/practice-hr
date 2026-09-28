@@ -1,7 +1,6 @@
 import pytest
 from django.db import IntegrityError
 
-from people.models import Employee
 from tests.factories import make_employee
 
 
