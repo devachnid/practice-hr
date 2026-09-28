@@ -2,6 +2,7 @@ import logging
 import re
 import secrets
 import time
+from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.utils.cache import add_never_cache_headers
@@ -89,9 +90,30 @@ POLICY = "; ".join((
     "img-src 'self' data:",
     "object-src 'none'",
     "base-uri 'none'",
-    "form-action 'self'",
+    "form-action 'self'{relying_parties}",
     "frame-ancestors 'none'",
 ))
+
+
+def _relying_party_origins():
+    """The origins of the registered relying parties (the rota), for
+    form-action. Browsers hold the redirects that follow a form post to
+    form-action too, and two of this app's form posts end at a relying
+    party: signing in (the login form, on to /o/authorize/, on to the
+    rota's callback) and the provider's sign-out confirmation (on to the
+    rota's login page). With 'self' alone, a person not already signed in
+    here could never finish signing in to the rota."""
+    if not settings.OAUTH2_PROVIDER.get("OIDC_ENABLED"):
+        return ""
+    from oauth2_provider.models import get_application_model
+    origins = set()
+    for row in get_application_model().objects.values_list(
+            "redirect_uris", "post_logout_redirect_uris"):
+        for uri in " ".join(row).split():
+            parts = urlsplit(uri)
+            if parts.scheme in ("http", "https") and parts.netloc:
+                origins.add(f"{parts.scheme}://{parts.netloc}")
+    return "".join(f" {origin}" for origin in sorted(origins))
 
 
 class ContentSecurityPolicyMiddleware:
@@ -105,9 +127,9 @@ class ContentSecurityPolicyMiddleware:
     own login. Only HTML carries the header; it governs documents, and JSON
     and static files need none.
 
-    form-action 'self' holds for the OIDC pages too: the authorize endpoint
-    answers a relying party with a redirect, not a form post, and the one
-    form it may show (the sign-out confirmation) posts back here.
+    form-action is 'self' plus the registered relying parties' origins
+    (_relying_party_origins, above), so the redirects that end a sign-in or
+    a sign-out at the rota are not blocked.
 
     CSP_REPORT_ONLY=1 in /etc/practice-hr.env sends the same policy as
     Content-Security-Policy-Report-Only: the browser reports what it would
@@ -128,5 +150,6 @@ class ContentSecurityPolicyMiddleware:
             return response
         header = ("Content-Security-Policy-Report-Only" if settings.CSP_REPORT_ONLY
                   else "Content-Security-Policy")
-        response[header] = POLICY.format(nonce=request.csp_nonce)
+        response[header] = POLICY.format(nonce=request.csp_nonce,
+                                         relying_parties=_relying_party_origins())
         return response

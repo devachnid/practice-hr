@@ -187,7 +187,10 @@ script running in a colleague's session. Styles may be inline.
 
 The header also carries a fresh nonce on each response. The app itself uses
 none: it's there for **Cloudflare**, which injects its own bot-detection
-script and stamps it with the nonce it finds in the header.
+script and stamps it with the nonce it finds in the header. `form-action`
+is `'self'` plus each registered relying party's origin: browsers hold the
+redirect that follows a form post to it, and signing in to the rota ends
+with one.
 
 After a deploy, open the site with the browser's console showing. A
 "Refused to…" line means the policy blocked something. To turn blocking off

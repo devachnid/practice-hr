@@ -116,3 +116,18 @@ def test_the_providers_sign_out_page_holds_no_inline_script(employee_client):
     assert "Content-Security-Policy" in resp
     html = resp.content.decode()
     assert not INLINE_SCRIPT.search(html) and not INLINE_HANDLER.search(html)
+
+
+def test_form_action_lets_sign_in_and_sign_out_finish_at_the_rota(db, capsys):
+    """Browsers apply form-action to the redirects after a form post: the
+    login form's post ends at the rota's callback (via /o/authorize/), and
+    the provider's sign-out confirmation at the rota's login page."""
+    from django.core.management import call_command
+    call_command("register_oidc_client", name="rota",
+                 redirect_uri="https://rota.example/oidc/callback/")
+    policy = _policy(Client().get("/accounts/login/"))
+    assert policy["form-action"] == ["'self'", "https://rota.example"]
+
+
+def test_form_action_is_self_alone_with_no_client(db):
+    assert _policy(Client().get("/accounts/login/"))["form-action"] == ["'self'"]
