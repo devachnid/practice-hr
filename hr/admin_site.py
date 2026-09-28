@@ -107,6 +107,16 @@ def navigation(request):
                       permission=is_superuser),
         ]},
     ]
+    if is_superuser(request):
+        # The login lockout's record (docs/admin/sign-in.md), as in the rota.
+        groups.append({"title": "System", "separator": True, "items": [
+            _nav_item("Access attempts", "lock", "admin:axes_accessattempt_changelist",
+                      permission=is_superuser),
+            _nav_item("Access failures", "lock_open", "admin:axes_accessfailurelog_changelist",
+                      permission=is_superuser),
+            _nav_item("Access logs", "receipt_long", "admin:axes_accesslog_changelist",
+                      permission=is_superuser),
+        ]})
     for group in groups:
         group["items"] = [item for item in group["items"] if item is not None]
     return [group for group in groups if group["items"]]

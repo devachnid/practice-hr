@@ -92,11 +92,36 @@ everyone signs in with their password and enrols again.
 People sign in with their email and password, or with a passkey. The email
 is matched case-insensitively — "Tom.Hodges@…" and "tom.hodges@…" are the
 same account, and the add form refuses a second account differing from an
-existing one only by case. Five wrong passwords within an hour lock that
-email out of password sign-in for an hour; an address is locked too once
-five *different* emails have failures outstanding from it, which is the
-spraying pattern rather than one person's fumbles. A passkey still signs in
-during a lockout, since it proves possession of the device.
+existing one only by case. In a browser that has never used a passkey here,
+the first pages after signing in carry a card offering to add one, until
+they do or press *Not now*, which puts it away for thirty days in that
+browser.
+
+Five wrong passwords within an hour lock that email out of password
+sign-in for an hour, wherever they come from. An address is locked too,
+once five *different* emails have wrong passwords outstanding from it —
+the pattern of someone trying many accounts, rather than one person's
+fumbles. The practice's shared connection is safe: one colleague's fumbles
+count once there, and each person's own successful login clears their own
+count, and nobody else's (`accounts/axes_handler.py`).
+
+The hour runs from the lockout. Trying again while locked doesn't restart
+it, so nobody can keep a colleague out by retrying. The locked-out page
+offers the two ways in that still work: a passkey still signs in during a
+lockout, since it proves possession of the device (a forged assertion for a
+registered passkey counts like a wrong password), and a password link by
+email still works — setting a new password signs them in.
+
+Superusers can see the record under the **System** group:
+- **Access failures** is the log of failed attempts, kept to the last
+  thousand per email.
+- **Access attempts** is the live counter. It is cleared for an email when
+  that person next signs in.
+- **Access logs** records successful sign-ins.
+
+Signed-in pages are sent with `Cache-Control: no-store`, and signing out
+sends `Clear-Site-Data: "cache"`, so the next person at a shared PC cannot
+page back through the last one's record.
 
 ## Nightly housekeeping
 

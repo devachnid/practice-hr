@@ -230,7 +230,8 @@ fieldset.field {
    around the native glyph instead of a normal checkbox. */
 .field input:not([type="checkbox"]):not([type="radio"]),
 .field select,
-.field textarea {
+.field textarea,
+.inline-input {
   font-family: var(--font);
   font-size: var(--fs-md);
   color: var(--ink);
@@ -243,7 +244,11 @@ fieldset.field {
 }
 .field input:not([type="checkbox"]):not([type="radio"]):focus,
 .field select:focus,
-.field textarea:focus { border-color: var(--accent); }
+.field textarea:focus,
+.inline-input:focus { border-color: var(--accent); }
+/* A field on one line with its button: the passkey name, and the password
+   the Account page asks for before adding a passkey (accounts/recent_auth.py). */
+.inline-input { flex: 1 1 12rem; min-width: 0; }
 
 .field-help {
   color: var(--muted);
