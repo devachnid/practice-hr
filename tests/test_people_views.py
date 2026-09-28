@@ -1,6 +1,6 @@
 from datetime import date
 
-from people.models import Employee
+from people.models import AuditEntry, Employee
 from people.services import positions
 from tests.factories import make_employee, make_employment, make_team
 
@@ -27,6 +27,9 @@ def test_me_post_updates_personal_details(employee_client, employee_user):
                                              "town": "Leeds", "postcode": ""})
     assert r.status_code == 302
     assert Employee.objects.get(pk=e.pk).phone == "0113"
+    entry = AuditEntry.objects.get(model="people.employee", object_id=e.pk, field="phone")
+    assert (entry.before, entry.after) == ("", "0113")
+    assert entry.actor == employee_user
 
 
 def test_team_lists_reports_only_for_approver(employee_client, employee_user, admin_client, hr_admin):

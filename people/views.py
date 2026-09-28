@@ -25,7 +25,11 @@ def me(request):
     if request.method == "POST":
         form = PersonalDetailsForm(request.POST, instance=employee)
         if form.is_valid():
-            employees.update(request.user, employee, **form.cleaned_data)
+            # The form has already copied its values onto `employee`
+            # (ModelForm._post_clean), so diffing against it would find
+            # nothing to audit. The service diffs a fresh row instead.
+            employees.update(request.user, Employee.objects.get(pk=employee.pk),
+                             **form.cleaned_data)
             messages.success(request, "Saved.")
             return redirect("people:me")
     else:
