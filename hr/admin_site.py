@@ -101,6 +101,14 @@ def navigation(request):
             _nav_item("Contract types", "description", "admin:people_contracttype_changelist"),
             _nav_item("Audit log", "history", "admin:people_auditentry_changelist"),
         ]},
+        {"title": "Absence", "separator": True, "items": [
+            _nav_item("Absence types", "event_busy", "admin:absence_absencetype_changelist"),
+            _nav_item("Policies", "policy", "admin:absence_policy_changelist"),
+            _nav_item("Bank holidays", "flag", "admin:absence_bankholiday_changelist"),
+            _nav_item("Closed days", "event_available", "admin:absence_closedday_changelist"),
+            _nav_item("Pots", "savings", "admin:absence_pot_changelist"),
+            _nav_item("Absences", "beach_access", "admin:absence_absence_changelist"),
+        ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),
             _nav_item("Sign-in clients", "link", "admin:oauth2_provider_application_changelist",
