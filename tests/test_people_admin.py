@@ -198,3 +198,98 @@ def test_pay_record_amount_edit_through_admin_is_audited(admin_client, hr_admin)
     assert Decimal(entry.before) == Decimal("25000") and Decimal(entry.after) == Decimal("27000")
     pr.refresh_from_db()
     assert pr.amount == Decimal("27000")
+
+
+# --- refused rows re-render, and adds keep their end dates (review I2, I3) ----------
+
+from people.models import Contract, Employment  # noqa: E402
+from tests.factories import make_contract, make_contract_type  # noqa: E402
+
+
+def _employment_add(employee, **fields):
+    data = {"employee": employee.pk, "start_date": "", "end_date": "", "leaving_reason": "",
+            "continuous_service_date": "",
+            "positions-TOTAL_FORMS": 0, "positions-INITIAL_FORMS": 0,
+            "contracts-TOTAL_FORMS": 0, "contracts-INITIAL_FORMS": 0,
+            "patterns-TOTAL_FORMS": 0, "patterns-INITIAL_FORMS": 0,
+            "pay_records-TOTAL_FORMS": 0, "pay_records-INITIAL_FORMS": 0,
+            "_save": "Save"}
+    data.update(fields)
+    return data
+
+
+def test_an_added_spell_keeps_its_end_date_and_reason(admin_client):
+    e = make_employee()
+    r = admin_client.post("/admin/people/employment/add/", _employment_add(
+        e, start_date="2020-01-06", end_date="2022-03-31", leaving_reason="resigned"))
+    assert r.status_code == 302, r.content.decode()[:2000]
+    emp = Employment.objects.get(employee=e)
+    assert (emp.end_date, emp.leaving_reason) == (date(2022, 3, 31), "resigned")
+    fields = set(AuditEntry.objects.filter(model="people.employment", object_id=emp.pk)
+                 .values_list("field", flat=True))
+    assert {"start_date", "end_date", "leaving_reason"} <= fields
+
+
+def test_a_past_spell_can_be_added_before_a_current_one(admin_client):
+    """An open-ended add would overlap every later spell; the end date is
+    part of the check."""
+    e = make_employee()
+    make_employment(employee=e, start=date(2024, 1, 1))
+    r = admin_client.post("/admin/people/employment/add/", _employment_add(
+        e, start_date="2020-01-06", end_date="2022-03-31", leaving_reason="resigned"))
+    assert r.status_code == 302
+    assert Employment.objects.filter(employee=e).count() == 2
+
+
+def test_an_overlapping_add_is_shown_on_the_form_not_a_500(admin_client):
+    e = make_employee()
+    make_employment(employee=e, start=date(2024, 1, 1))
+    r = admin_client.post("/admin/people/employment/add/", _employment_add(e, start_date="2025-01-01"))
+    assert r.status_code == 200
+    html = r.content.decode()
+    assert "already has an employment covering those dates" in html
+    assert 'value="2025-01-01"' in html
+    assert Employment.objects.filter(employee=e).count() == 1
+
+
+def test_an_overlapping_spell_on_the_employee_page_is_shown_on_its_row(admin_client):
+    e = make_employee()
+    make_employment(employee=e, start=date(2024, 1, 1))
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/", {
+        "first_name": e.first_name, "last_name": e.last_name, "work_email": e.work_email,
+        "preferred_name": "", "personal_email": "", "phone": "", "address_line1": "",
+        "address_line2": "", "town": "", "postcode": "", "ni_number": "",
+        "emergency_contacts-TOTAL_FORMS": 0, "emergency_contacts-INITIAL_FORMS": 0,
+        "employments-TOTAL_FORMS": 1, "employments-INITIAL_FORMS": 0,
+        "employments-0-start_date": "2025-01-01", "employments-0-end_date": "",
+        "employments-0-leaving_reason": "", "employments-0-continuous_service_date": "",
+        "_save": "Save",
+    })
+    assert r.status_code == 200
+    assert "already has an employment covering those dates" in r.content.decode()
+    assert Employment.objects.filter(employee=e).count() == 1
+
+
+def test_a_unit_clash_row_re_renders_and_nothing_is_saved(admin_client):
+    emp = make_employment()
+    make_contract(emp, make_contract_type("Reception", unit="hours"))
+    gp = make_contract_type("GP sessions", unit="sessions", full_time=Decimal("9"))
+    r = admin_client.post(f"/admin/people/employment/{emp.pk}/change/", _employment_base(
+        emp, **{"contracts-TOTAL_FORMS": 1, "contracts-INITIAL_FORMS": 0,
+                "contracts-0-contract_type": gp.pk, "contracts-0-basis": "permanent",
+                "contracts-0-from_date": str(emp.start_date), "contracts-0-to_date": "",
+                "contracts-0-weekly_amount": "2", "contracts-0-notes": "typed note",
+                # a valid row beside it, which must not be saved without it
+                "positions-TOTAL_FORMS": 1, "positions-INITIAL_FORMS": 0,
+                "positions-0-title": "Receptionist", "positions-0-team": make_team().pk,
+                "positions-0-line_manager": "", "positions-0-primary": "on",
+                "positions-0-from_date": str(emp.start_date), "positions-0-to_date": ""}))
+    assert r.status_code == 200
+    html = r.content.decode()
+    assert "Concurrent contracts must share a unit" in html
+    assert "typed note" in html
+    assert "changed successfully" not in html
+    assert not [m for m in r.context["messages"] if m.level_tag == "success"]
+    assert Contract.objects.filter(employment=emp).count() == 1
+    assert not emp.positions.exists(), "the rest of the page was saved without the refused row"
+    assert not AuditEntry.objects.exists()

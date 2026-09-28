@@ -30,6 +30,8 @@ def fte(employment, day):
 
 
 def _unit_clash(employment, contract_type, from_date, to_date, exclude_pk=None):
+    if employment.pk is None:
+        return False
     others = Contract.objects.filter(employment=employment).exclude(
         contract_type__unit=contract_type.unit
     ).filter(Q(to_date__isnull=True) | Q(to_date__gte=from_date))
@@ -40,12 +42,27 @@ def _unit_clash(employment, contract_type, from_date, to_date, exclude_pk=None):
     return others.exists()
 
 
+UNIT_CLASH = "Concurrent contracts must share a unit (sessions or hours)."
+
+
+def check_add(employment, contract_type, from_date, to_date=None):
+    """add()'s rule, without writing."""
+    if _unit_clash(employment, contract_type, from_date, to_date):
+        raise ValidationError({"contract_type": UNIT_CLASH})
+
+
+def check_end(contract, to_date):
+    """end()'s rule, without writing: the contract's new range must not
+    reach one in the other unit."""
+    if _unit_clash(contract.employment, contract.contract_type, contract.from_date, to_date,
+                   exclude_pk=contract.pk):
+        raise ValidationError({"contract_type": UNIT_CLASH})
+
+
 @transaction.atomic
 def add(actor, employment, contract_type, weekly_amount, from_date, basis="permanent",
         to_date=None, notes=""):
-    if _unit_clash(employment, contract_type, from_date, to_date):
-        raise ValidationError({"contract_type": "Concurrent contracts must share a unit "
-                                                "(sessions or hours)."})
+    check_add(employment, contract_type, from_date, to_date)
     c = Contract(employment=employment, contract_type=contract_type, basis=basis,
                  from_date=from_date, to_date=to_date, weekly_amount=weekly_amount, notes=notes)
     c.full_clean()
@@ -56,10 +73,7 @@ def add(actor, employment, contract_type, weekly_amount, from_date, basis="perma
 
 @transaction.atomic
 def end(actor, contract, to_date):
-    if _unit_clash(contract.employment, contract.contract_type, contract.from_date, to_date,
-                    exclude_pk=contract.pk):
-        raise ValidationError({"contract_type": "Concurrent contracts must share a unit "
-                                                "(sessions or hours)."})
+    check_end(contract, to_date)
     before = contract.to_date
     contract.to_date = to_date
     contract.full_clean()

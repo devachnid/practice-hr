@@ -84,6 +84,11 @@ The first day of the spell. Employments for one employee can never overlap;
 the admin refuses to save a start date that falls inside another spell for
 the same person.
 
+A spell that is already over — someone's earlier time at the practice,
+entered after the fact — is added with its end date and leaving reason
+filled in on the same form, and is checked against the other spells over
+those real dates.
+
 ### End date / Leaving reason
 
 Both are set together or not at all: an end date needs a reason, and a
@@ -295,6 +300,12 @@ row with the day before the change, and add a new row starting the day of
 the change. This is what keeps the history honest — a title that changed on
 1 April shows as two rows, not one row that silently reads differently for
 dates before and after the edit.
+
+**A refused row stops the whole save.** When a row breaks a rule — an
+overlapping spell, a second primary position, a contract in the other
+unit, an edit to a row that only ends — the page comes back with the
+message beside that row and everything as it was typed, and nothing on the
+page is saved. Fix the row, or remove it, and save again.
 
 Employment itself is the one row that can be amended directly (its dates
 and continuous service date) rather than only ended, because it is not

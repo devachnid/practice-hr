@@ -79,3 +79,35 @@ def test_active_on_filters_by_day(db):
     b = make_employment(employee=make_employee(first="Bo"), start=date(2026, 7, 1))
     assert list(employments.active_on(date(2026, 3, 1))) == [a]
     assert list(employments.active_on(date(2026, 8, 1))) == [b]
+
+
+def test_start_takes_a_past_spells_end_date_and_checks_its_real_range(hr_admin):
+    """Review I2: a spell entered after the fact, before a current one."""
+    e = make_employee()
+    employments.start(hr_admin, e, date(2024, 1, 1))
+    past = employments.start(hr_admin, e, date(2020, 1, 6), end_date=date(2022, 3, 31),
+                             leaving_reason=Employment.LeavingReason.RESIGNED)
+    assert (past.end_date, past.leaving_reason) == (date(2022, 3, 31), "resigned")
+    with pytest.raises(ValidationError):
+        employments.start(hr_admin, e, date(2021, 1, 1), end_date=date(2021, 6, 30),
+                          leaving_reason=Employment.LeavingReason.RESIGNED)
+
+
+def test_the_check_helpers_refuse_without_writing(hr_admin):
+    from people.models import AuditEntry
+    e = make_employee()
+    emp = employments.start(hr_admin, e, date(2024, 1, 1))
+    with pytest.raises(ValidationError):
+        employments.check_start(e, date(2025, 1, 1))
+    employments.check_start(e, date(2020, 1, 1), date(2023, 12, 31))   # fits before it
+    employments.check_start(make_employee(first="New"), date(2025, 1, 1))
+    employments.end(hr_admin, emp, date(2024, 6, 30), Employment.LeavingReason.RESIGNED)
+    employments.start(hr_admin, e, date(2024, 7, 1))
+    before = AuditEntry.objects.count()
+    with pytest.raises(ValidationError):
+        employments.check_end(emp, None)
+    with pytest.raises(ValidationError):
+        employments.check_amend(Employment.objects.get(start_date=date(2024, 7, 1)),
+                                date(2024, 6, 1))
+    assert AuditEntry.objects.count() == before
+    assert Employment.objects.filter(employee=e).count() == 2

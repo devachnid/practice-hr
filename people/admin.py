@@ -19,6 +19,7 @@ class EmergencyContactInline(TabularInline):
 
 class EmploymentInline(TabularInline):
     model = Employment
+    formset = admin_forms.EmploymentInlineFormSet
     extra = 0
     fields = ("start_date", "end_date", "leaving_reason", "continuous_service_date")
     show_change_link = True
@@ -64,9 +65,12 @@ class EmployeeAdmin(ModelAdmin):
         for inst in instances:
             if isinstance(inst, Employment):
                 if inst.pk is None:
+                    # Checked already by EmploymentInlineFormSet.clean(); the
+                    # service checks again as it writes.
                     try:
                         employments.start(request.user, form.instance, inst.start_date,
-                                          inst.continuous_service_date)
+                                          inst.continuous_service_date, inst.end_date,
+                                          inst.leaving_reason)
                     except ValidationError as e:
                         messages.error(request, "; ".join(e.messages))
                     continue
@@ -101,6 +105,7 @@ class EmployeeAdmin(ModelAdmin):
 class PositionInline(TabularInline):
     model = Position
     form = admin_forms.PositionForm
+    formset = admin_forms.PositionInlineFormSet
     extra = 0
     can_delete = False
 
@@ -108,6 +113,7 @@ class PositionInline(TabularInline):
 class ContractInline(TabularInline):
     model = Contract
     form = admin_forms.ContractForm
+    formset = admin_forms.ContractInlineFormSet
     extra = 0
     can_delete = False
 
@@ -185,11 +191,18 @@ class EmploymentAdmin(ModelAdmin):
                 messages.error(request, "; ".join(e.messages))
             obj.refresh_from_db()
         else:
+            # EmploymentForm.clean() has run employments.check_start() over
+            # these dates, so a refusal re-rendered the form instead.
             new = employments.start(request.user, obj.employee, obj.start_date,
-                                    obj.continuous_service_date)
+                                    obj.continuous_service_date, obj.end_date,
+                                    obj.leaving_reason)
             obj.pk = new.pk
 
     def save_formset(self, request, form, formset, change):
+        # PositionInlineFormSet and ContractInlineFormSet have run these
+        # rules in clean(), so a refused row re-rendered the page. The
+        # messages below are a backstop for a clash that arrived between
+        # the check and the write.
         instances = formset.save(commit=False)
         changed_by_pk = {obj.pk: changed for obj, changed in formset.changed_objects}
         for inst in instances:
@@ -199,8 +212,7 @@ class EmploymentAdmin(ModelAdmin):
                         positions.add(request.user, form.instance, inst.title, inst.team,
                                       inst.line_manager, inst.from_date, inst.primary, inst.to_date)
                     elif set(changed_by_pk.get(inst.pk, [])) - {"to_date"}:
-                        messages.error(request, "Existing positions and contracts only end; "
-                                                "add a new row for a change.")
+                        messages.error(request, admin_forms.ONLY_END)
                     else:
                         fresh = Position.objects.get(pk=inst.pk)
                         positions.end(request.user, fresh, inst.to_date)
@@ -210,8 +222,7 @@ class EmploymentAdmin(ModelAdmin):
                                       inst.weekly_amount, inst.from_date, inst.basis,
                                       inst.to_date, inst.notes)
                     elif set(changed_by_pk.get(inst.pk, [])) - {"to_date"}:
-                        messages.error(request, "Existing positions and contracts only end; "
-                                                "add a new row for a change.")
+                        messages.error(request, admin_forms.ONLY_END)
                     else:
                         fresh = Contract.objects.get(pk=inst.pk)
                         contracts.end(request.user, fresh, inst.to_date)
