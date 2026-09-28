@@ -1,7 +1,11 @@
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 
+from people.context_processors import roles
 from people.services import access, positions
 from tests.factories import make_employee, make_employment, make_team
 
@@ -31,6 +35,16 @@ def test_route_without_manager_goes_to_admin_group(db):
     assert access.route_for(sam_emp, DAY) is None
 
 
+def test_route_to_admin_group_when_manager_has_left(db):
+    boss, boss_emp = _person("Boss")
+    sam, sam_emp = _person("Sam")
+    positions.add(None, sam_emp, "Receptionist", make_team(), boss, date(2026, 1, 1))
+    from people.services import employments
+    employments.end(None, boss_emp, date(2026, 5, 31), "resigned")
+    assert access.route_for(sam_emp, DAY) is None
+    assert access.route_for(sam_emp, date(2026, 5, 1)) == boss
+
+
 def test_can_view(hr_admin, employee_user):
     other_user = User.objects.create_user(email="o@example.org", password="pw")
     boss, boss_emp = _person("Boss", user=other_user)
@@ -50,3 +64,12 @@ def test_employee_for(employee_user):
     assert access.employee_for(employee_user) is None
     sam, _ = _person("Sam", user=employee_user)
     assert access.employee_for(employee_user) == sam
+
+
+def test_roles_context_processor_memoises_per_request(hr_admin):
+    request = RequestFactory().get("/")
+    request.user = hr_admin
+    roles(request)
+    with CaptureQueriesContext(connection) as ctx:
+        roles(request)
+    assert len(ctx.captured_queries) == 0
