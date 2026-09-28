@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -24,6 +25,14 @@ class AuditEntry(models.Model):
         ordering = ["-at", "-id"]
         verbose_name_plural = "audit entries"
         indexes = [models.Index(fields=["model", "object_id"])]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise ValidationError("Audit entries are never edited.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Audit entries are never deleted.")
 
     def __str__(self):
         return f"{self.at:%Y-%m-%d %H:%M} {self.kind} {self.model}#{self.object_id} {self.field}"

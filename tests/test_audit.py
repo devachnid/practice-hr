@@ -1,3 +1,6 @@
+import pytest
+from django.core.exceptions import ValidationError
+
 from people.models import AuditEntry
 from people.services import audit
 from tests.factories import make_employee
@@ -22,3 +25,13 @@ def test_viewed_writes_a_viewed_row(hr_admin):
     e = make_employee()
     row = audit.viewed(hr_admin, e, "pay")
     assert row.kind == AuditEntry.Kind.VIEWED and row.field == "pay"
+
+
+def test_audit_rows_are_immutable(hr_admin):
+    e = make_employee()
+    row = audit.viewed(hr_admin, e, "pay")
+    row.field = "health"
+    with pytest.raises(ValidationError):
+        row.save()
+    with pytest.raises(ValidationError):
+        row.delete()
