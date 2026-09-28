@@ -1,0 +1,32 @@
+#!/bin/sh
+# Run a manage.py command the way the services run it: as the practice-hr
+# user, with the settings in /etc/practice-hr.env, in the app's own
+# directory. Run it as root.
+#
+#   /srv/practice-hr/deploy/manage migrate
+#   /srv/practice-hr/deploy/manage check --deploy
+#   /srv/practice-hr/deploy/manage createsuperuser
+#   /srv/practice-hr/deploy/manage register_oidc_client --name rota --redirect-uri ...
+#
+# systemd reads the settings file, exactly as it does for the services. The
+# shell cannot: `. /etc/practice-hr.env` fails on a SECRET_KEY holding ( or
+# $ or &, which Django's generated keys do.
+#
+# Why not plain `python manage.py` as root: the database is in WAL mode,
+# and a root process that opens it can leave root-owned db.sqlite3-wal/-shm
+# files (or, on a first migrate, a root-owned database) that the app then
+# cannot open. Unlike the rota, collectstatic needs no special case here:
+# the whole /srv/practice-hr tree — code, .venv and staticfiles/ alike — is
+# owned by the practice-hr user (see gunicorn.service), not root, because
+# the database sits in the same directory and has to be writable by it.
+set -eu
+if [ "$(id -u)" != 0 ]; then
+    echo "deploy/manage: run as root; it runs the command as the practice-hr user" >&2
+    exit 1
+fi
+code="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -t 0 ]; then io=--pty; else io=--pipe; fi
+exec systemd-run --quiet --collect --wait "$io" \
+    --uid=practice-hr --gid=practice-hr -p UMask=0077 -E HOME=/srv/practice-hr \
+    -p EnvironmentFile=/etc/practice-hr.env -p WorkingDirectory="$code" \
+    "$code/.venv/bin/python" manage.py "$@"

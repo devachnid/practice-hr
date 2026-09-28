@@ -3,8 +3,38 @@ Description=Practice HR nightly housekeeping
 
 [Service]
 Type=oneshot
-WorkingDirectory=/root/practice-hr
+# The same user, directory and sandbox as the web service; see
+# gunicorn.service for why each is there.
+User=practice-hr
+Group=practice-hr
+WorkingDirectory=/srv/practice-hr
+ReadWritePaths=/srv/practice-hr
+UMask=0077
 # SECRET_KEY lives in the environment file; manage.py refuses to start
 # without it. See gunicorn.service for why the file is root-only.
 EnvironmentFile=/etc/practice-hr.env
-ExecStart=/root/practice-hr/.venv/bin/python manage.py hr_nightly
+ExecStart=/srv/practice-hr/.venv/bin/python manage.py hr_nightly
+
+# Sandbox: identical in every practice-hr unit (tests/test_deploy.py).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

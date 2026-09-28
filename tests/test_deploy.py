@@ -17,3 +17,9 @@ def test_nightly_timer_exists():
 
 def test_backup_copies_media_too():
     assert "media" in (DEPLOY / "backup.sh").read_text()
+
+
+def test_gunicorn_runs_as_its_own_sandboxed_user():
+    unit = (DEPLOY / "gunicorn.service").read_text()
+    assert "User=practice-hr" in unit
+    assert "ProtectSystem=strict" in unit

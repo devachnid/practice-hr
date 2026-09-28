@@ -139,9 +139,11 @@ to start.
 
 ### Registering a relying party
 
-Run on this box, as the one place that holds this system's own database:
+Run on this box, as the one place that holds this system's own database,
+through `deploy/manage` (see the README's Deploy section for why every
+`manage.py` command goes through it rather than being run directly):
 
-    register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
+    deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
 
 `--name` identifies the relying party for future runs — using the same name
 again updates its redirect URI instead of registering a second client.
@@ -154,7 +156,7 @@ relying party's own environment file. If the secret is lost, or needs
 rotating (a suspected leak, a routine rotation), run the command again with
 the same `--name` and add `--rotate`:
 
-    register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/ --rotate
+    deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/ --rotate
 
 Without `--rotate`, re-running the command for an existing name only
 updates the redirect URI and leaves the secret as it is — the message says

@@ -3,4 +3,38 @@ Description=Nightly Practice HR SQLite backup
 
 [Service]
 Type=oneshot
-ExecStart=/root/practice-hr/deploy/backup.sh
+# As the practice-hr user, not root. The copies are the app's own data, so
+# they belong with it in /srv/practice-hr; a root sqlite3 opening a WAL
+# database can also leave -wal/-shm files the app cannot then open. The
+# same user, directory and sandbox as the web service; see
+# gunicorn.service for why each is there.
+User=practice-hr
+Group=practice-hr
+WorkingDirectory=/srv/practice-hr
+ReadWritePaths=/srv/practice-hr
+UMask=0077
+ExecStart=/srv/practice-hr/deploy/backup.sh
+
+# Sandbox: identical in every practice-hr unit (tests/test_deploy.py).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

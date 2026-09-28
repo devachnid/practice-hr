@@ -37,7 +37,7 @@ running; that guide is the reference for what the settings actually mean.
 
 ## First-time setup
 
-1. `python manage.py createsuperuser` on the server (`DEBUG=1 python
+1. `deploy/manage createsuperuser` on the server (`DEBUG=1 python
    manage.py createsuperuser` on a dev box).
 2. Sign in and open **Admin**. Eight [contract types](docs/admin/people.md#contract-type)
    are seeded already (Partner, Salaried GP, GP trainee, Practice nurse,
@@ -58,13 +58,33 @@ running; that guide is the reference for what the settings actually mean.
    party](docs/admin/sign-in.md#registering-a-relying-party); that needs
    `OIDC_RSA_PRIVATE_KEY` set first (below).
 
-## Deploy
+## Deploy (Cloudflare tunnel)
 
-The app runs from `/root/practice-hr`, as root.
+The app runs as its own `practice-hr` user, never as root:
 
-    git clone https://github.com/devachnid/practice-hr /root/practice-hr
-    cd /root/practice-hr
+| Where | Owner | What |
+|---|---|---|
+| `/srv/practice-hr` | `practice-hr`, closed to everyone else | the code, its `.venv`, `staticfiles/`, the database and its nightly backups |
+| `/etc/practice-hr.env` | root, mode 600 | the settings and secrets |
+
+So a bug that let a request run code reaches the app's own data and
+nothing outside the container: not a Cloudflare credential, not another
+service, not the host. Every unit in `deploy/` also runs in a systemd
+sandbox; `deploy/gunicorn.service` explains each part.
+
+Unlike the rota, this does **not** keep the code itself read-only to the
+app: `config/settings.py` has no `DB_PATH` setting to put the database
+somewhere other than beside the code, so the whole `/srv/practice-hr` tree
+is owned by the `practice-hr` user rather than split between a root-owned
+code directory and a writable data one. A code-execution bug can therefore
+rewrite the app's own files, not only its data — `deploy/gunicorn.service`'s
+comments explain the trade-off in full.
+
+    useradd --system --home-dir /srv/practice-hr --no-create-home --shell /usr/sbin/nologin practice-hr
+    git clone https://github.com/devachnid/practice-hr /srv/practice-hr
+    cd /srv/practice-hr
     python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+    chown -R practice-hr:practice-hr /srv/practice-hr
 
 Create the secrets file — root-only, never in the unit file. The subshell
 keeps `umask 077` from leaking into later commands, where it would make
@@ -105,23 +125,27 @@ the same either way, `/o/` just answers 404.
 
 Then:
 
-    python manage.py collectstatic --noinput
-    python manage.py migrate
+    deploy/manage collectstatic --noinput
+    deploy/manage migrate
     cp deploy/gunicorn.service /etc/systemd/system/practice-hr.service
     cp deploy/hr-backup.* deploy/hr-clearsessions.* deploy/hr-nightly.* /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now practice-hr hr-backup.timer hr-clearsessions.timer hr-nightly.timer
 
-**Run every `manage.py` command by hand as `python manage.py ...`**, since
-the app runs as root here — there is no separate service user or wrapper
-script to go through. `createsuperuser`, `migrate`, `collectstatic` and
-`register_oidc_client` are the commands a deploy needs; nothing else should
-be run against the production database outside these documented steps.
+**Run every `manage.py` command through `deploy/manage`**, as root:
+`deploy/manage createsuperuser`, `deploy/manage check --deploy` and so on.
+It runs the command as the `practice-hr` user with the settings from
+`/etc/practice-hr.env`, exactly as the services do. Plain `python manage.py`
+as root is the one way to break this layout: the database is in WAL mode,
+so a root process that opens it can leave `db.sqlite3-wal`/`-shm` files
+owned by root, which the app then cannot open. Sourcing the settings into a
+shell (`. /etc/practice-hr.env`) also fails on a secret key holding `(` or
+`$`, which Django's generated keys do.
 
 Once `OIDC_RSA_PRIVATE_KEY` is set and the service restarted, register each
 relying party:
 
-    python manage.py register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
+    deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
 
 See [Registering a relying party](docs/admin/sign-in.md#registering-a-relying-party)
 for `--rotate` and what the command prints.
@@ -129,21 +153,27 @@ for `--rotate` and what the command prints.
 Point the Cloudflare tunnel ingress at `http://127.0.0.1:8322` — gunicorn
 binds to loopback only, on purpose; see `deploy/gunicorn.service`.
 
-Backups land in `/root/practice-hr/backups/`, kept 30 days: a SQLite copy
-and a `media/` archive, nightly (`hr-backup.timer`). Expired sessions are
-cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer` runs
-`manage.py hr_nightly`, which disables the login of anyone whose employment
-has ended — see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping).
+Backups land in `/srv/practice-hr/backups/`, kept 30 days, readable only by
+the `practice-hr` user: a SQLite copy every night (`hr-backup.timer`), and
+a `media/` archive alongside it once a `media/` directory exists (plan 3
+adds one; until then the backup silently skips it rather than failing).
+Expired sessions are cleared nightly too (`hr-clearsessions.timer`), and
+`hr-nightly.timer` runs `manage.py hr_nightly`, which disables the login of
+anyone whose employment has ended — see [Nightly
+housekeeping](docs/admin/sign-in.md#nightly-housekeeping).
+
+`systemd-analyze security practice-hr` scores the sandbox.
 
 ### Redeploying
 
-    cd /root/practice-hr
+    cd /srv/practice-hr
     git pull
     .venv/bin/pip install -r requirements.txt
-    python manage.py migrate
-    python manage.py collectstatic --noinput
-    python manage.py check --deploy
+    deploy/manage migrate
+    deploy/manage collectstatic --noinput
+    deploy/manage check --deploy
     systemctl restart practice-hr
 
 A pull that changes a file in `deploy/` needs that unit copied into
-`/etc/systemd/system/` again, then `systemctl daemon-reload`.
+`/etc/systemd/system/` again, then `systemctl daemon-reload`. The `.service`
+files are the ones that change.
