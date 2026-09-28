@@ -293,3 +293,19 @@ def test_a_unit_clash_row_re_renders_and_nothing_is_saved(admin_client):
     assert Contract.objects.filter(employment=emp).count() == 1
     assert not emp.positions.exists(), "the rest of the page was saved without the refused row"
     assert not AuditEntry.objects.exists()
+
+
+def test_viewing_an_ni_number_is_audited(admin_client, hr_admin):
+    """Review I4: the NI number is restricted like pay, and each view of it
+    is audited like pay."""
+    e = make_employee(ni_number="AB123456C")
+    r = admin_client.get(f"/admin/people/employee/{e.pk}/change/")
+    assert r.status_code == 200 and "AB123456C" in r.content.decode()
+    (entry,) = AuditEntry.objects.filter(kind="viewed", model="people.employee", object_id=e.pk)
+    assert entry.field == "ni_number" and entry.actor == hr_admin
+
+
+def test_no_ni_number_no_view_to_audit(admin_client):
+    e = make_employee()
+    assert admin_client.get(f"/admin/people/employee/{e.pk}/change/").status_code == 200
+    assert not AuditEntry.objects.filter(kind="viewed").exists()

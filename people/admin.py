@@ -49,6 +49,16 @@ class EmployeeAdmin(ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        # An NI number shown is an NI number viewed: audited like pay. Only
+        # for someone the field is shown to (get_fields), and only when
+        # there is one to see.
+        if access.can_view_restricted(request.user) and request.method == "GET":
+            obj = self.get_object(request, object_id)
+            if obj is not None and self.has_view_permission(request, obj) and obj.ni_number:
+                audit.viewed(request.user, obj, "ni_number")
+        return super().change_view(request, object_id, form_url, extra_context)
+
     def save_model(self, request, obj, form, change):
         if change:
             data = {k: form.cleaned_data[k] for k in form.changed_data if k in employees.EDITABLE}

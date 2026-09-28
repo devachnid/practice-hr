@@ -51,7 +51,9 @@ actually gets used in a hurry).
 
 **Visible to HR admins only.** Anyone without [HR admin status](sign-in.md#admin-status)
 sees this employee's page with the field simply absent — not blanked, not
-disabled, removed from the form entirely. Set it once; there is nothing
+disabled, removed from the form entirely. Each time an HR admin opens an
+Employee page that has an NI number, the audit log records the view (kind
+*Viewed*, field `ni_number`), as it does for pay records. Set it once; there is nothing
 that depends on its format being checked, so a typo here has no effect
 beyond being wrong on a report that reads it.
 
