@@ -184,9 +184,9 @@ def test_a_spanning_unpaid_absence_is_split_between_the_months(db, hr_admin, emp
 def test_a_spanning_sickness_absence_is_clipped_to_the_month(db, employee_user):
     emp = hours_employee(start=date(2026, 4, 1))
     bookings.request(employee_user, emp, absence_type("SICK"), date(2026, 6, 29), date(2026, 7, 3), category="illness")
-    assert _sheet(payroll.build(*JUNE), "Sickness")[1][1:] == [date(2026, 6, 29), date(2026, 6, 30)]
+    assert _sheet(payroll.build(*JUNE), "Sickness")[1][1:] == [date(2026, 6, 29), date(2026, 6, 30), "Yes"]
     assert _sheet(payroll.build(date(2026, 7, 1), date(2026, 7, 31)), "Sickness")[1][1:] == [
-        date(2026, 7, 1), date(2026, 7, 3)]
+        date(2026, 7, 1), date(2026, 7, 3), "Yes"]
 
 
 def test_leaver_balance_ignores_lines_dated_after_the_leaving_date_but_keeps_the_proration(db, hr_admin):
@@ -218,3 +218,14 @@ def test_toil_carried_at_year_end_is_listed_once_in_its_month(db, hr_admin):
     year_end.run(date(2027, 4, 1))                     # carries the 3 to the 2027/28 pot, dated 10 Mar
     rows = _sheet(payroll.build(date(2027, 3, 1), date(2027, 3, 31)), "TOIL")[1:]
     assert [(r[1], r[2], r[3]) for r in rows] == [(date(2027, 3, 10), 3.0, "TOIL earned")]
+
+
+def test_sickness_sheet_says_whether_it_was_self_certified(db, employee_user):
+    emp = hours_employee(start=date(2026, 4, 1))
+    bookings.request(employee_user, emp, absence_type("SICK"), date(2026, 6, 1), date(2026, 6, 3), category="illness")
+    bookings.request(employee_user, emp, absence_type("SICK"), date(2026, 6, 8), date(2026, 6, 19), category="injury")
+    rows = _sheet(payroll.build(*JUNE), "Sickness")
+    assert rows[0] == ["Name", "From", "To", "Self-certified"]
+    assert [r[1:] for r in rows[1:]] == [[date(2026, 6, 1), date(2026, 6, 3), "Yes"],
+                                          [date(2026, 6, 8), date(2026, 6, 19), "No"]]
+    assert "injury" not in str(rows) and "illness" not in str(rows)

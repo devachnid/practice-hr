@@ -70,8 +70,9 @@ automatically.
 
 A label on the type ("the employee records it themselves"). The workflow
 does not read it. What makes Sickness need no approval is *Needs approval*
-being unticked. Separately, every sickness absence shorter than seven
-calendar days is stamped self-certified when recorded.
+being unticked. Separately, every sickness absence of seven calendar days
+or fewer (first to last day inclusive) is stamped self-certified when
+recorded, and the payroll Sickness sheet says so.
 
 ### Calendar label
 

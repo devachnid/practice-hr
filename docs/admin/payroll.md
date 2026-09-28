@@ -15,7 +15,7 @@ same and prints where the file went.
 | Leavers | Employments that ended in the month, with the reason, and each leaver's balance in every allowance-backed leave type at the end of their last day (other ledger lines dated after it are left out; the entitlement, pro-rated for leaving, is always counted). A negative balance is leave taken beyond the allowance; a positive one is leave unused. Blank means no allowance was open then |
 | Contract changes | Contracts that began or ended in the month, with their notes |
 | Pay changes | [Pay records](people.md) that began in the month |
-| Sickness | Dates within the month only, never the kind of sickness |
+| Sickness | Dates within the month, and whether the absence was self-certified (seven calendar days or fewer); never the kind of sickness |
 | Unpaid | Approved unpaid absences, with the units they cost. An absence that runs across a month end is split: each month shows only its own days and their cost |
 | Family leave | The days within the month, expected and actual dates, and the keeping-in-touch days within the month |
 | TOIL | TOIL earned and taken in the month. TOIL carried forward at the year end keeps its earned date but is listed once, in the month it was earned |
@@ -27,7 +27,7 @@ Columns, in order:
   per allowance-backed type ([the rule](#the-leaver-balance-rule)).
 - **Contract changes:** Name, From, To, Weekly amount, Unit, Basis, Notes.
 - **Pay changes:** Name, From, Basis, Amount, Reason.
-- **Sickness:** Name, From, To.
+- **Sickness:** Name, From, To, Self-certified (Yes or No).
 - **Unpaid:** Name, From, To, Units, Unit, Type.
 - **Family leave:** Name, Type, From, To, Expected start, Actual start,
   Expected return, KIT days.

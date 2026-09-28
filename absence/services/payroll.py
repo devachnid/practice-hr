@@ -4,7 +4,8 @@ sickness category, never any pay arithmetic.
 Which absence goes on which sheet is decided by the type's flags, not its
 code. Only types with `payroll_reportable` appear at all; of those:
 
-  Sickness       `health_sensitive` types: the name and the dates, nothing about
+  Sickness       `health_sensitive` types: the name, the dates and whether it
+                 was self-certified (Absence.self_certified), nothing about
                  the kind of illness (the category is never read here).
   Family leave   `is_family` types: the days in the period, expected and actual
                  dates, KIT days in the period.
@@ -51,7 +52,7 @@ HEADERS = {
     "Leavers": ["Name", "Last day", "Reason", "Unit"],      # then a balance per pot-backed type
     "Contract changes": ["Name", "From", "To", "Weekly amount", "Unit", "Basis", "Notes"],
     "Pay changes": ["Name", "From", "Basis", "Amount", "Reason"],
-    "Sickness": ["Name", "From", "To"],
+    "Sickness": ["Name", "From", "To", "Self-certified"],
     "Unpaid": ["Name", "From", "To", "Units", "Unit", "Type"],
     "Family leave": ["Name", "Type", "From", "To", "Expected start", "Actual start", "Expected return", "KIT days"],
     "TOIL": ["Name", "Date", "Units", "Kind", "Note"],
@@ -116,7 +117,7 @@ def _absences(start, end):
         t = a.absence_type
         first, last = max(a.start_date, start), min(a.end_date, end)
         if t.health_sensitive:
-            sheets["Sickness"].append([_name(a.employment), first, last])
+            sheets["Sickness"].append([_name(a.employment), first, last, "Yes" if a.self_certified else "No"])
         elif t.is_family:
             kit = sum(1 for k in a.kit_days.all() if first <= k.date <= last)
             sheets["Family leave"].append([_name(a.employment), t.name, first, last, a.expected_start,
