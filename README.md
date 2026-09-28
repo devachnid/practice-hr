@@ -19,8 +19,8 @@ the environment; with debug off, the settings refuse to run without a real
 key (see Deploy). The suite needs neither — it detects pytest and never
 reaches a mail relay. With no `EMAIL_HOST` set, a dev box behaves as
 production does without a relay: an admin is shown each invitation or
-password link on screen instead of it being sent. With no
-`OIDC_RSA_PRIVATE_KEY` set, the OIDC provider is off and `/o/` answers 404
+password link on screen instead of it being sent. With no OIDC signing key
+set, the OIDC provider is off and `/o/` answers 404
 — nothing else about the app changes.
 
 CI (`.github/workflows/tests.yml`) runs `ruff check .` (pyflakes only — see
@@ -56,7 +56,7 @@ running; that guide is the reference for what the settings actually mean.
 5. If the rota (or another relying party) is signing in against this
    system, register it — see [Registering a relying
    party](docs/admin/sign-in.md#registering-a-relying-party); that needs
-   `OIDC_RSA_PRIVATE_KEY` set first (below).
+   `OIDC_RSA_PRIVATE_KEY_FILE` set first (below).
 
 ## Deploy (Cloudflare tunnel)
 
@@ -109,16 +109,24 @@ files the app has to read unreadable:
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
 | `DEFAULT_FROM_EMAIL` | The From address on every email the app sends. |
 | `TRUSTED_PROXY_IPS` | Comma-separated addresses whose forwarded-IP header is believed for login rate-limiting. Defaults to loopback, which is right behind a Cloudflare tunnel; never set it to a wildcard. |
-| `OIDC_RSA_PRIVATE_KEY` | Signs OpenID Connect tokens for relying parties like the rota. Blank switches the provider off. See below and [the OIDC provider](docs/admin/sign-in.md#the-openid-connect-provider). |
+| `OIDC_RSA_PRIVATE_KEY_FILE` | The file holding the key that signs OpenID Connect tokens for relying parties like the rota. Unset switches the provider off. See below and [the OIDC provider](docs/admin/sign-in.md#the-openid-connect-provider). |
+| `OIDC_RSA_PRIVATE_KEY` | The same key inline, one line with `\n` for each newline — for a dev box only. Ignored when `OIDC_RSA_PRIVATE_KEY_FILE` is set. |
 
-Generate the OIDC signing key and fold it onto the one line the
-environment file needs, with `\n` standing in for each real newline:
+The OIDC signing key lives in a file of its own, not in the environment
+file: systemd's environment-file parser turns an unquoted `\n` into a plain
+`n`, so a PEM key folded onto one line arrives broken. Generate it into a
+directory only root and the app's group can read — the app reads the file
+itself, as the `practice-hr` user:
 
-    openssl genrsa 2048 | sed ':a;N;$!ba;s/\n/\\n/g'
+    install -d -o root -g practice-hr -m 750 /etc/practice-hr
+    (umask 027; openssl genrsa -out /etc/practice-hr/oidc.pem 2048)
+    chgrp practice-hr /etc/practice-hr/oidc.pem
+    echo OIDC_RSA_PRIVATE_KEY_FILE=/etc/practice-hr/oidc.pem >> /etc/practice-hr.env
 
-Append the result as `OIDC_RSA_PRIVATE_KEY=...` to `/etc/practice-hr.env`.
 Leave it unset on a box with no relying party yet — the app runs exactly
-the same either way, `/o/` just answers 404.
+the same either way, `/o/` just answers 404. A named file the app cannot
+read stops it starting, and `deploy/manage check --deploy` fails
+(`hr.E001`) on a key that is not a PEM RSA private key.
 
 Then:
 
@@ -139,7 +147,7 @@ owned by root, which the app then cannot open. Sourcing the settings into a
 shell (`. /etc/practice-hr.env`) also fails on a secret key holding `(` or
 `$`, which Django's generated keys do.
 
-Once `OIDC_RSA_PRIVATE_KEY` is set and the service restarted, register each
+Once `OIDC_RSA_PRIVATE_KEY_FILE` is set and the service restarted, register each
 relying party:
 
     deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/

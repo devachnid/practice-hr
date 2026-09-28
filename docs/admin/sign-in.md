@@ -2,7 +2,7 @@
 
 **Where:** sidebar › Login accounts (a Django auth account, not an Employee
 — see [Employee](people.md#employee)); `/etc/practice-hr.env` for the OIDC
-provider's own key.
+provider's own key, and `/etc/practice-hr/oidc.pem` for the key itself.
 
 ## Login accounts
 
@@ -115,29 +115,30 @@ apps — currently the rota. Once a relying party (an app like the rota) is
 registered, that app's own login page can offer "sign in with the practice
 account": a person authenticates here, and the relying party trusts the
 `email` and `employee_id` claims this system returns (`accounts/oidc.py`).
-With no `OIDC_RSA_PRIVATE_KEY` set, the provider is switched off entirely —
+With no signing key set (`OIDC_RSA_PRIVATE_KEY_FILE`, below), the provider
+is switched off entirely —
 `/o/` answers 404 and nothing about ordinary sign-in changes.
 
-### OIDC_RSA_PRIVATE_KEY
+### OIDC_RSA_PRIVATE_KEY_FILE
 
-The one environment variable the provider needs, in `/etc/practice-hr.env`
-(see the README's Deploy section for the file's format). It signs every ID
-token this system issues, so it must be set before any relying party is
-registered, and never changed once one is — rotating it invalidates every
-relying party's ability to verify a token it already trusted, until they
-are told the key changed.
+The one setting the provider needs, in `/etc/practice-hr.env`: the path of
+a file holding the key that signs every ID token this system issues —
+`/etc/practice-hr/oidc.pem`, readable only by root and the `practice-hr`
+group (the README's Deploy section has the commands). It must be set before
+any relying party is registered, and never changed once one is — rotating
+it invalidates every relying party's ability to verify a token it already
+trusted, until they are told the key changed.
 
-Generate it with:
+Generate it with `openssl genrsa 2048` straight into the file, as it is.
+The key does **not** go in the environment file itself: systemd's
+environment-file parser turns an unquoted `\n` into a plain `n`, so a PEM
+key folded onto one line with `\n` for its newlines arrives broken. (That
+one-line form, `OIDC_RSA_PRIVATE_KEY`, is still read on a dev box when no
+file is named.)
 
-    openssl genrsa 2048
-
-and put it in the environment file **as one line**, with the PEM's actual
-newlines written as the two characters `\n` — `config/settings.py` reverses
-that (`.replace("\\n", "\n")`) before handing the key to the OIDC library.
-A key pasted in with real newlines is not one line and breaks the
-environment file's format; a key with the `\n` step skipped is read as a
-single unparseable line instead of a valid PEM key, and the provider fails
-to start.
+If the file is named but cannot be read, the app refuses to start and says
+why. `deploy/manage check --deploy` fails with `hr.E001` if the provider is
+on and its key is not a PEM RSA private key.
 
 ### Registering a relying party
 

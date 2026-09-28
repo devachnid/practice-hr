@@ -48,7 +48,17 @@ UMask=0077
 #   DB_PATH=/var/lib/practice-hr/db.sqlite3
 #   ALLOWED_HOSTS=hr.example.org
 #   CSRF_TRUSTED_ORIGINS=https://hr.example.org
-#   OIDC_RSA_PRIVATE_KEY=…  # one line, \n for newlines; generate with openssl genrsa 2048
+#   OIDC_RSA_PRIVATE_KEY_FILE=/etc/practice-hr/oidc.pem
+#
+# The OIDC signing key is a file of its own, never a line in this file:
+# systemd's environment-file parser turns an unquoted \n into a plain "n",
+# so a PEM key folded onto one line arrives broken. The app reads the file
+# itself, as the practice-hr user, so it is root:practice-hr, mode 640, in
+# a directory of the same (README, Deploy):
+#
+#   install -d -o root -g practice-hr -m 750 /etc/practice-hr
+#   (umask 027; openssl genrsa -out /etc/practice-hr/oidc.pem 2048)
+#   chgrp practice-hr /etc/practice-hr/oidc.pem
 #
 # DEBUG defaults to 0 in config/settings.py, so omitting it is safe — but set
 # it explicitly so the file states the intent.

@@ -266,10 +266,33 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# OpenID Connect provider for the practice's other apps (the rota). The RSA
-# key comes from the environment like SECRET_KEY; with no key the provider
-# is off and /o/ answers 404 (config/urls.py).
-OIDC_RSA_PRIVATE_KEY = os.environ.get("OIDC_RSA_PRIVATE_KEY", "").replace("\\n", "\n")
+# OpenID Connect provider for the practice's other apps (the rota). With no
+# key the provider is off and /o/ answers 404 (config/urls.py).
+#
+# In production the key is a PEM file of its own, named by
+# OIDC_RSA_PRIVATE_KEY_FILE in /etc/practice-hr.env and readable only by
+# root and the practice-hr group (README, Deploy). It used to go in the
+# environment file itself, folded onto one line with \n for each newline;
+# systemd's EnvironmentFile parser turns an unquoted \n into a plain "n",
+# so the key arrived unparseable. A file named but unreadable stops the app
+# rather than quietly switching the provider off. OIDC_RSA_PRIVATE_KEY, the
+# one-line form, is still read when no file is named — for a dev box.
+# hr/checks.py fails `check --deploy` on a key that is not a PEM RSA
+# private key.
+def _oidc_private_key():
+    path = os.environ.get("OIDC_RSA_PRIVATE_KEY_FILE", "")
+    if path:
+        try:
+            return Path(path).read_text()
+        except OSError as exc:
+            from django.core.exceptions import ImproperlyConfigured
+            raise ImproperlyConfigured(
+                f"OIDC_RSA_PRIVATE_KEY_FILE is set but {path} cannot be read "
+                f"({exc.strerror or exc}).") from None
+    return os.environ.get("OIDC_RSA_PRIVATE_KEY", "").replace("\\n", "\n")
+
+
+OIDC_RSA_PRIVATE_KEY = _oidc_private_key()
 OAUTH2_PROVIDER = {
     "OIDC_ENABLED": bool(OIDC_RSA_PRIVATE_KEY) or _TESTING,
     "OIDC_RSA_PRIVATE_KEY": OIDC_RSA_PRIVATE_KEY,
