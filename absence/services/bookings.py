@@ -14,8 +14,12 @@ LIVE = (Absence.Status.REQUESTED, Absence.Status.APPROVED)
 SELF_CERT_DAYS = 7
 
 
-def overlaps(employment, start, end, exclude_pk=None):
-    qs = Absence.objects.filter(employment=employment, status__in=LIVE,
+def overlaps(employment, start, end, exclude_pk=None, auto=False):
+    """A live absence of the same kind over these dates. Ordinary bookings
+    clash with each other; automatic bank-holiday rows clash only with each
+    other, so a week off and the bank holiday inside it coexist (the booking
+    skips the bank holiday; the automatic row charges it)."""
+    qs = Absence.objects.filter(employment=employment, status__in=LIVE, auto_bank_holiday=auto,
                                 start_date__lte=end, end_date__gte=start)
     if exclude_pk:
         qs = qs.exclude(pk=exclude_pk)
@@ -70,7 +74,8 @@ def approve(actor, absence, comment=""):
     caller, absence = absence, _lock(absence)
     if absence.status != Absence.Status.REQUESTED:
         raise ValidationError("Only a requested absence can be approved.")
-    if overlaps(absence.employment, absence.start_date, absence.end_date, exclude_pk=absence.pk):
+    if overlaps(absence.employment, absence.start_date, absence.end_date, exclude_pk=absence.pk,
+                auto=absence.auto_bank_holiday):
         raise ValidationError("Another absence now overlaps these dates.")
     absence.cost_units = costing.cost(absence)
     absence.status = Absence.Status.APPROVED

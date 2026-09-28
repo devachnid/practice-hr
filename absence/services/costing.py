@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 
-from absence.models import BankHoliday, ClosedDay, Policy
+from absence.models import BankHoliday, ClosedDay
 from absence.services import policies, rounding
 from people.services import patterns
 
@@ -34,13 +34,16 @@ def _handling(absence):
         return None
 
 
-def _skip(day, policy):
+def _skip(day, absence):
+    """Closed days are never charged. Bank holidays are charged only by the
+    automation (bank_holidays.sync_auto_absences), whatever the handling: an
+    ordinary booking skips them, so a week off over a bank holiday costs four
+    days and the automatic row costs the fifth, from the pot its policy names."""
     if ClosedDay.objects.filter(date=day).exists():
         return True
-    handling = policy.bank_holiday_handling if policy else Policy.BankHolidays.CLOSED_NOT_CHARGED
-    if handling == Policy.BankHolidays.CLOSED_NOT_CHARGED:
-        return BankHoliday.objects.filter(date=day, nation="EW").exists()
-    return False
+    if absence.auto_bank_holiday:
+        return False
+    return BankHoliday.objects.filter(date=day, nation="EW").exists()
 
 
 def cost(absence):
@@ -49,7 +52,7 @@ def cost(absence):
     emp = absence.employment
     if absence.is_partial:
         day = absence.start_date
-        if _skip(day, policy):
+        if _skip(day, absence):
             return Decimal("0.00")
         cap = Decimal("0")
         if absence.start_time < MIDDAY:
@@ -59,7 +62,7 @@ def cost(absence):
         return rounding.round_to(min(absence.hours, cap), step)
     total = Decimal("0")
     for day, half in halves_covered(absence):
-        if _skip(day, policy):
+        if _skip(day, absence):
             continue
         total += patterns.units_on(emp, day, half)
     return rounding.round_to(total, step)

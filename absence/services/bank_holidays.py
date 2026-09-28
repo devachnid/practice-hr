@@ -20,9 +20,9 @@ def _target_type(handling):
 def sync_auto_absences(employment, year_start, year_end, actor=None):
     """Create the approved bank-holiday absences the pattern and policy
     imply, cancel the ones they no longer imply. Idempotent. A day the
-    person has already booked off is skipped and counted, and nothing is
-    written for it."""
-    created = removed = skipped = 0
+    person has booked off still gets its row: their booking skipped the bank
+    holiday (costing), so this row is what charges it."""
+    created = removed = 0
     al = AbsenceType.objects.get(code="AL")
     existing = {a.start_date: a for a in Absence.objects.filter(
         employment=employment, auto_bank_holiday=True, status=Absence.Status.APPROVED,
@@ -49,13 +49,10 @@ def sync_auto_absences(employment, year_start, year_end, actor=None):
     for day, target in wanted.items():
         if day in existing:
             continue
-        if bookings.overlaps(employment, day, day):
-            skipped += 1
-            continue
         a = Absence(employment=employment, absence_type=target, start_date=day, end_date=day,
                     auto_bank_holiday=True, requested_by=actor)
         a.full_clean(exclude=["employment", "absence_type", "requested_by"])
         a.save()
         bookings.approve(actor, a, comment="bank holiday")
         created += 1
-    return {"created": created, "removed": removed, "skipped": skipped}
+    return {"created": created, "removed": removed}

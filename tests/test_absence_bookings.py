@@ -168,3 +168,28 @@ def test_stale_second_approve_is_refused(db, hr_admin, employee_user):
     with pytest.raises(ValidationError):
         bookings.approve(hr_admin, stale)
     assert LedgerEntry.objects.filter(kind=LedgerEntry.Kind.BOOKING).count() == 1
+
+
+def test_approve_refuses_a_second_ordinary_booking_over_the_same_days(db, hr_admin, employee_user):
+    emp = hours_employee()
+    first = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    bookings.approve(hr_admin, first)
+    # a row written before the first existed (say, from an import) and approved afterwards
+    second = Absence.objects.create(employment=emp, absence_type=absence_type("AL"), start_date=WED,
+                                    end_date=WED, cost_units=D("7.50"))
+    with pytest.raises(ValidationError) as e:
+        bookings.approve(hr_admin, second)
+    assert "overlaps" in str(e.value)
+    assert Absence.objects.get(pk=second.pk).status == Absence.Status.REQUESTED
+
+
+def test_ordinary_bookings_and_automatic_bank_holidays_do_not_clash(db, employee_user):
+    emp = hours_employee()
+    auto = Absence.objects.create(employment=emp, absence_type=absence_type("BH"), start_date=MON,
+                                  end_date=MON, status=Absence.Status.APPROVED, auto_bank_holiday=True)
+    assert not bookings.overlaps(emp, MON, WED)
+    assert bookings.overlaps(emp, MON, MON, auto=True)
+    assert not bookings.overlaps(emp, MON, MON, auto=True, exclude_pk=auto.pk)
+    bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    assert bookings.overlaps(emp, WED, WED)
+    assert not bookings.overlaps(emp, WED, WED, auto=True)
