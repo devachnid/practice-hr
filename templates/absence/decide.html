@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load absence_extras %}
+{% block title %}Decide a request{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>{{ a.employment.employee.name }}: {{ a.absence_type.name }}</h1><a href="{% url 'absence:queue' %}">Approvals</a></div>
+<section class="card">
+  <h2>The request</h2>
+  <dl class="facts">
+    <dt>Who</dt><dd>{{ a.employment.employee.name }}{% if team %}, {{ team }}{% endif %}</dd>
+    <dt>Type</dt><dd>{{ a.absence_type.name }}</dd>
+    <dt>When</dt><dd>{{ a|when }}</dd>
+    <dt>Cost</dt><dd>{{ a.cost_units|units:unit }}</dd>
+    <dt>Asked</dt><dd>{{ a.requested_at|date:"j M Y" }}</dd>
+    {% if balance %}
+      {% if balance.error %}
+        <dt>Balance</dt><dd>It cannot be worked out: there is no contract or allowance policy for it. Ask an HR admin to check.</dd>
+      {% elif balance.pot %}
+        <dt>Remaining now</dt><dd>{{ balance.remaining|units:balance.pot.unit }}</dd>
+        <dt>Balance after</dt><dd{% if balance.over %} class="neg"{% endif %}><strong>{{ balance.after|units:balance.pot.unit }}</strong></dd>
+        {% if balance.pending %}<dt>Waiting</dt><dd>{{ balance.pending|units:balance.pot.unit }} in requests not yet decided, this one included</dd>{% endif %}
+      {% else %}
+        <dt>Balance</dt><dd>Not opened yet for that leave year: it opens overnight.</dd>
+      {% endif %}
+    {% endif %}
+  </dl>
+  {% if balance.over %}<p class="flash flash-warning" role="alert">This is more than their balance.</p>{% endif %}
+</section>
+<section class="card">
+  <h2>Who is off</h2>
+  {% if warning %}<p class="flash flash-warning" role="alert">{{ warning }}</p>{% endif %}
+  {% if days %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Day</th><th>Present</th><th>Off</th></tr></thead>
+    <tbody>
+    {% for d in days %}
+      <tr>
+        <th scope="row">{{ d.day|date:"D j M" }}</th>
+        <td>{% if d.headcount is not None %}{{ d.present }} of {{ d.headcount }} present{% else %}—{% endif %}</td>
+        <td>{% for o in d.off %}{{ o.employee.name }} ({{ o.label }}{% if o.partial_hours %}, {{ o.partial_hours|floatformat:"-2" }} hours{% elif o.halves|length == 1 %}, {{ o.halves.0 }} only{% endif %}){% if not forloop.last %}, {% endif %}{% empty %}Nobody{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p>The team calendar is not available for these dates.</p>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Your decision</h2>
+  <form method="post">{% csrf_token %}
+    {% for e in form.non_field_errors %}<p class="flash flash-error" role="alert">{{ e }}</p>{% endfor %}
+    {{ form.comment.as_field_group }}
+    <div class="form-actions">
+      <button type="submit" name="action" value="approve" class="btn btn-primary">Approve</button>
+      <button type="submit" name="action" value="decline" class="btn">Decline</button>
+    </div>
+  </form>
+</section>
+</div>
+{% endblock %}
