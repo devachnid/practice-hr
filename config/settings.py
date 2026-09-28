@@ -77,7 +77,12 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "people.context_processors.roles",
             ],
+            # hr/ is admin-site wiring, not an installed app (see hr/admin_site.py's
+            # own docstring), so its {% load design %} tag library needs this
+            # explicit registration rather than INSTALLED_APPS discovery.
+            "libraries": {"design": "hr.templatetags.design"},
         },
     },
 ]

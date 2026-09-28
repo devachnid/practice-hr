@@ -13,7 +13,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.http import (HttpResponseForbidden, HttpResponseNotAllowed,
                          HttpResponseRedirect)
 from django.templatetags.static import static
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
@@ -80,17 +80,32 @@ def _item(title, icon, link, permission=is_hr_admin):
     return {"title": title, "icon": icon, "link": link, "permission": permission}
 
 
+def _nav_item(title, icon, url_name, permission=is_hr_admin):
+    """None when `url_name` isn't registered yet. The People app's models
+    (and their ModelAdmins) land one task at a time; without this, a nav
+    entry for one not yet registered would raise NoReverseMatch on every
+    admin page, not just its own."""
+    try:
+        link = reverse(url_name)
+    except NoReverseMatch:
+        return None
+    return _item(title, icon, link, permission)
+
+
 def navigation(request):
-    return [
+    groups = [
         {"title": "People", "separator": False, "items": [
-            _item("Employees", "badge", reverse("admin:people_employee_changelist")),
-            _item("Teams", "groups", reverse("admin:people_team_changelist")),
-            _item("Contract types", "description", reverse("admin:people_contracttype_changelist")),
-            _item("Audit log", "history", reverse("admin:people_auditentry_changelist")),
+            _nav_item("Employees", "badge", "admin:people_employee_changelist"),
+            _nav_item("Teams", "groups", "admin:people_team_changelist"),
+            _nav_item("Contract types", "description", "admin:people_contracttype_changelist"),
+            _nav_item("Audit log", "history", "admin:people_auditentry_changelist"),
         ]},
         {"title": "Access", "separator": True, "items": [
-            _item("Login accounts", "key", reverse("admin:accounts_user_changelist")),
-            _item("Sign-in clients", "link", reverse("admin:oauth2_provider_application_changelist"),
-                  permission=is_superuser),
+            _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),
+            _nav_item("Sign-in clients", "link", "admin:oauth2_provider_application_changelist",
+                      permission=is_superuser),
         ]},
     ]
+    for group in groups:
+        group["items"] = [item for item in group["items"] if item is not None]
+    return [group for group in groups if group["items"]]
