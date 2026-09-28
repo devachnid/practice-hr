@@ -6,9 +6,11 @@ code. Only types with `payroll_reportable` appear at all; of those:
 
   Sickness       `health_sensitive` types: the name and the dates, nothing about
                  the kind of illness (the category is never read here).
-  Family leave   `is_family` types: expected and actual dates, KIT days.
+  Family leave   `is_family` types: the days in the period, expected and actual
+                 dates, KIT days in the period.
   Unpaid         the rest that are not `paid` (the seeded UNPAID type and
-                 dependants leave): the units they cost.
+                 dependants leave): the days in the period and the units
+                 they cost (costing.cost_between).
   TOIL           not an absence sheet: the TOIL-earned and TOIL-taken ledger
                  lines of pot-backed types that are both `paid` and
                  `payroll_reportable`, so an unpaid TOIL type is on Unpaid
@@ -16,8 +18,8 @@ code. Only types with `payroll_reportable` appear at all; of those:
 
 Starters, Leavers, Contract changes and Pay changes come from People. The
 Leavers sheet also carries each leaver's balance in every pot-backed type
-at the leaving date (a negative one is a debt, a positive one leave unused),
-so both reach payroll.
+at the end of the leaving date, from the ledger lines dated up to it and its entitlement lines (a
+negative one is a debt, a positive one leave unused), so both reach payroll.
 
 `run` saves media/payroll/YYYY-MM.xlsx and records a PayrollRun. Generating
 a month again records another run and replaces that month's file: the
@@ -32,11 +34,11 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from openpyxl import Workbook
 
 from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
-from absence.services import ledger, pots
+from absence.services import costing, pots
 from people.models import Contract, Employment, PayRecord
 from people.services import audit, contracts
 
@@ -48,8 +50,8 @@ HEADERS = {
     "Contract changes": ["Name", "From", "To", "Weekly amount", "Unit", "Basis", "Notes"],
     "Pay changes": ["Name", "From", "Basis", "Amount", "Reason"],
     "Sickness": ["Name", "From", "To"],
-    "Unpaid": ["Name", "From", "To", "Units", "Type"],
-    "Family leave": ["Name", "Type", "Expected start", "Actual start", "Expected return", "KIT days"],
+    "Unpaid": ["Name", "From", "To", "Units", "Unit", "Type"],
+    "Family leave": ["Name", "Type", "From", "To", "Expected start", "Actual start", "Expected return", "KIT days"],
     "TOIL": ["Name", "Date", "Units", "Kind", "Note"],
 }
 
@@ -65,13 +67,19 @@ def _name(employment):
 
 
 def _balance(employment, absence_type, day):
-    """The balance of the pot current on `day`, or None when there is none
-    (not opened, or no contract or policy to open one from)."""
+    """What the pot current on `day` held at the end of `day`: its ledger
+    lines dated on or before it, plus its entitlement lines whatever their
+    date (a leaver's entitlement is pro-rated by a revision line written
+    when the end date is recorded, which can be after the last day). None when there is no such pot (not opened,
+    or no contract or policy to open one from)."""
     try:
         pot = pots.lookup(employment, absence_type, day)
     except ValidationError:
         return None
-    return None if pot is None else float(ledger.balance(pot))
+    if pot is None:
+        return None
+    counted = Q(date__lte=day) | Q(kind__in=(LedgerEntry.Kind.ENTITLEMENT, LedgerEntry.Kind.REVISION))
+    return float(pot.entries.filter(counted).aggregate(t=Sum("units"))["t"] or 0)
 
 
 def _starters(start, end):
@@ -92,22 +100,29 @@ def _leavers(start, end):
 
 
 def _absences(start, end):
-    """The reportable absences of the period, sorted onto their sheets by flags."""
+    """The reportable absences of the period, sorted onto their sheets by
+    flags. An absence spanning the period's edge is clipped to it, and an
+    unpaid one costs only the days inside, so consecutive months never
+    report the same day twice. The automatic bank-holiday rows are never
+    reported: payroll pays bank holidays as part of the month."""
     sheets = {"Sickness": [], "Unpaid": [], "Family leave": []}
     live = (Absence.objects.filter(status=Absence.Status.APPROVED, start_date__lte=end, end_date__gte=start,
-                                   absence_type__payroll_reportable=True)
+                                   absence_type__payroll_reportable=True, auto_bank_holiday=False)
             .select_related("employment__employee", "absence_type").prefetch_related("kit_days")
             .order_by("start_date", "id"))
     for a in live:
         t = a.absence_type
+        first, last = max(a.start_date, start), min(a.end_date, end)
         if t.health_sensitive:
-            sheets["Sickness"].append([_name(a.employment), a.start_date, a.end_date])
+            sheets["Sickness"].append([_name(a.employment), first, last])
         elif t.is_family:
-            sheets["Family leave"].append([_name(a.employment), t.name, a.expected_start, a.actual_start,
-                                           a.expected_return, len(a.kit_days.all())])
+            kit = sum(1 for k in a.kit_days.all() if first <= k.date <= last)
+            sheets["Family leave"].append([_name(a.employment), t.name, first, last, a.expected_start,
+                                           a.actual_start, a.expected_return, kit])
         elif not t.paid:
-            units = a.hours if a.is_partial else a.cost_units
-            sheets["Unpaid"].append([_name(a.employment), a.start_date, a.end_date, float(units or 0), t.name])
+            units = costing.cost_between(a, start, end)
+            sheets["Unpaid"].append([_name(a.employment), first, last, float(units),
+                                     contracts.unit(a.employment, first) or "", t.name])
     return sheets
 
 

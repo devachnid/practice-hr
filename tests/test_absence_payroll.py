@@ -4,7 +4,7 @@ from decimal import Decimal
 import openpyxl
 from django.core.management import call_command
 
-from absence.models import AbsenceType, LedgerEntry, PayrollRun
+from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
 from absence.services import bookings, ledger, payroll, toil
 from people.models import AuditEntry, PayRecord
 from people.services import contracts, employments
@@ -71,19 +71,21 @@ def test_sheets_follow_type_flags_not_codes(db, employee_user, hr_admin):
     bookings.request(employee_user, emp, absence_type("DEP"), date(2026, 6, 11))
     wb = payroll.build(*JUNE)
     assert [r[1] for r in _sheet(wb, "Sickness")[1:]] == [date(2026, 6, 3)]
-    assert [r[4] for r in _sheet(wb, "Unpaid")[1:]] == ["Dependants leave"]
+    assert [r[5] for r in _sheet(wb, "Unpaid")[1:]] == ["Dependants leave"]
     assert "Sabbatical" not in " ".join(_cells(wb))
 
 
-def test_family_leave_sheet_has_dates_and_kit_days(db, employee_user, hr_admin):
+def test_family_leave_sheet_clips_to_the_month_and_counts_its_kit_days(db, employee_user, hr_admin):
     emp = hours_employee(start=date(2025, 1, 1))
     a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 5, 18), date(2027, 2, 12),
                          expected_start=date(2026, 5, 4), expected_return=date(2027, 2, 15))
     bookings.approve(hr_admin, a)
     bookings.add_kit_day(employee_user, a, date(2026, 8, 3))
-    bookings.add_kit_day(employee_user, a, date(2026, 8, 4))
+    bookings.add_kit_day(employee_user, a, date(2026, 6, 9))
     rows = _sheet(payroll.build(*JUNE), "Family leave")
-    assert rows[1] == [emp.employee.name, "Maternity leave", date(2026, 5, 4), None, date(2027, 2, 15), 2]
+    assert rows[0][:4] == ["Name", "Type", "From", "To"]
+    assert rows[1] == [emp.employee.name, "Maternity leave", date(2026, 6, 1), date(2026, 6, 30), date(2026, 5, 4), None,
+                       date(2027, 2, 15), 1]
 
 
 def test_toil_sheet_only_when_toil_is_paid(db, hr_admin):
@@ -165,3 +167,44 @@ def test_command_writes_the_month(db, settings, tmp_path, capsys):
     run = PayrollRun.objects.get()
     assert (run.period_start, run.period_end) == (date(2026, 2, 1), date(2026, 2, 28)) and run.generated_by is None
     assert str(tmp_path / "payroll" / "2026-02.xlsx") in capsys.readouterr().out
+
+
+def test_a_spanning_unpaid_absence_is_split_between_the_months(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2026, 4, 1))
+    a = bookings.request(employee_user, emp, absence_type("UNPAID"), date(2026, 6, 29), date(2026, 7, 3))
+    bookings.approve(hr_admin, a)
+    june = _sheet(payroll.build(date(2026, 6, 1), date(2026, 6, 30)), "Unpaid")
+    july = _sheet(payroll.build(date(2026, 7, 1), date(2026, 7, 31)), "Unpaid")
+    assert june[0][:5] == ["Name", "From", "To", "Units", "Unit"]
+    assert june[1][1:5] == [date(2026, 6, 29), date(2026, 6, 30), 15.0, "hours"]
+    assert july[1][1:5] == [date(2026, 7, 1), date(2026, 7, 3), 22.5, "hours"]
+    assert june[1][3] + july[1][3] == float(Absence.objects.get(pk=a.pk).cost_units)
+
+
+def test_a_spanning_sickness_absence_is_clipped_to_the_month(db, employee_user):
+    emp = hours_employee(start=date(2026, 4, 1))
+    bookings.request(employee_user, emp, absence_type("SICK"), date(2026, 6, 29), date(2026, 7, 3), category="illness")
+    assert _sheet(payroll.build(*JUNE), "Sickness")[1][1:] == [date(2026, 6, 29), date(2026, 6, 30)]
+    assert _sheet(payroll.build(date(2026, 7, 1), date(2026, 7, 31)), "Sickness")[1][1:] == [
+        date(2026, 7, 1), date(2026, 7, 3)]
+
+
+def test_leaver_balance_ignores_lines_dated_after_the_leaving_date_but_keeps_the_proration(db, hr_admin):
+    emp = hours_employee(start=date(2025, 1, 1))
+    pot = make_pot(emp, "AL", date(2026, 6, 1))
+    employments.end(hr_admin, emp, date(2026, 6, 20), "resigned")     # pro-rates the entitlement
+    at_leaving = ledger.balance(pot)
+    assert pot.entries.filter(kind=LedgerEntry.Kind.REVISION, date__gt=date(2026, 6, 20)).exists()
+    ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, Decimal("-40"), hr_admin, note="later", date=date(2026, 6, 25))
+    rows = _sheet(payroll.build(*JUNE), "Leavers")
+    assert rows[1][rows[0].index("Annual leave balance")] == float(at_leaving)
+    assert ledger.balance(pot) == at_leaving - 40
+
+
+def test_automatic_bank_holiday_rows_are_never_reported(db):
+    emp = hours_employee(start=date(2026, 4, 1))
+    AbsenceType.objects.filter(code="BH").update(paid=False, payroll_reportable=True)
+    Absence.objects.create(employment=emp, absence_type=absence_type("BH"), status=Absence.Status.APPROVED,
+                           start_date=date(2026, 6, 8), end_date=date(2026, 6, 8), cost_units=Decimal("7.5"),
+                           auto_bank_holiday=True)
+    assert len(_sheet(payroll.build(*JUNE), "Unpaid")) == 1       # headers only

@@ -12,12 +12,12 @@ same and prints where the file went.
 | Sheet | Holds |
 |---|---|
 | Starters | Employments that began in the month, with their contract on the first day |
-| Leavers | Employments that ended in the month, with the reason, and each leaver's balance in every allowance-backed leave type on their last day. A negative balance is leave taken beyond the allowance; a positive one is leave unused. Blank means no allowance was open then |
+| Leavers | Employments that ended in the month, with the reason, and each leaver's balance in every allowance-backed leave type at the end of their last day (other ledger lines dated after it are left out; the entitlement, pro-rated for leaving, is always counted). A negative balance is leave taken beyond the allowance; a positive one is leave unused. Blank means no allowance was open then |
 | Contract changes | Contracts that began or ended in the month, with their notes |
 | Pay changes | [Pay records](people.md) that began in the month |
-| Sickness | Dates only, never the kind of sickness |
-| Unpaid | Approved unpaid absences, with the units they cost |
-| Family leave | Expected and actual dates and the number of keeping-in-touch days |
+| Sickness | Dates within the month only, never the kind of sickness |
+| Unpaid | Approved unpaid absences, with the units they cost. An absence that runs across a month end is split: each month shows only its own days and their cost |
+| Family leave | The days within the month, expected and actual dates, and the keeping-in-touch days within the month |
 | TOIL | TOIL earned and taken in the month |
 
 Which absence goes on which sheet follows the type's settings, never its

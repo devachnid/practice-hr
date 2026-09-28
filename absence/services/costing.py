@@ -47,12 +47,20 @@ def _skip(day, absence):
 
 
 def cost(absence):
+    return cost_between(absence, None, None)
+
+
+def cost_between(absence, start, end):
+    """The cost of the part of the absence that falls on or between `start`
+    and `end` (either may be None for unbounded): the same rules and
+    rounding as cost(), applied to the days in the window. The payroll
+    report costs a spanning absence one month at a time with it."""
     policy = _policy(absence)
     step = policy.rounding if policy else Decimal("0.25")
     emp = absence.employment
     if absence.is_partial:
         day = absence.start_date
-        if _skip(day, absence):
+        if (start and day < start) or (end and day > end) or _skip(day, absence):
             return Decimal("0.00")
         cap = Decimal("0")
         if absence.start_time < MIDDAY:
@@ -62,7 +70,7 @@ def cost(absence):
         return rounding.round_to(min(absence.hours, cap), step)
     total = Decimal("0")
     for day, half in halves_covered(absence):
-        if _skip(day, absence):
+        if (start and day < start) or (end and day > end) or _skip(day, absence):
             continue
         total += patterns.units_on(emp, day, half)
     return rounding.round_to(total, step)
