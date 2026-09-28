@@ -1,0 +1,10 @@
+[Unit]
+Description=Practice HR nightly housekeeping
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/practice-hr
+# SECRET_KEY lives in the environment file; manage.py refuses to start
+# without it. See gunicorn.service for why the file is root-only.
+EnvironmentFile=/etc/practice-hr.env
+ExecStart=/root/practice-hr/.venv/bin/python manage.py hr_nightly

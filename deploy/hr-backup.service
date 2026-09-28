@@ -1,0 +1,6 @@
+[Unit]
+Description=Nightly Practice HR SQLite backup
+
+[Service]
+Type=oneshot
+ExecStart=/root/practice-hr/deploy/backup.sh

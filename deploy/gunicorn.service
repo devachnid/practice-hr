@@ -1,0 +1,40 @@
+[Unit]
+Description=Practice HR gunicorn
+After=network.target
+
+[Service]
+WorkingDirectory=/root/practice-hr
+
+# Secrets go in an environment file, not in Environment= lines. Unit files
+# under /etc/systemd/system are world-readable by default, so a SECRET_KEY
+# written here is readable by every local account — and with that key an
+# attacker can forge a session cookie for any user, including an HR admin.
+#
+# Create it once, readable only by root:
+#
+#   umask 077
+#   /root/practice-hr/.venv/bin/python -c \
+#     'from django.core.management.utils import get_random_secret_key as k; \
+#      print("SECRET_KEY=" + k())' > /etc/practice-hr.env
+#   chmod 600 /etc/practice-hr.env
+#
+# and add the rest of the settings to it:
+#
+#   DEBUG=0
+#   ALLOWED_HOSTS=hr.example.org
+#   CSRF_TRUSTED_ORIGINS=https://hr.example.org
+#   OIDC_RSA_PRIVATE_KEY=…  # one line, \n for newlines; generate with openssl genrsa 2048
+#
+# DEBUG defaults to 0 in config/settings.py, so omitting it is safe — but set
+# it explicitly so the file states the intent.
+EnvironmentFile=/etc/practice-hr.env
+
+# Bound to loopback on purpose: the Cloudflare tunnel is the only way in.
+# settings.py trusts X-Forwarded-Proto to decide a request is HTTPS, which is
+# only sound while nothing can reach gunicorn directly and set that header
+# itself. Do not change this to 0.0.0.0.
+ExecStart=/root/practice-hr/.venv/bin/gunicorn config.wsgi --bind 127.0.0.1:8322 --workers 2
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
