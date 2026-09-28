@@ -36,19 +36,6 @@ def _may_cancel(user, absence, today):
     return absence.status == S.REQUESTED or absence.start_date > today
 
 
-def _balance_after(absence, today):
-    """What the pot the absence would draw on has left, and after it.
-    None for a pot-less type; {"pot": None} when the pot is not open yet."""
-    if not absence.absence_type.uses_pot:
-        return None
-    pot = pots.lookup(absence.employment, absence.absence_type, absence.start_date)
-    if pot is None:
-        return {"pot": None}
-    s = balances.summary(pot, today)
-    after = s["remaining"] - absence.cost_units
-    return {"pot": pot, "remaining": s["remaining"], "pending": s["pending"], "after": after, "over": after < 0}
-
-
 def _submit_message(request, absence, sent):
     if absence.status != S.REQUESTED:
         messages.success(request, "Recorded.")
@@ -84,7 +71,7 @@ def request_leave(request):
                 _submit_message(request, a, sent)
                 return redirect("absence:mine")
             a = bookings.preview(**fields)
-            preview = {"a": a, "balance": _balance_after(a, today),
+            preview = {"a": a, "balance": balances.after(employment, a.absence_type, a.start_date, a.cost_units, today),
                        "fields": [(name, value) for name in form.fields
                                   for value in request.POST.getlist(name)]}
         except ValidationError as e:
@@ -93,7 +80,7 @@ def request_leave(request):
             form.add_error(None, e.messages)
     return render(request, "absence/request.html", {
         "form": form, "preview": preview, "unit": contracts.unit(employment, today),
-        "balances": balances.rows(employment, today)})
+        "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))})
 
 
 @login_required
@@ -124,7 +111,8 @@ def mine(request):
     return render(request, "absence/mine.html", {
         "employee": employee, "employment": employment, "rows": rows,
         "unit": contracts.unit(employment, today) if employment else "",
-        "balances": balances.rows(employment, today) if employment else []})
+        "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))
+        if employment else []})
 
 
 @login_required

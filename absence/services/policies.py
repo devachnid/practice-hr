@@ -7,6 +7,11 @@ from absence.models import Policy
 from people.services import contracts, employments
 
 
+class NoPolicy(ValidationError):
+    """No policy covers the contract type on that day. Apart from a missing
+    contract, so a page can show the first to an HR admin only."""
+
+
 def policy_for(employment, absence_type, day):
     contract = contracts.active_on(employment, day).first()
     if contract is None:
@@ -16,7 +21,7 @@ def policy_for(employment, absence_type, day):
               .filter(Q(effective_to__isnull=True) | Q(effective_to__gte=day))
               .order_by("-effective_from").first())
     if policy is None:
-        raise ValidationError(f"No {absence_type} policy for {ct} on {day:%d %b %Y}. "
+        raise NoPolicy(f"No {absence_type} policy for {ct} on {day:%d %b %Y}. "
                               f"Add one under Absence › Policies.")
     return policy
 

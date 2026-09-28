@@ -84,7 +84,8 @@ def test_missing_policy_shows_a_message_not_a_500(employee_client, employee_user
     emp = _me(employee_user)
     emp.contracts.first().contract_type.policies.all().delete()
     r = employee_client.get("/absence/request/")
-    assert r.status_code == 200 and "No Annual leave policy for Reception" in r.content.decode()
+    # the employee is not shown the admin's "add a policy" note in the balances
+    assert r.status_code == 200 and "Add one under" not in r.content.decode()
     r = employee_client.post("/absence/request/", _form("AL", "2026-06-01"))
     assert r.status_code == 200 and "No Annual leave policy for Reception" in r.content.decode()
 

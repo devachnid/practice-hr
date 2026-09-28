@@ -10,8 +10,7 @@ from django.utils import timezone
 
 from absence.forms import DecisionForm
 from absence.models import Absence
-from absence.services import bookings, calendar, notify
-from absence.views.requests import _balance_after
+from absence.services import balances, bookings, calendar, notify
 from people.services import access, contracts, positions
 
 
@@ -68,7 +67,7 @@ def _balance(absence, today):
     """What the requester's pot has left and would have after this, for the
     page. Never opens a pot; a missing contract or policy is a message."""
     try:
-        return _balance_after(absence, today)
+        return balances.after(absence.employment, absence.absence_type, absence.start_date, absence.cost_units, today)
     except ValidationError:
         return {"error": True}
 
