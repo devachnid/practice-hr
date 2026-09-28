@@ -61,7 +61,7 @@ def test_contract_outside_employment_refused(hr_admin):
 def test_fte_sums_each_contracts_own_fraction(hr_admin):
     emp = make_employment(start=date(2026, 4, 1))
     a = make_contract_type("Reception", "hours", Decimal("37.5"))
-    b = make_contract_type("Administration", "hours", Decimal("40"))
+    b = make_contract_type("Pharmacy technician", "hours", Decimal("40"))
     contracts.add(hr_admin, emp, a, Decimal("20"), date(2026, 4, 1))
     contracts.add(hr_admin, emp, b, Decimal("20"), date(2026, 4, 1))
     assert contracts.fte(emp, date(2026, 6, 1)) == Decimal("1.03")   # 20/37.5 + 20/40
