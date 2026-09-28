@@ -29,3 +29,12 @@ def test_end_before_start_refused(db):
 def test_service_date_defaults_to_start(db):
     emp = make_employment()
     assert emp.continuous_service_date == emp.start_date
+
+
+def test_blank_service_date_defaults_on_save(db):
+    from people.models import Employment
+    from tests.factories import make_employee
+    emp = Employment(employee=make_employee(), start_date=date(2026, 4, 6))
+    emp.full_clean()          # blank is allowed
+    emp.save()
+    assert emp.continuous_service_date == date(2026, 4, 6)

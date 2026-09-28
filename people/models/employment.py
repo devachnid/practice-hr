@@ -38,6 +38,7 @@ class Employment(models.Model):
     leaving_reason = models.CharField(
         max_length=12, choices=LeavingReason.choices, blank=True, default="")
     continuous_service_date = models.DateField(
+        blank=True,
         help_text="Defaults to the start date. Earlier when reckonable service "
                   "carries over from elsewhere in the NHS or an earlier spell. "
                   "Service tiers read this, never the start date.")
