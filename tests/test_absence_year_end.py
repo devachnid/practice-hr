@@ -366,6 +366,32 @@ def test_toil_past_its_deadline_at_year_end_expires(db, hr_admin):
     assert [e.units for e in new.entries.filter(kind=K.TOIL_EARNED)] == [D("2")]
 
 
+def test_a_toil_adjustment_is_a_lot_that_carries_and_expires(db, hr_admin):
+    emp = _toil_employee()
+    old = toil.earn(hr_admin, emp, D("2"), date(2027, 3, 1), "clinic").pot           # deadline 30 May
+    with _booked_on(date(2027, 3, 20)):
+        ledger.write(old, K.ADJUSTMENT, D("4"), hr_admin, date=date(2027, 3, 20), note="HR added")  # deadline 18 Jun
+    with _booked_on(date(2027, 3, 25)):
+        ledger.write(old, K.ADJUSTMENT, D("-3"), hr_admin, date=date(2027, 3, 25), note="HR removed")
+    year_end.run(date(2027, 4, 1))                                    # the -3 used the 2, then 1 of the 4
+    new = pots.for_day(emp, absence_type("TOIL"), date(2027, 4, 1))
+    carried = new.entries.get(kind=K.TOIL_EARNED)
+    assert (carried.units, carried.date) == (D("3"), date(2027, 3, 20))
+    assert carried.note == "carried from 01 Apr 2026–31 Mar 2027"
+    assert ledger.balance(old) == D("0")
+    assert year_end.expire_toil(new, date(2027, 6, 18)) == []
+    assert [e.units for e in year_end.expire_toil(new, date(2027, 6, 19))] == [D("-3")]
+
+
+def test_a_toil_adjustment_expires_by_the_policy_days(db, hr_admin):
+    emp = _toil_employee()
+    pot = toil.earn(hr_admin, emp, D("1"), date(2026, 6, 1), "clinic").pot
+    ledger.write(pot, K.ADJUSTMENT, D("4"), hr_admin, date=date(2026, 7, 1), note="HR added")   # deadline 29 Sep
+    assert [e.units for e in year_end.expire_toil(pot, date(2026, 9, 29))] == [D("-1")]
+    assert [e.units for e in year_end.expire_toil(pot, date(2026, 9, 30))] == [D("-4")]
+    assert ledger.balance(pot) == D("0")
+
+
 def test_toil_year_end_twice_writes_nothing(db, hr_admin):
     emp, earned = _toil_2026_27(hr_admin)
     year_end.run(date(2027, 4, 1))
@@ -378,7 +404,7 @@ def test_a_toil_expiry_reversed_by_an_adjustment_stays_reversed(db, hr_admin):
     emp = _toil_employee()
     pot = toil.earn(hr_admin, emp, D("3"), date(2026, 6, 1), "clinic").pot
     year_end.expire_toil(pot, date(2026, 8, 31))
-    ledger.write(pot, K.ADJUSTMENT, D("3"), hr_admin, note="expiry reversed")
+    ledger.write(pot, K.ADJUSTMENT, D("3"), hr_admin, date=date(2026, 8, 31), note="expiry reversed")
     assert year_end.expire_toil(pot, date(2026, 9, 1)) == []
     assert ledger.balance(pot) == D("3")
 

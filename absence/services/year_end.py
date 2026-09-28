@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Exists, OuterRef, Sum
+from django.db.models import Exists, OuterRef, Q, Sum
 from django.utils import timezone
 
 from absence.models import LedgerEntry, Pot
@@ -61,17 +61,17 @@ def _cap(pot, day):
 
 def _bookings(pot):
     """What each absence drawing on the pot uses, in the order it was
-    booked: [(booked_on, units used)]. An absence is booked on the local
+    booked: [(booked_on, units used, order key)]. An absence is booked on the local
     date its booking (or TOIL-taken) line was written, that is when it was
     approved, whatever the date of the leave. Its use is the net of all its
     lines on the pot (the booking, a cancellation, a re-costing), so a
     cancellation reverses its own booking's use."""
-    booked_on, used = {}, {}
+    booked, used = {}, {}
     for line in pot.entries.filter(absence__isnull=False).order_by("created_at", "id"):
-        if line.kind in (K.BOOKING, K.TOIL_TAKEN) and line.absence_id not in booked_on:
-            booked_on[line.absence_id] = timezone.localdate(line.created_at)
+        if line.kind in (K.BOOKING, K.TOIL_TAKEN) and line.absence_id not in booked:
+            booked[line.absence_id] = (timezone.localdate(line.created_at), (line.created_at, line.pk))
         used[line.absence_id] = used.get(line.absence_id, ZERO) - line.units
-    return [(day, used[absence]) for absence, day in booked_on.items()]
+    return [(day, used[absence], key) for absence, (day, key) in booked.items()]
 
 
 def _toil_marker(earned):
@@ -84,21 +84,31 @@ def _toil_lots(pot):
     expiry), what of it is left after its own expiry, and what bookings
     have used of it.
 
+    Lots are the TOIL-earned lines and the positive adjustments not tied to
+    an absence (an HR admin adding TOIL, or reversing a TOIL expiry): each
+    is dated its line's date, expires toil_expires_after_days from it, and
+    carries forward at year end like an earned line.
+
     The rule, shared with expire_carry_in: leave counts as using TOIL only
-    if it was booked on or before the lot's deadline. Bookings are taken in
-    the order they were booked (see _bookings) and each is used up first in,
-    first out: from the oldest lot still within its deadline on the day it
-    was booked and with something left."""
+    if it was booked on or before the lot's deadline. Bookings (see
+    _bookings), and the negative adjustments not tied to an absence (dated
+    the day they were written), are taken in the order they were made, and
+    each is used up first in, first out: from the oldest lot still within
+    its deadline on that day and with something left."""
     already = {e.note: ZERO - e.units
                for e in pot.entries.filter(kind=K.EXPIRY, note__startswith=TOIL_EXPIRED)}
     lots = []
-    for line in pot.entries.filter(kind=K.TOIL_EARNED).order_by("date", "id"):
+    manual = pot.entries.filter(kind=K.ADJUSTMENT, absence__isnull=True)
+    earned = pot.entries.filter(Q(kind=K.TOIL_EARNED) | Q(pk__in=manual.filter(units__gt=0)))
+    for line in earned.order_by("date", "id"):
         days = policies.policy_for(pot.employment, pot.absence_type, line.date).toil_expires_after_days
         marker = _toil_marker(line)
         lots.append({"line": line, "marker": marker, "expired": marker in already,
                      "deadline": line.date + timedelta(days=days) if days else None,
                      "left": line.units - already.get(marker, ZERO), "used": ZERO})
-    for booked_on, units in _bookings(pot):
+    taken = _bookings(pot) + [(timezone.localdate(line.created_at), ZERO - line.units, (line.created_at, line.pk))
+                              for line in manual.filter(units__lt=0)]
+    for booked_on, units, _ in sorted(taken, key=lambda t: t[2]):
         for lot in lots:
             if units <= 0:
                 break
@@ -116,9 +126,9 @@ def _close_toil(pot, remaining, new_start, actor):
     earned line's unused remainder: a TOIL-earned line on the next pot dated
     the day it was originally earned, so expire_toil runs its deadline on
     unchanged. A line whose deadline has passed by the new year expires
-    instead. Never more than the balance carries: a shortfall (an
-    adjustment, TOIL booked beyond what was earned) is taken from the oldest
-    lines first. Returns the amount carried."""
+    instead. Lots are as _toil_lots has them, so an adjustment adding TOIL
+    carries too. Never more than the balance carries: a shortfall (TOIL
+    booked beyond what was earned) is taken from the oldest lines first. Returns the amount carried."""
     carry = [(lot["line"], lot["left"] - lot["used"]) for lot in _toil_lots(pot)
              if not lot["expired"] and lot["left"] - lot["used"] > 0
              and (lot["deadline"] is None or lot["deadline"] >= new_start)]
@@ -216,7 +226,7 @@ def expire_carry_in(pot, today, actor=None):
     deadline = pot.year_start + timedelta(days=days)
     if today <= deadline:
         return None
-    used = sum((units for booked_on, units in _bookings(pot) if booked_on <= deadline and units > 0), ZERO)
+    used = sum((units for booked_on, units, _ in _bookings(pot) if booked_on <= deadline and units > 0), ZERO)
     unused = min(carried - used, max(ledger.balance(pot), ZERO))
     if unused <= 0:
         return None
@@ -226,8 +236,8 @@ def expire_carry_in(pot, today, actor=None):
 
 @transaction.atomic
 def expire_toil(pot, today, actor=None):
-    """Expire each TOIL-earned line unused by its deadline: the day it was
-    earned plus toil_expires_after_days of the policy then in force; usable
+    """Expire each TOIL lot (an earned line, or an adjustment adding TOIL;
+    see _toil_lots) unused by its deadline: the day it was earned plus toil_expires_after_days of the policy then in force; usable
     through that day. A line carried from last year keeps its earned date,
     so its deadline runs on.
 
