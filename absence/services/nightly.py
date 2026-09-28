@@ -1,61 +1,80 @@
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
 
-from absence.models import AbsenceType, Policy, Pot
-from absence.services import bank_holidays, chase, ledger, policies, pots, year_end
-from people.services import employments
+from absence.models import AbsenceType, Pot
+from absence.services import balances, bank_holidays, chase, ledger, policies, pots, year_end
+from people.services import contracts, employments
 
 
 def _why(subject, e):
     return f"{subject}: {'; '.join(e.messages)}"
 
 
-def _has_pot(employment, absence_type, today):
+def _pot_covering(employment, absence_type, day):
     return Pot.objects.filter(employment=employment, absence_type=absence_type,
-                              year_start__lte=today, year_end__gte=today).exists()
+                              year_start__lte=day, year_end__gte=day).first()
 
 
-def _open_current_pots(today, failed):
-    """Open this year's annual-leave pot, and the bank-holiday pot where the
-    annual policy's handling is "pot", for every employment active today, so
-    a new starter has an entitlement and bank-holiday charges before their
-    first booking. The pots are synced by run()'s loops, not here."""
-    al, bh = AbsenceType.objects.get(code="AL"), AbsenceType.objects.get(code="BH")
+def _reported(absence_type, e):
+    """Which failures to open a pot are worth a line in `failed`: any for
+    annual leave (everyone has one); for the bank-holiday pot, used under
+    "pot" handling, a missing policy of its own. Another pot-backed type
+    with no policy for the contract type is simply not an allowance this
+    person has (TOIL, study leave), so it is skipped quietly."""
+    if absence_type.code == "AL":
+        return True
+    return absence_type.code == "BH" and isinstance(e, policies.NoPolicy)
+
+
+def _open_pots(today, failed):
+    """Open this year's and next year's pot of every pot-backed type for
+    every employment active today, so a new starter has an entitlement and
+    bank-holiday charges before their first booking, and the request and
+    decide pages can show next year's balance (spec §5) all year.
+
+    This year is the leave year containing today; next year starts the day
+    after it ends, and is opened only if the person is still employed and
+    contracted that day and a policy covers it. Annual leave always; the
+    bank-holiday pot only where the annual policy's handling is "pot";
+    any other pot-backed type (TOIL, study leave…) where the contract type
+    has a policy for it. The pots are opened bare and synced by run()'s
+    loops, which count what they write."""
+    types = list(AbsenceType.objects.filter(uses_pot=True, active=True).order_by("display_order", "id"))
     opened = 0
     for employment in employments.active_on(today).select_related("employee"):
-        try:
-            if not _has_pot(employment, al, today):
-                pots.for_day(employment, al, today, sync=False)
-                opened += 1
-            if _has_pot(employment, bh, today):
-                continue
-        except ValidationError as e:
-            failed.append(_why(employment, e))
-            continue
-        try:
-            handling = policies.policy_for(employment, al, today).bank_holiday_handling
-        except ValidationError:
-            continue        # the annual pot already exists; its own sync below reports this
-        if handling != Policy.BankHolidays.PRO_RATA_POT:
-            continue
-        try:
-            pots.for_day(employment, bh, today, sync=False)
-            opened += 1
-        except ValidationError as e:
-            failed.append(_why(employment, e))
+        for absence_type in types:
+            day = today
+            for year in ("this", "next"):
+                if year == "next" and not (employment.is_active_on(day)
+                                           and contracts.active_on(employment, day).exists()):
+                    break                               # leaving before then: nothing to open
+                if absence_type.code == "BH" and not balances.bank_holiday_pot_used(employment, day):
+                    break
+                pot = _pot_covering(employment, absence_type, day)
+                if pot is None:
+                    try:
+                        pot = pots.for_day(employment, absence_type, day, sync=False)
+                    except ValidationError as e:
+                        if _reported(absence_type, e):
+                            failed.append(_why(employment, e))
+                        break
+                    opened += 1
+                day = pot.year_end + timedelta(days=1)
     return opened
 
 
 def run(today):
     """Close the pots whose leave year has ended and run the carry-in and
-    TOIL expiries (year_end.run), open the current pots of every active
-    employment, then re-sync every open pot's entitlement and every open
+    TOIL expiries (year_end.run), open this year's and next year's pots of
+    every active employment (_open_pots), then re-sync every open pot's entitlement and every open
     annual-leave pot's automatic bank-holiday absences. Idempotent. A pot or
     employment that cannot be processed (no contract, or no policy covers a
     day) is listed in `failed` and skipped, so one bad row never stops the
     rest."""
     ended = year_end.run(today)
     failed = list(ended["failed"])
-    opened = _open_current_pots(today, failed)
+    opened = _open_pots(today, failed)
     open_pots = list(pots.open_pots(today))     # after the bootstrap: the new pots are synced too
     synced = revisions = 0
     for pot in open_pots:

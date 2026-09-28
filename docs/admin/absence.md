@@ -24,8 +24,13 @@ name, apart from four codes the services look up (`AL`, `BH`, `SICK`,
 **The nightly job does the housekeeping.** Pots are opened, entitlements
 recalculated, bank holidays charged, the year closed and waiting requests
 chased by `hr_nightly` (01:30) — see [Nightly housekeeping](sign-in.md#nightly-housekeeping)
-and [the year-end page](year-end.md). Until it has run, a new leave year's
-pot shows "Not opened yet: it opens overnight."
+and [the year-end page](year-end.md). Each night it opens, for everyone
+employed, **this leave year's and next year's pot** of every allowance-backed
+type they have a policy for (annual leave always; the bank-holiday pot where
+annual leave's policy says "pot"; TOIL, study leave or your own types once
+their contract type has a policy), so the request and decide pages can show
+next year's balance. Until it has run, such a pot shows "Not opened yet: it
+opens overnight." A year beyond next opens when leave in it is approved.
 
 ## Absence types
 
@@ -57,7 +62,9 @@ is costed and recorded but nothing is deducted. *If you tick it on a type
 with no policy,* requests fail with a message naming the missing policy
 (and the nightly reports it) rather than silently costing nothing. Study
 leave and TOIL are seeded pot-backed **without** a policy: add one before
-anyone books them.
+anyone books them. Once a contract type has one, the nightly opens a pot of
+that type for everyone on it; without one, nobody on that contract type has
+that allowance and nothing is reported.
 
 ### Needs approval
 
@@ -234,8 +241,9 @@ Employees use **Leave** in the menu, then *Request leave*.
    is allowed: the approver sees the same warning. Press *Confirm request*
    to save it.
 
-A pot that is not open yet reads "Not opened yet: it opens overnight" instead of
-a balance. The request is refused when it overlaps another live absence,
+A pot that is not open yet reads "Not opened yet" instead of a balance
+(this year's and next year's open overnight; a later year's when leave in
+it is approved). The request is refused when it overlaps another live absence,
 falls outside the employment, or (pot-backed) crosses the end of the leave
 year. Types that need no approval are recorded as approved straight away;
 otherwise the approver is emailed and the request shows as Requested.
@@ -302,7 +310,9 @@ behind it (`?kind=` on the ledger page: `entitlement,revision`, `carry_in`,
 `expiry`, `adjustment,toil_earned`; Waiting lists the pending requests
 because a request reaches the ledger only when approved). The running
 balance column always shows the true balance, whatever the filter. A year
-"not opened yet" has no pot; the nightly opens it. HR admins also see set-up
+"not opened yet" has no pot; the nightly opens it. The next year reads "Not
+employed then." for someone leaving before it starts. The Bank holiday row
+shows only where the annual-leave policy's handling is "pot". HR admins also see set-up
 gaps, such as a type with no policy.
 
 **Team** (from Balances; approvers and HR admins) lists the people whose

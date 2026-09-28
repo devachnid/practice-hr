@@ -7,9 +7,9 @@ carry cap, the carry-in expiry and the TOIL expiry.
 ## What the nightly does
 
 `hr_nightly` (01:30 daily; see [Nightly housekeeping](sign-in.md#nightly-housekeeping))
-runs the year end first, then opens the current pots, recalculates every
-open pot's entitlement and bank holidays, and chases waiting requests. It is
-safe to run twice: every step looks for its own earlier line and writes
+runs the year end first, then opens this year's and next year's pots,
+recalculates every open pot's entitlement and bank holidays, and chases
+waiting requests. It is safe to run twice: every step looks for its own earlier line and writes
 nothing the second time.
 
 **It closes every unclosed pot whose leave year has ended**, oldest first, so

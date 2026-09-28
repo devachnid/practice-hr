@@ -245,3 +245,21 @@ def test_part_day_fields_only_for_an_hours_allowance(employee_client, employee_u
     assert 'name="start_date"' in body and 'name="hours"' not in body and 'name="partial"' not in body
     r = employee_client.post("/absence/request/", _confirmed("AL", "2026-06-01", "2026-06-03"))
     assert r.status_code == 302 and Absence.objects.get().cost_units == Decimal("6.0")
+
+
+def test_after_the_nightly_a_next_year_request_shows_next_years_balance_and_warning(employee_client, employee_user):
+    from absence.models import Policy
+    from absence.services import nightly
+    from tests.factories import current_leave_year
+    emp = _me(employee_user)
+    Policy.objects.update(weeks_per_year=Decimal("1"))                  # 37.50 hours a year
+    nightly.run(timezone.localdate())                                   # opens this year's pot and next
+    next_start = current_leave_year()[1] + timedelta(days=1)
+    monday = next_start + timedelta(days=(7 - next_start.weekday()) % 7 + 21)
+    r = employee_client.post("/absence/request/", _form("AL", monday, monday + timedelta(days=11)))
+    body = r.content.decode()
+    nxt = pots.lookup(emp, absence_type("AL"), monday)
+    assert nxt is not None and nxt.year_start == next_start
+    assert r.status_code == 200 and "Not opened yet" not in body and "Remaining now" in body
+    assert "37.5" in body and "more than your balance" in body.lower()
+    assert not Absence.objects.filter(auto_bank_holiday=False).exists()

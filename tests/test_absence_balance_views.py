@@ -233,3 +233,26 @@ def test_after_gives_remaining_cost_and_the_balance_after(db):
     assert (a["remaining"], a["cost"], a["after"], a["over"]) == (
         Decimal("210.00"), Decimal("22.50"), Decimal("187.50"), False)
     assert balances.after(emp, al, today, Decimal("300"), today)["over"] is True
+
+
+# --- what "opens overnight" promises (I5) ---------------------------------------------
+
+def test_the_bank_holiday_row_shows_only_where_the_pot_is_used(db):
+    from absence.models import Policy
+    from tests.factories import make_policy
+    emp = hours_employee()
+    today = timezone.localdate()
+    ct = emp.contracts.first().contract_type
+    make_policy(ct, "BH")                                   # a policy, but annual leave says "closed"
+    assert "BH" not in {r["type"].code for r in balances.rows(emp, today, include_bh=True, show_setup_gaps=True)}
+    ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
+    assert "BH" in {r["type"].code for r in balances.rows(emp, today, include_bh=True)}
+
+
+def test_next_year_for_someone_leaving_before_it_does_not_promise_a_pot(employee_client, employee_user):
+    emp = _me(employee_user)
+    this = pots.for_day(emp, absence_type("AL"), timezone.localdate())
+    emp.end_date = this.year_end
+    emp.save()
+    body = employee_client.get("/absence/balances/").content.decode()
+    assert "Not opened yet" not in body and "Not employed then." in body

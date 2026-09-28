@@ -14,6 +14,6 @@
     <td{% if summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ summary.remaining|units:pot.unit }}</strong></td>
     <td><a href="{% url 'absence:ledger' pot.pk %}">Ledger</a></td>
   {% else %}
-    <td colspan="9">{% if error %}{{ error }}{% elif unavailable %}Nothing is set up for this year.{% else %}Not opened yet: it opens overnight.{% endif %}</td>
+    <td colspan="9">{% if error %}{{ error }}{% elif unavailable %}{{ unavailable }}{% else %}Not opened yet: it opens overnight.{% endif %}</td>
   {% endif %}
 </tr>

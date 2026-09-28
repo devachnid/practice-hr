@@ -19,7 +19,7 @@
           <dt>Balance after</dt><dd{% if preview.balance.over %} class="neg"{% endif %}><strong>{{ preview.balance.after|units:preview.balance.pot.unit }}</strong></dd>
           {% if preview.balance.pending %}<dt>Also waiting</dt><dd>{{ preview.balance.pending|units:preview.balance.pot.unit }} in other requests</dd>{% endif %}
         {% else %}
-          <dt>Balance</dt><dd>Not opened yet for that leave year: it opens overnight.</dd>
+          <dt>Balance</dt><dd>Not opened yet for that leave year. This year's and next year's open overnight; a later year's opens when leave in it is approved.</dd>
         {% endif %}
       {% endif %}
     </dl>

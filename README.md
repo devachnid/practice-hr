@@ -181,8 +181,8 @@ directory exists in the state directory (`MEDIA_ROOT` above: the payroll
 reports; until it exists the backup skips it rather than failing). Expired sessions are
 cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
 runs `manage.py hr_nightly`, which disables the login of anyone whose
-employment has ended, closes each leave year that has ended, opens the
-current leave pots, charges bank holidays and chases waiting leave requests
+employment has ended, closes each leave year that has ended, opens this
+year's and next year's leave pots, charges bank holidays and chases waiting leave requests
 — see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping) and
 [Year end](docs/admin/year-end.md). `deploy/manage absence_year_end` runs
 the year-end part by hand, and `deploy/manage payroll_report --period

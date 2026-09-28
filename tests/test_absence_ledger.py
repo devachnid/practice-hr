@@ -84,5 +84,5 @@ def test_balance_rows_read_open_pots_only(db):
     assert not Pot.objects.exists()
     pot = pots.for_day(emp, absence_type("AL"), today)
     rows = {r["type"].code: r for r in balances.rows(emp, today, include_bh=True, show_setup_gaps=True)}
-    assert "BH" in rows
+    assert "BH" not in rows                          # annual leave's handling is "closed": no bank-holiday pot
     assert rows["AL"]["pot"] == pot and rows["AL"]["summary"]["remaining"] == Decimal("210.00")
