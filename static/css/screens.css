@@ -620,7 +620,8 @@ body.page-grid {
 
   .tabbar {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
     position: fixed;
     inset: auto 0 0 0;
     z-index: 20;

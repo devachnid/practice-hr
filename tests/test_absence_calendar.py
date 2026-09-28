@@ -188,7 +188,12 @@ def test_calendar_shows_labels_only_to_colleagues_and_type_detail_to_hr(db, hr_a
 
 def test_nav_links_to_the_calendar(db, employee_client):
     body = employee_client.get(reverse("absence:mine")).content.decode()
-    assert body.count(reverse("absence:calendar")) == 2
+    url = reverse("absence:calendar")
+    desktop, tabbar = body.split('<nav class="tabbar"')
+    assert f'href="{url}" class="nav-link' in desktop
+    assert f'href="{url}" class="tabbar-item' not in tabbar
+    sheet = tabbar.split('<div class="tabbar-sheet">')[1]
+    assert f'href="{url}" class="tabbar-link"' in sheet
 
 
 # --- the decision page, end to end (Task 3 tested it against a stub) ---

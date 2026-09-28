@@ -75,8 +75,9 @@ def off_on(day, team=None, detail=False):
 
 
 def present(team, day):
-    """(present, headcount) for a team on a day. Someone off for part of a
-    day is still present."""
+    """(present, headcount) for a team on a day. Someone off for some hours
+    of the day is still present; someone off for an AM or PM half-day counts
+    as away."""
     absences, spells = _load(day, day, team)
     return _present(day, absences, spells, {})
 
