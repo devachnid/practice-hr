@@ -16,7 +16,7 @@ import functools
 import re
 from pathlib import Path
 
-from rota import palette
+from hr import palette
 
 TOKENS = Path(__file__).resolve().parents[1] / "static" / "css" / "tokens.css"
 

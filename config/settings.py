@@ -77,7 +77,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "rota.context_processors.waiting",
             ],
         },
     },
@@ -146,7 +145,6 @@ UNFOLD = {
         },
     },
     "STYLES": ["hr.admin_site.style_fonts", "hr.admin_site.style_admin"],
-    "SCRIPTS": ["hr.admin_site.script_theme_bridge"],
 }
 
 LANGUAGE_CODE = "en-gb"
@@ -189,7 +187,7 @@ TRUSTED_PROXY_IPS = frozenset(
 )
 
 # Outgoing mail: invitations and password-reset links, and nothing else.
-# Standard Django keys, every one from /etc/rota.env. EMAIL_HOST being set
+# Standard Django keys, every one from the environment. EMAIL_HOST being set
 # is what "email is configured" means (accounts/mail.py): without it every
 # send becomes a link for the admin to copy, the dashboard says so, and
 # `check --deploy` warns. Mailjet is plain authenticated SMTP, so nothing

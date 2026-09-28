@@ -28,7 +28,7 @@ jobs:
       - run: ruff check .
       - run: DEBUG=1 python manage.py makemigrations --check --dry-run
       - run: python -m pytest -q
-      # The project's own deploy checks (rota/checks.py) — a template
+      # The project's own deploy checks — a template
       # referencing a static file the manifest lacks, a sender Django cannot
       # parse — run against a production-shaped environment. Errors fail the
       # job; Django's warnings about this throwaway key do not. The key is
@@ -47,7 +47,7 @@ jobs:
   # breaks on 3.14 is seen on the pull request that introduces it, not at
   # upgrade time. Deliberately NOT in the main ruleset's required checks:
   # a 3.14-only failure in a dependency's wheels shows red here but never
-  # blocks a rota fix. Lint, the migrations check and the deploy check are
+  # blocks an HR fix. Lint, the migrations check and the deploy check are
   # not repeated -- none of them depends on the interpreter version.
   tests-next-python:
     runs-on: ubuntu-latest
