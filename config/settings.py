@@ -233,6 +233,11 @@ TRUSTED_PROXY_IPS = frozenset(
     ).split(",") if h.strip()
 )
 
+# Bearer tokens for the read API the rota polls (api/). From the environment
+# only, comma-separated so one can be rotated in beside another. Empty means
+# the API refuses every request; hr/checks.py warns about that.
+HR_API_TOKENS = frozenset(t.strip() for t in os.environ.get("HR_API_TOKENS", "").split(",") if t.strip())
+
 # Outgoing mail: invitations and password-reset links, and nothing else.
 # Standard Django keys, every one from the environment. EMAIL_HOST being set
 # is what "email is configured" means (accounts/mail.py): without it every

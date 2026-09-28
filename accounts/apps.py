@@ -12,5 +12,6 @@ class AccountsConfig(AppConfig):
         from .recent_auth import on_login
         user_logged_in.connect(on_login, dispatch_uid="accounts.recent_auth")
 
-        from hr.checks import oidc_signing_key
+        from hr.checks import api_tokens, oidc_signing_key
         checks.register(oidc_signing_key, checks.Tags.security, deploy=True)
+        checks.register(api_tokens, checks.Tags.security, deploy=True)

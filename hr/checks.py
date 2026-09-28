@@ -28,3 +28,18 @@ def oidc_signing_key(app_configs, **kwargs):
              "names (README, Deploy), unencrypted, as it is.",
         id="hr.E001",
     )]
+
+
+def api_tokens(app_configs, **kwargs):
+    """The read API (api/) answers 401 to everyone while HR_API_TOKENS is
+    empty, so a deployment that forgot it looks fine here and the rota's
+    polling fails there. Not an error: an installation may run without the
+    rota."""
+    if settings.DEBUG or settings.HR_API_TOKENS:
+        return []
+    return [checks.Warning(
+        "HR_API_TOKENS is empty, so the read API refuses every request.",
+        hint="Set HR_API_TOKENS in /etc/practice-hr.env to the token the rota sends "
+             "(comma-separated for more than one), and restart.",
+        id="hr.W001",
+    )]
