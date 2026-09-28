@@ -1,6 +1,7 @@
 from datetime import date
+from decimal import Decimal
 
-from people.models import AuditEntry, PayRecord, WorkingPattern
+from people.models import AuditEntry, EmergencyContact, PayRecord, WorkingPattern
 from tests.factories import make_employee, make_employment, make_position, make_team
 
 
@@ -147,3 +148,53 @@ def test_emergency_contact_add_is_audited(admin_client):
     assert r.status_code == 302
     entry = AuditEntry.objects.get(model="people.employee", object_id=e.pk, field="emergency_contact")
     assert entry.before == "" and "Jo Bloggs" in entry.after
+
+
+def test_emergency_contact_field_change_is_audited_per_field(admin_client):
+    """OPEN (round 2): a change to phone or priority alone must still be
+    audited, field by field — comparing whole-row str() misses it."""
+    e = make_employee()
+    ec = EmergencyContact.objects.create(employee=e, name="Jo Bloggs", relationship="Partner",
+                                         phone="111", priority=1)
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/", {
+        "first_name": e.first_name, "last_name": e.last_name, "work_email": e.work_email,
+        "preferred_name": "", "personal_email": "", "phone": "", "address_line1": "",
+        "address_line2": "", "town": "", "postcode": "", "ni_number": "",
+        "emergency_contacts-TOTAL_FORMS": 1, "emergency_contacts-INITIAL_FORMS": 1,
+        "emergency_contacts-0-id": ec.pk, "emergency_contacts-0-employee": e.pk,
+        "emergency_contacts-0-name": ec.name, "emergency_contacts-0-relationship": ec.relationship,
+        "emergency_contacts-0-phone": "999", "emergency_contacts-0-priority": ec.priority,
+        "employments-TOTAL_FORMS": 0, "employments-INITIAL_FORMS": 0,
+        "_save": "Save",
+    })
+    assert r.status_code == 302
+    entry = AuditEntry.objects.get(model="people.employee", object_id=e.pk,
+                                   field="emergency_contact.phone")
+    assert entry.before == "111" and entry.after == "999"
+    assert not AuditEntry.objects.filter(field="emergency_contact.name").exists()
+    assert not AuditEntry.objects.filter(field="emergency_contact.priority").exists()
+
+
+def test_top_level_delete_views_are_refused(admin_client, hr_admin):
+    """Finding 2 (round 2): nothing in people is deleted; rows end."""
+    e = make_employee()
+    assert admin_client.get(f"/admin/people/employee/{e.pk}/delete/").status_code == 403
+
+
+def test_pay_record_amount_edit_through_admin_is_audited(admin_client, hr_admin):
+    """Finding 5 (round 2): an existing pay record's edit routes through
+    pay.amend(), which diffs against the pre-change row."""
+    emp = make_employment()
+    pr = PayRecord.objects.create(employment=emp, from_date=date(2026, 4, 6),
+                                  basis="annual", amount=Decimal("25000"))
+    r = admin_client.post(f"/admin/people/employment/{emp.pk}/change/", _employment_base(
+        emp, **{"pay_records-TOTAL_FORMS": 1, "pay_records-INITIAL_FORMS": 1,
+                "pay_records-0-id": pr.pk, "pay_records-0-employment": emp.pk,
+                "pay_records-0-from_date": str(pr.from_date), "pay_records-0-to_date": "",
+                "pay_records-0-basis": "annual", "pay_records-0-amount": "27000",
+                "pay_records-0-reason": ""}))
+    assert r.status_code == 302
+    entry = AuditEntry.objects.get(model="people.payrecord", object_id=pr.pk, field="amount")
+    assert Decimal(entry.before) == Decimal("25000") and Decimal(entry.after) == Decimal("27000")
+    pr.refresh_from_db()
+    assert pr.amount == Decimal("27000")

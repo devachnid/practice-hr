@@ -64,6 +64,16 @@ def add(actor, employment, title, team, line_manager, from_date, primary=True, t
 
 @transaction.atomic
 def end(actor, position, to_date):
+    if position.primary and position.to_date is not None and (to_date is None or to_date > position.to_date):
+        # Only widening an already-bounded primary spell (extending it, or
+        # reopening it) can newly reach a later primary position; one that
+        # was already open-ended could never have let one exist.
+        clash = Position.objects.filter(employment=position.employment, primary=True).exclude(
+            pk=position.pk).filter(Q(to_date__isnull=True) | Q(to_date__gte=position.from_date))
+        if to_date is not None:
+            clash = clash.filter(from_date__lte=to_date)
+        if clash.exists():
+            raise ValidationError({"primary": "There is already a primary position on those dates."})
     before = position.to_date
     position.to_date = to_date
     position.full_clean()

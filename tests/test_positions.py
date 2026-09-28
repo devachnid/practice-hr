@@ -50,3 +50,17 @@ def test_end_position(hr_admin):
     p = positions.add(hr_admin, b, "Receptionist", make_team(), a.employee, b.start_date)
     positions.end(hr_admin, p, date(2026, 12, 31))
     assert positions.primary_on(b, date(2027, 1, 1)) is None
+
+
+def test_extending_a_primary_position_over_a_later_one_refused(hr_admin):
+    """Finding 4 (round 2): end() must re-check the primary clash when it
+    widens an already-bounded primary spell (a later to_date, or none)."""
+    a, b = _two()
+    team = make_team()
+    first = positions.add(hr_admin, b, "Receptionist", team, a.employee, b.start_date,
+                          to_date=date(2026, 6, 30))
+    positions.add(hr_admin, b, "Admin", team, a.employee, date(2026, 7, 1))
+    with pytest.raises(ValidationError):
+        positions.end(hr_admin, first, date(2026, 12, 31))
+    first.refresh_from_db()
+    assert first.to_date == date(2026, 6, 30)

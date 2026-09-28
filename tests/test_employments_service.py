@@ -60,6 +60,19 @@ def test_amend_refuses_a_start_date_overlapping_an_earlier_spell(hr_admin):
     assert second.start_date == date(2025, 1, 1)
 
 
+def test_end_refuses_extending_past_a_following_spell(hr_admin):
+    """Finding 3 (round 2): end() must re-check the overlap when it
+    widens an already-bounded spell (a later end_date, or none at all)."""
+    e = make_employee()
+    first = employments.start(hr_admin, e, date(2024, 1, 1))
+    employments.end(hr_admin, first, date(2024, 6, 30), Employment.LeavingReason.RESIGNED)
+    employments.start(hr_admin, e, date(2024, 7, 1))
+    with pytest.raises(ValidationError):
+        employments.end(hr_admin, first, date(2024, 12, 31), Employment.LeavingReason.RESIGNED)
+    first.refresh_from_db()
+    assert first.end_date == date(2024, 6, 30)
+
+
 def test_active_on_filters_by_day(db):
     a = make_employment(start=date(2026, 1, 1), end_date=date(2026, 6, 30),
                         leaving_reason="resigned")

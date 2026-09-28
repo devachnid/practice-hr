@@ -9,7 +9,7 @@ from unfold.admin import ModelAdmin, StackedInline, TabularInline
 from people import admin_forms
 from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
                            Employment, PatternDay, PayRecord, Position, Team, WorkingPattern)
-from people.services import access, audit, contracts, employees, employments, positions
+from people.services import access, audit, contracts, employees, employments, pay, positions
 
 
 class EmergencyContactInline(TabularInline):
@@ -45,6 +45,9 @@ class EmployeeAdmin(ModelAdmin):
         pos = positions.primary_on(emp, date.today()) if emp else None
         return f"{pos.title}, {pos.team}" if pos else ""
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
     def save_model(self, request, obj, form, change):
         if change:
             data = {k: form.cleaned_data[k] for k in form.changed_data if k in employees.EDITABLE}
@@ -79,9 +82,16 @@ class EmployeeAdmin(ModelAdmin):
                     messages.error(request, "; ".join(e.messages))
             else:
                 is_new = inst.pk is None
-                before = "" if is_new else str(EmergencyContact.objects.get(pk=inst.pk))
-                inst.save()
-                audit.record(request.user, form.instance, {"emergency_contact": (before, str(inst))})
+                if is_new:
+                    inst.save()
+                    audit.record(request.user, form.instance,
+                                {"emergency_contact": ("", str(inst))})
+                else:
+                    fresh = EmergencyContact.objects.get(pk=inst.pk)
+                    changes = {f"emergency_contact.{f}": (getattr(fresh, f), getattr(inst, f))
+                              for f in ("name", "relationship", "phone", "priority")}
+                    inst.save()
+                    audit.record(request.user, form.instance, changes)
         for inst in formset.deleted_objects:
             if isinstance(inst, EmergencyContact):
                 audit.record(request.user, form.instance, {"emergency_contact": (str(inst), "")})
@@ -148,6 +158,9 @@ class EmploymentAdmin(ModelAdmin):
         # here would silently move history to a different person.
         return ["employee"] if obj else []
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
     def change_view(self, request, object_id, form_url="", extra_context=None):
         if access.can_view_restricted(request.user) and request.method == "GET":
             obj = self.get_object(request, object_id)
@@ -203,12 +216,11 @@ class EmploymentAdmin(ModelAdmin):
                         fresh = Contract.objects.get(pk=inst.pk)
                         contracts.end(request.user, fresh, inst.to_date)
                 elif isinstance(inst, PayRecord):
-                    inst.save()
-                    audit.record(request.user, inst, {"amount": ("", inst.amount)})
-                else:
-                    inst.full_clean()
-                    inst.save()
-                    audit.record(request.user, inst, {"saved": ("", str(inst))})
+                    if inst.pk is None:
+                        pay.add(request.user, form.instance, inst.from_date, inst.basis,
+                                inst.amount, inst.to_date, inst.reason)
+                    else:
+                        pay.amend(request.user, inst, **{f: getattr(inst, f) for f in pay.FIELDS})
             except ValidationError as e:
                 messages.error(request, "; ".join(e.messages))
 
@@ -217,6 +229,9 @@ class EmploymentAdmin(ModelAdmin):
 class WorkingPatternAdmin(ModelAdmin):
     list_display = ("employment", "effective_from")
     inlines = [PatternDayInline]
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
     def save_formset(self, request, form, formset, change):
         from decimal import Decimal
@@ -237,10 +252,16 @@ class WorkingPatternAdmin(ModelAdmin):
 class TeamAdmin(ModelAdmin):
     list_display = ("name", "display_order", "min_present")
 
+    def has_delete_permission(self, request, obj=None):
+        return False
+
 
 @admin.register(ContractType)
 class ContractTypeAdmin(ModelAdmin):
     list_display = ("name", "unit", "full_time_weekly", "display_order")
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AuditEntry)

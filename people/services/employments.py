@@ -42,6 +42,12 @@ def start(actor, employee, start_date, continuous_service_date=None):
 
 @transaction.atomic
 def end(actor, employment, end_date, leaving_reason):
+    if employment.end_date is not None and (end_date is None or end_date > employment.end_date):
+        # Only widening an already-bounded spell (extending it, or
+        # reopening it) can newly reach a later spell; a spell that was
+        # already open-ended could never have let one exist.
+        if _overlaps(employment.employee, employment.start_date, end_date, exclude_pk=employment.pk):
+            raise ValidationError("Another employment covers those dates.")
     before = (employment.end_date, employment.leaving_reason)
     employment.end_date = end_date
     employment.leaving_reason = leaving_reason
