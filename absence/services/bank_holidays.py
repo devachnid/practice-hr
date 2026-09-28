@@ -2,9 +2,10 @@
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
 from absence.models import Absence, AbsenceType, BankHoliday, Policy
-from absence.services import bookings, policies
+from absence.services import bookings, costing, policies
 from people.services import patterns
 
 
@@ -17,12 +18,14 @@ def _target_type(handling):
 
 
 @transaction.atomic
-def sync_auto_absences(employment, year_start, year_end, actor=None):
+def sync_auto_absences(employment, year_start, year_end, actor=None, today=None):
     """Create the approved bank-holiday absences the pattern and policy
-    imply, cancel the ones they no longer imply. Idempotent. A day the
-    person has booked off still gets its row: their booking skipped the bank
-    holiday (costing), so this row is what charges it."""
-    created = removed = 0
+    imply, cancel the ones they no longer imply, and re-cost the ones from
+    `today` on whose pattern has changed (a past charge stands). Idempotent.
+    A day the person has booked off still gets its row: their booking
+    skipped the bank holiday (costing), so this row is what charges it."""
+    today = today or timezone.localdate()
+    created = removed = recosted = 0
     al = AbsenceType.objects.get(code="AL")
     existing = {a.start_date: a for a in Absence.objects.filter(
         employment=employment, auto_bank_holiday=True, status=Absence.Status.APPROVED,
@@ -52,6 +55,10 @@ def sync_auto_absences(employment, year_start, year_end, actor=None):
             del existing[day]
     for day, target in wanted.items():
         if day in existing:
+            kept = existing[day]
+            if day >= today and costing.cost(kept) != kept.cost_units:
+                bookings.recost(actor, kept, "working pattern changed")
+                recosted += 1
             continue
         a = Absence(employment=employment, absence_type=target, start_date=day, end_date=day,
                     auto_bank_holiday=True, requested_by=actor)
@@ -59,4 +66,4 @@ def sync_auto_absences(employment, year_start, year_end, actor=None):
         a.save()
         bookings.approve(actor, a, comment="bank holiday")
         created += 1
-    return {"created": created, "removed": removed}
+    return {"created": created, "removed": removed, "recosted": recosted}

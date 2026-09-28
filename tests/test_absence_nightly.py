@@ -46,6 +46,7 @@ def test_bank_holiday_keys_count_created_then_nothing(db):
     assert first["bank_holiday_created"] == 10 and first["failed"] == []
     second = nightly.run(date(2026, 6, 1))
     assert second["bank_holiday_created"] == 0 and second["bank_holiday_removed"] == 0
+    assert second["bank_holiday_recosted"] == 0
 
 
 def test_missing_bank_holiday_policy_is_reported_in_failed(db):

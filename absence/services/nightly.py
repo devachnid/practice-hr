@@ -23,14 +23,16 @@ def run(today):
         synced += 1
         if revised is not None:
             revisions += 1
-    created = removed = 0
+    created = removed = recosted = 0
     for pot in pots.open_pots(today).filter(absence_type__code="AL"):
         try:
-            r = bank_holidays.sync_auto_absences(pot.employment, pot.year_start, pot.year_end)
+            r = bank_holidays.sync_auto_absences(pot.employment, pot.year_start, pot.year_end, today=today)
         except ValidationError as e:
             failed.append(_why(pot, e))
             continue
         created += r["created"]
         removed += r["removed"]
+        recosted += r["recosted"]
     return {"pots_synced": synced, "revisions": revisions,
-            "bank_holiday_created": created, "bank_holiday_removed": removed, "failed": failed}
+            "bank_holiday_created": created, "bank_holiday_removed": removed,
+            "bank_holiday_recosted": recosted, "failed": failed}
