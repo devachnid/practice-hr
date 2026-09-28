@@ -66,3 +66,30 @@ class Employment(models.Model):
         if day < self.start_date:
             return False
         return self.end_date is None or day <= self.end_date
+
+
+class Position(models.Model):
+    """A dated job. The current primary position's line manager is the
+    reporting line, which routes approvals."""
+    employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="positions")
+    title = models.CharField(max_length=80)
+    team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="positions")
+    line_manager = models.ForeignKey(
+        Employee, null=True, blank=True, on_delete=models.PROTECT, related_name="reports")
+    primary = models.BooleanField(default=True)
+    from_date = models.DateField()
+    to_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-primary", "from_date"]
+
+    def __str__(self):
+        return f"{self.title} ({self.team})"
+
+    def clean(self):
+        super().clean()
+        if self.to_date and self.to_date < self.from_date:
+            raise ValidationError({"to_date": "End date is before the start date."})
+
+    def is_active_on(self, day):
+        return self.from_date <= day and (self.to_date is None or day <= self.to_date)

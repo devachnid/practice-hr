@@ -19,3 +19,13 @@ def make_employment(employee=None, start=MON, **kw):
 
 def make_team(name="Reception", **kw):
     return Team.objects.create(name=name, **kw)
+
+
+from people.models import Position  # noqa: E402
+
+
+def make_position(employment, manager=None, title="Receptionist", team=None, start=None, **kw):
+    team = team or Team.objects.first() or make_team()
+    return Position.objects.create(
+        employment=employment, title=title, team=team, line_manager=manager,
+        from_date=start or employment.start_date, **kw)
