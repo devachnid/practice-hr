@@ -21,6 +21,7 @@
 <nav class="nav">
   <span class="nav-brand">Practice HR</span>
   <a href="{% url 'people:me' %}" class="nav-link{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  <a href="{% url 'absence:mine' %}" class="nav-link{% if request.path == '/absence/mine/' or request.path == '/absence/request/' %} is-active{% endif %}">Leave</a>
   {% if is_approver %}
     <a href="{% url 'people:team' %}" class="nav-link{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
   {% endif %}
@@ -64,6 +65,7 @@ no password (accounts/recent_auth.py).{% endcomment %}
 <main class="main">{% block content %}{% endblock %}</main>
 <nav class="tabbar" aria-label="Sections">
   <a href="{% url 'people:me' %}" class="tabbar-item{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  <a href="{% url 'absence:mine' %}" class="tabbar-item{% if request.path == '/absence/mine/' or request.path == '/absence/request/' %} is-active{% endif %}">Leave</a>
   {% if is_approver %}
     <a href="{% url 'people:team' %}" class="tabbar-item{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
   {% endif %}

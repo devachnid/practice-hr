@@ -1,0 +1,44 @@
+{% extends "base.html" %}{% load absence_extras %}
+{% block title %}My absences{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>My absences</h1>{% if employment %}<a href="{% url 'absence:request' %}" class="btn btn-primary">Request leave</a>{% endif %}</div>
+{% if not employee %}
+  <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
+{% else %}
+  {% if employment %}{% include "absence/_balances.html" %}{% endif %}
+  <section class="card">
+    <h2>Absences</h2>
+    <div class="table-scroll">
+    <table class="list">
+      <thead><tr><th>Type</th><th>When</th><th>Status</th><th>Cost</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>{{ r.label }}</td>
+          <td>{{ r.a|when }}
+            {% if r.a.kit_days.all %}<br><small>Keeping-in-touch days: {% for k in r.a.kit_days.all %}{{ k.date|date:"j M Y" }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
+          </td>
+          <td>{{ r.a.get_status_display }}{% if r.over %}<br><span class="warn">This is more than your balance</span>{% endif %}</td>
+          <td>{{ r.a.cost_units|units:unit }}</td>
+          <td>
+            {% if r.can_cancel %}
+              <form method="post" action="{% url 'absence:cancel' r.a.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form>
+            {% endif %}
+            {% if r.kit %}
+              <form method="post" action="{% url 'absence:kit_day' r.a.pk %}" class="inline-input">{% csrf_token %}
+                <label for="kit-{{ r.a.pk }}">Keeping-in-touch day</label>
+                <input type="date" name="date" id="kit-{{ r.a.pk }}" min="{{ r.a.start_date|date:'Y-m-d' }}" max="{{ r.a.end_date|date:'Y-m-d' }}" required>
+                <button type="submit" class="btn btn-quiet">Add</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="5">No absences yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+{% endif %}
+</div>
+{% endblock %}

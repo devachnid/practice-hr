@@ -1,0 +1,25 @@
+{% load absence_extras %}
+<section class="card">
+  <h2>Balances this leave year</h2>
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Type</th><th>Entitlement</th><th>Carried in</th><th>Taken</th><th>Booked</th><th>Waiting</th><th>Remaining</th></tr></thead>
+    <tbody>
+    {% for r in balances %}
+      <tr><th scope="row">{{ r.type.name }}</th>
+      {% if r.summary %}
+        <td>{{ r.summary.entitlement|floatformat:"-2" }}</td><td>{{ r.summary.carried_in|floatformat:"-2" }}</td>
+        <td>{{ r.summary.taken|floatformat:"-2" }}</td><td>{{ r.summary.booked|floatformat:"-2" }}</td>
+        <td>{{ r.summary.pending|floatformat:"-2" }}</td>
+        <td{% if r.summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ r.summary.remaining|units:r.pot.unit }}</strong></td>
+      {% elif r.error %}
+        <td colspan="6">{{ r.error }}</td>
+      {% else %}
+        <td colspan="6">Not opened yet: it opens overnight.</td>
+      {% endif %}
+      </tr>
+    {% empty %}<tr><td colspan="7">No allowances.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
