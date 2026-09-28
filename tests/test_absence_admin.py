@@ -188,3 +188,17 @@ def test_viewing_sickness_is_audited_and_leave_is_not(admin_client, hr_admin, db
     assert (row.object_id, row.actor, row.field) == (sick.pk, hr_admin, "health")
     assert admin_client.get(f"/admin/absence/absence/{leave.pk}/change/").status_code == 200
     assert viewed.count() == 1
+
+
+def test_absence_type_code_is_read_only_once_saved(admin_client, db):
+    from absence.models import AbsenceType
+    from tests.factories import absence_type
+    al = absence_type("AL")
+    page = admin_client.get(f"/admin/absence/absencetype/{al.pk}/change/").content.decode()
+    assert 'name="code"' not in page and 'name="name"' in page
+    add = admin_client.get("/admin/absence/absencetype/add/").content.decode()
+    assert 'name="code"' in add
+    data = {"name": "Annual leave", "code": "HOLS", "paid": "on", "uses_pot": "on", "needs_approval": "on",
+            "calendar_label": "Leave", "display_order": 10, "active": "on"}
+    assert admin_client.post(f"/admin/absence/absencetype/{al.pk}/change/", data).status_code == 302
+    assert AbsenceType.objects.get(pk=al.pk).code == "AL"

@@ -19,6 +19,12 @@ class AbsenceTypeAdmin(ModelAdmin):
                     "calendar_label", "payroll_reportable", "health_sensitive", "active")
     list_editable = ("active",)
 
+    def get_readonly_fields(self, request, obj=None):
+        # the services look types up by code (AL, BH, SICK, TOIL): settable
+        # when a type is added, never changed after
+        fields = tuple(super().get_readonly_fields(request, obj))
+        return fields + ("code",) if obj is not None else fields
+
 
 class PolicyTierInline(TabularInline):
     model = PolicyTier
