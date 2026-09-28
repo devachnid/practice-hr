@@ -4,26 +4,29 @@ After=network.target
 
 [Service]
 # The app runs as its own unprivileged user, never root. A bug that let a
-# request run code would otherwise hand over the whole container. As the
-# practice-hr user it can reach the app's own data and nothing else.
+# request run code would otherwise hand over the whole container, including
+# cloudflared's tunnel credentials, which would let an attacker sit in the
+# middle of every user's session. As the practice-hr user it can reach the
+# app's own data and nothing else.
 #
-#   useradd --system --home-dir /srv/practice-hr --no-create-home \
+#   useradd --system --home-dir /var/lib/practice-hr --no-create-home \
 #           --shell /usr/sbin/nologin practice-hr
 User=practice-hr
 Group=practice-hr
 
+# The code lives in /srv/practice-hr, owned by root and read-only to the
+# practice-hr user, so the app cannot rewrite itself. Its data lives in
+# /var/lib/practice-hr: systemd creates that as StateDirectory, owned by
+# practice-hr and closed to everyone else, and DB_PATH in
+# /etc/practice-hr.env points the database there. SQLite needs to write the
+# directory its database sits in, which is why the two are apart.
 WorkingDirectory=/srv/practice-hr
-
-# Unlike the rota, this app's database sits inside its own code directory —
-# config/settings.py has no separate DB_PATH setting to move it out — so
-# the whole tree is owned by the practice-hr user (above) rather than split
-# between a root-owned code directory and a writable state directory. That
-# is a real trade-off, not a free adaptation: a code-execution bug here can
-# rewrite the app's own files, not only its data, because nothing marks the
-# code itself read-only to the user running it. ReadWritePaths lifts
-# ProtectSystem=strict's read-only mount for this one path; ownership is
-# what keeps the app from touching anything outside it.
-ReadWritePaths=/srv/practice-hr
+StateDirectory=practice-hr
+StateDirectoryMode=0700
+# StateDirectory already implies write access to /var/lib/practice-hr under
+# ProtectSystem=strict; naming it here too makes the one writable path
+# explicit rather than an implicit side effect of the line above.
+ReadWritePaths=/var/lib/practice-hr
 UMask=0077
 
 # Secrets go in an environment file, not in Environment= lines. Unit files
@@ -42,6 +45,7 @@ UMask=0077
 # and add the rest of the settings to it:
 #
 #   DEBUG=0
+#   DB_PATH=/var/lib/practice-hr/db.sqlite3
 #   ALLOWED_HOSTS=hr.example.org
 #   CSRF_TRUSTED_ORIGINS=https://hr.example.org
 #   OIDC_RSA_PRIVATE_KEY=…  # one line, \n for newlines; generate with openssl genrsa 2048
@@ -57,11 +61,11 @@ EnvironmentFile=/etc/practice-hr.env
 ExecStart=/srv/practice-hr/.venv/bin/gunicorn config.wsgi --bind 127.0.0.1:8322 --workers 2
 Restart=always
 
-# The sandbox. Everything outside /srv/practice-hr is read-only, /home and
-# /root are hidden, /tmp is private, and the process can gain no privileges
-# or capabilities, load no kernel modules, change no kernel settings, and
-# open no sockets but IP and Unix ones. The same block is in every
-# practice-hr unit; `systemd-analyze security practice-hr` scores it.
+# The sandbox. Everything outside /var/lib/practice-hr is read-only, /home
+# and /root are hidden, /tmp is private, and the process can gain no
+# privileges or capabilities, load no kernel modules, change no kernel
+# settings, and open no sockets but IP and Unix ones. The same block is in
+# every practice-hr unit; `systemd-analyze security practice-hr` scores it.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes

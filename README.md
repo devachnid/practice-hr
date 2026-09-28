@@ -60,31 +60,26 @@ running; that guide is the reference for what the settings actually mean.
 
 ## Deploy (Cloudflare tunnel)
 
-The app runs as its own `practice-hr` user, never as root:
+The app runs as its own `practice-hr` user, never as root, in two places:
 
 | Where | Owner | What |
 |---|---|---|
-| `/srv/practice-hr` | `practice-hr`, closed to everyone else | the code, its `.venv`, `staticfiles/`, the database and its nightly backups |
+| `/srv/practice-hr` | root, read-only to the app | the code, its `.venv` and `staticfiles/` |
+| `/var/lib/practice-hr` | `practice-hr`, closed to everyone else | the database and its nightly backups |
 | `/etc/practice-hr.env` | root, mode 600 | the settings and secrets |
 
 So a bug that let a request run code reaches the app's own data and
-nothing outside the container: not a Cloudflare credential, not another
-service, not the host. Every unit in `deploy/` also runs in a systemd
+nothing else: not the app's own code, not a Cloudflare credential, not the
+rest of the container. Every unit in `deploy/` also runs in a systemd
 sandbox; `deploy/gunicorn.service` explains each part.
 
-Unlike the rota, this does **not** keep the code itself read-only to the
-app: `config/settings.py` has no `DB_PATH` setting to put the database
-somewhere other than beside the code, so the whole `/srv/practice-hr` tree
-is owned by the `practice-hr` user rather than split between a root-owned
-code directory and a writable data one. A code-execution bug can therefore
-rewrite the app's own files, not only its data — `deploy/gunicorn.service`'s
-comments explain the trade-off in full.
-
-    useradd --system --home-dir /srv/practice-hr --no-create-home --shell /usr/sbin/nologin practice-hr
+    useradd --system --home-dir /var/lib/practice-hr --no-create-home --shell /usr/sbin/nologin practice-hr
+    install -d -o practice-hr -g practice-hr -m 700 /var/lib/practice-hr
     git clone https://github.com/devachnid/practice-hr /srv/practice-hr
     cd /srv/practice-hr
     python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-    chown -R practice-hr:practice-hr /srv/practice-hr
+    chown -R root:root /srv/practice-hr
+    chmod -R u=rwX,go=rX /srv/practice-hr
 
 Create the secrets file — root-only, never in the unit file. The subshell
 keeps `umask 077` from leaking into later commands, where it would make
@@ -95,6 +90,7 @@ files the app has to read unreadable:
     .venv/bin/python -c 'from django.core.management.utils import get_random_secret_key as k; print("SECRET_KEY=" + k())' > /etc/practice-hr.env
     cat >> /etc/practice-hr.env <<'EOF'
     DEBUG=0
+    DB_PATH=/var/lib/practice-hr/db.sqlite3
     ALLOWED_HOSTS=hr.example.org
     CSRF_TRUSTED_ORIGINS=https://hr.example.org
     EOF
@@ -107,6 +103,7 @@ files the app has to read unreadable:
 |---|---|
 | `SECRET_KEY` | Django's signing key. Required with `DEBUG` off. |
 | `DEBUG` | `0` in production (the default); `1` only for development. |
+| `DB_PATH` | Where the SQLite database lives. Unset, it sits beside `manage.py`, which is what development wants; production points it at `/var/lib/practice-hr/db.sqlite3`, out of the read-only code tree, because SQLite needs to write the directory its database is in. |
 | `ALLOWED_HOSTS` | Comma-separated hostnames the app answers for. |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
@@ -153,13 +150,14 @@ for `--rotate` and what the command prints.
 Point the Cloudflare tunnel ingress at `http://127.0.0.1:8322` — gunicorn
 binds to loopback only, on purpose; see `deploy/gunicorn.service`.
 
-Backups land in `/srv/practice-hr/backups/`, kept 30 days, readable only by
-the `practice-hr` user: a SQLite copy every night (`hr-backup.timer`), and
-a `media/` archive alongside it once a `media/` directory exists (plan 3
-adds one; until then the backup silently skips it rather than failing).
-Expired sessions are cleared nightly too (`hr-clearsessions.timer`), and
-`hr-nightly.timer` runs `manage.py hr_nightly`, which disables the login of
-anyone whose employment has ended — see [Nightly
+Backups land in `/var/lib/practice-hr/backups/`, kept 30 days, readable
+only by the `practice-hr` user: a SQLite copy every night
+(`hr-backup.timer`), and a `media/` archive alongside it once a `media/`
+directory exists in the state directory (plan 3 adds one; until then the
+backup silently skips it rather than failing). Expired sessions are
+cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
+runs `manage.py hr_nightly`, which disables the login of anyone whose
+employment has ended — see [Nightly
 housekeeping](docs/admin/sign-in.md#nightly-housekeeping).
 
 `systemd-analyze security practice-hr` scores the sandbox.

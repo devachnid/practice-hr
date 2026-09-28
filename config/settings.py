@@ -92,15 +92,21 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        # Production keeps the database out of the code tree, in the
+        # practice-hr user's state directory (deploy/gunicorn.service):
+        # SQLite needs to write the directory its database is in, and the
+        # app must be able to write its data without being able to write
+        # its own code. Unset, the database sits beside manage.py, which is
+        # what development wants.
+        "NAME": os.environ.get("DB_PATH") or BASE_DIR / "db.sqlite3",
         "OPTIONS": {
             # WAL lets readers and the single writer proceed together.
             "init_command": "PRAGMA journal_mode=WAL;",
             # SQLite's default DEFERRED transaction only takes the write lock at
-            # the first write, and if another connection (the Breathe sync, the
-            # other gunicorn worker) got there first it fails at once with
-            # "database is locked" rather than waiting out the busy timeout.
-            # IMMEDIATE takes the lock at BEGIN, so writers queue instead.
+            # the first write, and if another connection (another gunicorn
+            # worker) got there first it fails at once with "database is
+            # locked" rather than waiting out the busy timeout. IMMEDIATE
+            # takes the lock at BEGIN, so writers queue instead.
             "transaction_mode": "IMMEDIATE",
         },
     }

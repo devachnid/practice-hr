@@ -3,16 +3,17 @@
 # days, run by hr-backup.service as the practice-hr user. Each copy is
 # complete — password hashes, and session keys that work as login cookies —
 # so it is written readable by nobody else (umask 077) into the app's own
-# directory, which is closed to everyone else.
+# state directory, which is closed too. systemd sets STATE_DIRECTORY from
+# the unit's StateDirectory=.
 set -eu
 umask 077
-root=/srv/practice-hr
-mkdir -p "$root/backups"
-sqlite3 "$root/db.sqlite3" ".backup '$root/backups/db-$(date +%F).sqlite3'"
+state="${STATE_DIRECTORY:-/var/lib/practice-hr}"
+mkdir -p "$state/backups"
+sqlite3 "$state/db.sqlite3" ".backup '$state/backups/db-$(date +%F).sqlite3'"
 # There is no media root yet (plan 3 adds one); skip the archive rather
 # than fail the whole backup until then.
-if [ -d "$root/media" ]; then
-    tar -czf "$root/backups/media-$(date +%F).tgz" -C "$root" media
+if [ -d "$state/media" ]; then
+    tar -czf "$state/backups/media-$(date +%F).tgz" -C "$state" media
 fi
-find "$root/backups" -name 'db-*.sqlite3' -mtime +30 -delete
-find "$root/backups" -name 'media-*.tgz' -mtime +30 -delete
+find "$state/backups" -name 'db-*.sqlite3' -mtime +30 -delete
+find "$state/backups" -name 'media-*.tgz' -mtime +30 -delete

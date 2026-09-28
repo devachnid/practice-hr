@@ -4,14 +4,15 @@ Description=Nightly Practice HR SQLite backup
 [Service]
 Type=oneshot
 # As the practice-hr user, not root. The copies are the app's own data, so
-# they belong with it in /srv/practice-hr; a root sqlite3 opening a WAL
-# database can also leave -wal/-shm files the app cannot then open. The
-# same user, directory and sandbox as the web service; see
-# gunicorn.service for why each is there.
+# they belong with it in /var/lib/practice-hr, closed to everyone else; and
+# a root sqlite3 opening a WAL database can leave -wal/-shm files the app
+# cannot then open. The same user, directories and sandbox as the web
+# service; see gunicorn.service for why each is there.
 User=practice-hr
 Group=practice-hr
-WorkingDirectory=/srv/practice-hr
-ReadWritePaths=/srv/practice-hr
+StateDirectory=practice-hr
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/practice-hr
 UMask=0077
 ExecStart=/srv/practice-hr/deploy/backup.sh
 
