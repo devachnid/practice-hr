@@ -14,7 +14,9 @@ code. Only types with `payroll_reportable` appear at all; of those:
   TOIL           not an absence sheet: the TOIL-earned and TOIL-taken ledger
                  lines of pot-backed types that are both `paid` and
                  `payroll_reportable`, so an unpaid TOIL type is on Unpaid
-                 (its bookings) and not here.
+                 (its bookings) and not here. A line dated before its pot's
+                 year is TOIL carried forward at year end (it keeps its earned
+                 date) and is left out: its original line is reported.
 
 Starters, Leavers, Contract changes and Pay changes come from People. The
 Leavers sheet also carries each leaver's balance in every pot-backed type
@@ -34,7 +36,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from openpyxl import Workbook
 
 from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
@@ -129,7 +131,8 @@ def _absences(start, end):
 def _toil(start, end):
     lines = (LedgerEntry.objects.filter(
         date__range=(start, end), kind__in=(LedgerEntry.Kind.TOIL_EARNED, LedgerEntry.Kind.TOIL_TAKEN),
-        pot__absence_type__paid=True, pot__absence_type__payroll_reportable=True)
+        pot__absence_type__paid=True, pot__absence_type__payroll_reportable=True,
+        date__gte=F("pot__year_start"))     # not the carried copies year_end._close_toil writes
         .select_related("pot__employment__employee").order_by("date", "id"))
     return [[_name(line.pot.employment), line.date, float(line.units), line.get_kind_display(), line.note]
             for line in lines]

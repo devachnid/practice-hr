@@ -208,3 +208,13 @@ def test_automatic_bank_holiday_rows_are_never_reported(db):
                            start_date=date(2026, 6, 8), end_date=date(2026, 6, 8), cost_units=Decimal("7.5"),
                            auto_bank_holiday=True)
     assert len(_sheet(payroll.build(*JUNE), "Unpaid")) == 1       # headers only
+
+
+def test_toil_carried_at_year_end_is_listed_once_in_its_month(db, hr_admin):
+    from absence.services import year_end
+    emp = hours_employee(start=date(2026, 1, 1))
+    make_policy(emp.contracts.first().contract_type, "TOIL", weeks_per_year=Decimal("0"), toil_expires_after_days=90)
+    toil.earn(hr_admin, emp, Decimal("3"), date(2027, 3, 10), "late clinic")
+    year_end.run(date(2027, 4, 1))                     # carries the 3 to the 2027/28 pot, dated 10 Mar
+    rows = _sheet(payroll.build(date(2027, 3, 1), date(2027, 3, 31)), "TOIL")[1:]
+    assert [(r[1], r[2], r[3]) for r in rows] == [(date(2027, 3, 10), 3.0, "TOIL earned")]
