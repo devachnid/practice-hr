@@ -1,0 +1,61 @@
+# The suite, on every pull request and every push to main. Required by
+# the main ruleset alongside CodeQL, so a red branch cannot merge — green
+# is a property of the branch, not of whoever pressed the button.
+#
+# Nothing here needs a secret: config/settings.py special-cases pytest, and
+# the suite never reaches a mail relay (tests/conftest.py). The
+# migrations check needs DEBUG=1 only because manage.py refuses to start
+# without a SECRET_KEY otherwise.
+name: tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt ruff==0.16.6
+      # pyflakes only (ruff.toml): undefined names, unused imports and
+      # variables — the bug class a test can miss in a branch it never runs.
+      - run: ruff check .
+      - run: DEBUG=1 python manage.py makemigrations --check --dry-run
+      - run: python -m pytest -q
+      # The project's own deploy checks (rota/checks.py) — a template
+      # referencing a static file the manifest lacks, a sender Django cannot
+      # parse — run against a production-shaped environment. Errors fail the
+      # job; Django's warnings about this throwaway key do not. The key is
+      # CI-only and never the real one.
+      - run: python manage.py collectstatic --noinput && python manage.py check --deploy
+        env:
+          DEBUG: "0"
+          SECRET_KEY: ci-only-4f8c1e2b9a7d3f6e0c5b8a1d2e4f7a9c3b6d8e0f1a2c4e6b8d0f2a4c6e8b0d1f3a
+          ALLOWED_HOSTS: ci
+          CSRF_TRUSTED_ORIGINS: https://ci
+          EMAIL_HOST: smtp.example
+          DEFAULT_FROM_EMAIL: HR <hr@example.org>
+          OIDC_RSA_PRIVATE_KEY: ""
+
+  # The same suite on the next Python, so a pin that quietly drops 3.13 or
+  # breaks on 3.14 is seen on the pull request that introduces it, not at
+  # upgrade time. Deliberately NOT in the main ruleset's required checks:
+  # a 3.14-only failure in a dependency's wheels shows red here but never
+  # blocks a rota fix. Lint, the migrations check and the deploy check are
+  # not repeated -- none of them depends on the interpreter version.
+  tests-next-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
