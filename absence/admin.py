@@ -3,6 +3,7 @@ their ledger and absences are read-only, and the one action (recalculate)
 goes through the ledger service."""
 
 from django.contrib import admin, messages
+from django.core.exceptions import ValidationError
 from unfold.admin import ModelAdmin, TabularInline
 
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, LedgerEntry, Policy,
@@ -80,8 +81,13 @@ class PotAdmin(ModelAdmin):
 
     @admin.action(description="Recalculate entitlement")
     def recalculate(self, request, queryset):
-        n = sum(1 for pot in queryset
-                if ledger.sync_entitlement(pot, request.user, "recalculated by admin"))
+        n = 0
+        for pot in queryset:
+            try:
+                if ledger.sync_entitlement(pot, request.user, "recalculated by admin"):
+                    n += 1
+            except ValidationError as e:
+                messages.error(request, f"{pot}: {'; '.join(e.messages)}")
         messages.info(request, f"{n} pot(s) revised.")
 
 

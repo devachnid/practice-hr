@@ -40,3 +40,26 @@ def test_pot_change_page_shows_ledger_read_only(admin_client, db):
 
 def test_absence_group_in_navigation(admin_client, db):
     assert b"/admin/absence/pot/" in admin_client.get("/admin/").content
+
+
+def test_recalculate_reports_a_pot_with_no_policy_and_revises_the_rest(admin_client, db):
+    from datetime import date
+
+    from absence.services import pots
+    from tests.factories import (absence_type, hours_employee, make_contract, make_contract_type,
+                                 make_employment, make_pattern, make_policy)
+    al = absence_type("AL")
+    good = pots.for_day(hours_employee(start=date(2026, 4, 1)), al, date(2026, 6, 1))
+    other = make_contract_type("Other")
+    emp = make_employment(start=date(2026, 4, 1))
+    make_contract(emp, other)
+    make_policy(other)
+    make_pattern(emp)
+    bad = pots.for_day(emp, al, date(2026, 6, 1))
+    other.policies.all().delete()
+    resp = admin_client.post("/admin/absence/pot/", {
+        "action": "recalculate", "_selected_action": [good.pk, bad.pk]}, follow=True)
+    assert resp.status_code == 200
+    assert good.entries.count() == 1 and not bad.entries.exists()
+    text = resp.content.decode()
+    assert "No Annual leave policy for Other" in text and "1 pot(s) revised." in text
