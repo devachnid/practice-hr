@@ -60,3 +60,9 @@ def make_pattern(employment, days=None, effective_from=None):
         am, pm = days.get(weekday, (Decimal("0"), Decimal("0")))
         PatternDay.objects.create(pattern=pattern, weekday=weekday, am_units=am, pm_units=pm)
     return pattern
+
+from absence.models import AbsenceType  # noqa: E402
+
+
+def absence_type(code="AL"):
+    return AbsenceType.objects.get(code=code)
