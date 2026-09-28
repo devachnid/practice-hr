@@ -14,7 +14,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q, Sum
 from django.utils import timezone
 
-from absence.models import LedgerEntry, Pot
+from absence.models import Absence, LedgerEntry, Pot
 from absence.services import ledger, policies, pots, rounding
 from people.services import contracts
 
@@ -37,6 +37,24 @@ def is_closed(pot):
     """Closed iff the pot itself has its closing expiry line. The next pot's
     carry-in is not looked at: that pot is not closed by being carried into."""
     return _closing_lines().filter(pot=pot).exists()
+
+
+def check_open(pot):
+    """Refuse a write to a closed pot: its balance was carried or expired at
+    the close, so a line written after it would be stranded there. HR
+    corrects the current year's pot instead, by an adjustment."""
+    if is_closed(pot):
+        raise ValidationError(
+            f"{pot} is closed: its leave year has ended and its balance has been carried forward or expired. "
+            f"Nothing more is written to it; adjust the current year's pot instead.")
+
+
+def waiting(pot):
+    """The requests still to be decided that would draw on the pot: its
+    type, starting in its year."""
+    return Absence.objects.filter(employment=pot.employment, absence_type=pot.absence_type,
+                                  status=Absence.Status.REQUESTED,
+                                  start_date__range=(pot.year_start, pot.year_end))
 
 
 def _lock(pot):
@@ -175,10 +193,17 @@ def close(pot, actor=None):
     A leaver (no employment or contract on the new year's first day) has a
     positive balance expired; a negative one is left on the pot untouched
     and returned as `leaver_debt`, for payroll, and the pot stays open to a
-    later run until it is settled. Idempotent: a closed pot is skipped."""
+    later run until it is settled. Idempotent: a closed pot is skipped.
+
+    Refused (ValidationError, so run() lists it and retries it the next
+    night) while a request that would draw on the pot is still waiting: its
+    approval could no longer be written once the pot is closed."""
     _lock(pot)
     if is_closed(pot):
         return {"carried": ZERO, "expired": ZERO, "skipped": True}
+    n = waiting(pot).count()
+    if n:
+        raise ValidationError(f"{n} request(s) waiting — decide them first")
     ledger.sync_entitlement(pot, actor, cause="year end")
     remaining = ledger.balance(pot)
     new_start = pot.year_end + timedelta(days=1)

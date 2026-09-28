@@ -464,3 +464,92 @@ def test_nightly_runs_the_year_end_and_keeps_its_failures(db):
     assert result["carry_in_expired"] == 0 and result["toil_expired"] == 0 and result["leaver_debts"] == []
     assert any(str(bad) in f for f in result["failed"])
     assert nightly.run(date(2027, 4, 2))["year_end_closed"] == 0
+
+
+# --- a closed pot takes no more lines (C2) ------------------------------------------
+
+def _closed_2026(emp):
+    pot = _pot_2026(emp)
+    year_end.close(pot)
+    return pot
+
+
+def test_a_request_waiting_over_the_year_end_blocks_the_close_and_is_reported(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    pot = _pot_2026(emp)
+    waiting = bookings.request(employee_user, emp, absence_type("AL"), date(2027, 3, 15))
+    result = year_end.run(date(2027, 4, 1))
+    assert result["closed"] == 0
+    assert result["failed"] == [f"{pot}: 1 request(s) waiting — decide them first"]
+    assert not year_end.is_closed(pot)
+    bookings.approve(hr_admin, waiting)                      # decided: the next night closes it
+    assert year_end.run(date(2027, 4, 2))["closed"] == 1
+    assert year_end.is_closed(pot) and ledger.balance(pot) == D("0")
+
+
+def test_a_waiting_request_of_another_type_or_year_does_not_block_the_close(db, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    pot = _pot_2026(emp)
+    bookings.request(employee_user, emp, absence_type("UNPAID"), date(2027, 3, 15))
+    bookings.request(employee_user, emp, absence_type("AL"), date(2027, 4, 12))
+    assert year_end.run(date(2027, 4, 1))["closed"] == 1 and year_end.is_closed(pot)
+
+
+def _waiting_on_closed_pot(emp, employee_user, day=date(2027, 3, 15)):
+    """A request left on a pot that has since closed, as a row written before
+    the guards existed would be: the services now refuse to make one."""
+    from absence.models import Absence
+    return Absence.objects.create(employment=emp, absence_type=absence_type("AL"), start_date=day, end_date=day,
+                                  cost_units=D("7.50"), requested_by=employee_user)
+
+
+def test_approving_against_a_closed_pot_is_refused(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    pot = _closed_2026(emp)
+    a = _waiting_on_closed_pot(emp, employee_user)
+    count = LedgerEntry.objects.count()
+    with pytest.raises(ValidationError, match="closed.*adjust the current year's pot"):
+        bookings.approve(hr_admin, a)
+    a.refresh_from_db()
+    assert a.status == a.Status.REQUESTED and LedgerEntry.objects.count() == count
+    assert ledger.balance(pot) == D("0")
+
+
+def test_requesting_leave_on_a_closed_pot_is_refused(db, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    _closed_2026(emp)
+    with pytest.raises(ValidationError, match="closed"):
+        bookings.request(employee_user, emp, absence_type("AL"), date(2027, 3, 15))
+
+
+def test_cancelling_an_approved_absence_on_a_closed_pot_is_refused(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    a = _book(hr_admin, employee_user, emp, "AL", date(2027, 3, 15), booked_on=date(2027, 3, 1))
+    pot = a.ledger_entries.get().pot
+    year_end.close(pot)
+    with pytest.raises(ValidationError, match="closed"):
+        bookings.cancel(hr_admin, a)
+    a.refresh_from_db()
+    assert a.status == a.Status.APPROVED and ledger.balance(pot) == D("0")
+
+
+def test_recosting_an_absence_on_a_closed_pot_is_refused(db, hr_admin, employee_user):
+    emp = hours_employee(start=date(2025, 4, 1))
+    a = _book(hr_admin, employee_user, emp, "AL", date(2027, 3, 15), booked_on=date(2027, 3, 1))
+    pot = a.ledger_entries.get().pot
+    year_end.close(pot)
+    make_pattern(emp, {0: (D("3.75"), D("0"))}, effective_from=date(2027, 3, 1))
+    with pytest.raises(ValidationError, match="closed"):
+        bookings.recost(hr_admin, a, "pattern changed")
+    assert ledger.balance(pot) == D("0")
+
+
+def test_admin_recalculation_of_a_closed_pot_is_refused(admin_client, hr_admin):
+    emp = hours_employee(start=date(2025, 4, 1))
+    pot = _closed_2026(emp)
+    emp.contracts.update(weekly_amount=D("18.75"))
+    count = pot.entries.count()
+    resp = admin_client.post("/admin/absence/pot/", {"action": "recalculate", "_selected_action": [pot.pk]},
+                             follow=True)
+    assert "closed" in resp.content.decode() and "0 pot(s) revised." in resp.content.decode()
+    assert pot.entries.count() == count

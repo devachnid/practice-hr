@@ -10,7 +10,7 @@ from unfold.admin import ModelAdmin, TabularInline
 
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
                             Policy, PolicyTier, Pot)
-from absence.services import bookings, ledger
+from absence.services import bookings, ledger, year_end
 from people.models import ContractType
 from people.services import access, audit
 
@@ -138,6 +138,7 @@ class PotAdmin(ModelAdmin):
         n = 0
         for pot in queryset:
             try:
+                year_end.check_open(pot)
                 if ledger.sync_entitlement(pot, request.user, "recalculated by admin"):
                     n += 1
             except ValidationError as e:

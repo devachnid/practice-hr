@@ -41,6 +41,17 @@ pot is closed.
   contract changed unit) is listed under `failed`, rolled back whole, and the
   rest still run. The message says what is missing. A change of unit needs the
   balance settled by adjustment, and the year end then closes it at zero.
+- **Requests still waiting hold the close.** While a request of the pot's
+  type starting in its year is still waiting for a decision, the pot is not
+  closed: it is listed under `failed` ("… 1 request(s) waiting — decide them
+  first") and closed the first night after the last one is approved,
+  declined or cancelled. Decide requests that span 31 March promptly.
+- **A closed pot takes no more lines.** Approving, cancelling or re-costing an
+  absence whose pot has closed, a new request in a closed year, and
+  *Recalculate entitlement* on a closed pot are all refused with a message
+  saying so: the balance has already carried forward or expired, so a line
+  there would be stranded. Put the difference right on the **current**
+  year's pot instead ([reversing a line](#reversing-a-line)).
 
 ### Carry-in expiry
 
