@@ -4,16 +4,10 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
-from absence.models import Policy, PolicyTier
+from absence.models import PolicyTier
 from absence.services import policies
 from tests.factories import (absence_type, make_contract, make_contract_type, make_employment,
                              make_policy)
-
-
-@pytest.fixture(autouse=True)
-def no_seeded_policies(db):
-    """The migration seeds an AL policy per contract type; these tests build their own."""
-    Policy.objects.all().delete()
 
 
 def test_policy_for_reads_the_contract_type_on_the_day(db):
@@ -57,3 +51,18 @@ def test_tier_extra_weeks_highest_reached(db):
     assert policies.tier_extra_weeks(p, emp, date(2024, 9, 30)) == Decimal("0")
     assert policies.tier_extra_weeks(p, emp, date(2024, 10, 1)) == Decimal("1")
     assert policies.tier_extra_weeks(p, emp, date(2029, 10, 1)) == Decimal("2")
+
+
+@pytest.mark.seeded_policies
+def test_seeded_policies(db):
+    from absence.models import Policy
+    rows = {p.contract_type.name: p for p in Policy.objects.select_related("contract_type", "absence_type")}
+    assert set(rows) == {"Partner", "Salaried GP", "GP trainee", "Practice nurse", "HCA", "Reception",
+                         "Administration", "Management"}
+    for name, p in rows.items():
+        assert p.absence_type.code == "AL" and p.weeks_per_year == Decimal("5.6")
+        assert (p.leave_year_basis, p.year_start_month, p.year_start_day) == ("fixed", 4, 1)
+        if p.contract_type.unit == "sessions":
+            assert (p.rounding, p.bank_holiday_handling) == (Decimal("0.5"), "closed")
+        else:
+            assert (p.rounding, p.bank_holiday_handling) == (Decimal("0.25"), "pot")
