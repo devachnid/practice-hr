@@ -7,6 +7,7 @@ from decimal import Decimal
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from django.utils import timezone
 
 from absence.models import Absence, LedgerEntry, Pot
@@ -43,7 +44,7 @@ FIGURES = {
 def _links(pot):
     if pot is None:
         return {}
-    base = f"/absence/ledger/{pot.pk}/"
+    base = reverse("absence:ledger", args=[pot.pk])
     links = {}
     for figure, (kinds, period) in FIGURES.items():
         links[figure] = f"{base}?kind={','.join(kinds)}" + (f"&period={period}" if period else "")

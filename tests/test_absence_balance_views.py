@@ -123,9 +123,9 @@ def _lines(pot):
     ahead = Absence.objects.create(employment=emp, absence_type=al, start_date=today + timedelta(days=20),
                                    end_date=today + timedelta(days=21), status=Absence.Status.APPROVED,
                                    cost_units=Decimal("3.75"))
-    Absence.objects.create(employment=emp, absence_type=al, start_date=today + timedelta(days=30),
-                           end_date=today + timedelta(days=30), status=Absence.Status.REQUESTED,
-                           cost_units=Decimal("2.50"))
+    waiting = min(today + timedelta(days=30), pot.year_end)          # inside the pot's year, whatever today is
+    Absence.objects.create(employment=emp, absence_type=al, start_date=waiting, end_date=waiting,
+                           status=Absence.Status.REQUESTED, cost_units=Decimal("2.50"))
     ledger.write(pot, K.BOOKING, "-7.50", absence=past, note="past line")
     ledger.write(pot, K.BOOKING, "-3.75", absence=ahead, note="ahead line")
     ledger.write(pot, K.ADJUSTMENT, "1.00", note="adjustment line")
@@ -170,7 +170,7 @@ def test_pending_shows_the_waiting_requests_not_ledger_lines(employee_client, em
     pot = pots.for_day(_me(employee_user), absence_type("AL"), timezone.localdate())
     _lines(pot)
     body = employee_client.get(f"/absence/ledger/{pot.pk}/?kind=pending").content.decode()
-    assert "2.5" in body and "waiting" in body.lower()
+    assert "<td>2.50</td>" in body and "waiting" in body.lower()
     assert "past line" not in body and "adjustment line" not in body
 
 
