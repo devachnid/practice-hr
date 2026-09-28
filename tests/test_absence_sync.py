@@ -41,3 +41,28 @@ def test_change_that_rounds_to_nothing_writes_nothing(db, hr_admin):
     ledger.sync_entitlement(pot)
     contracts.add(hr_admin, emp, make_contract_type(), D("0.01"), date(2027, 3, 31))
     assert ledger.sync_entitlement(pot) is None
+
+
+def test_bank_holiday_pot_syncs_from_its_own_formula(db):
+    from absence.models import Policy
+    from absence.services import accrual
+    from tests.factories import make_policy
+    emp = hours_employee(amount=D("18.75"))
+    ct = emp.contracts.first().contract_type
+    ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
+    make_policy(ct, "BH", bank_holiday_handling="pot")
+    pot = pots.for_day(emp, absence_type("BH"), date(2026, 6, 1))
+    row = ledger.sync_entitlement(pot, cause="pot created")
+    assert row.kind == LedgerEntry.Kind.ENTITLEMENT
+    assert row.units == accrual.bank_holiday_entitlement(pot) == D("37.50")   # ten holidays / 5 × 18.75
+
+
+def test_line_dates(db, hr_admin):
+    from django.utils import timezone
+    emp = hours_employee(amount=D("18.75"))
+    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    first = ledger.sync_entitlement(pot)
+    assert first.date == pot.year_start
+    contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), date(2026, 10, 1))
+    revision = ledger.sync_entitlement(pot)
+    assert revision.date == timezone.localdate()
