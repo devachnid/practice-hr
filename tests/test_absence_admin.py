@@ -202,3 +202,53 @@ def test_absence_type_code_is_read_only_once_saved(admin_client, db):
             "calendar_label": "Leave", "display_order": 10, "active": "on"}
     assert admin_client.post(f"/admin/absence/absencetype/{al.pk}/change/", data).status_code == 302
     assert AbsenceType.objects.get(pk=al.pk).code == "AL"
+
+
+def _family_absence(employee_user):
+    from datetime import date
+
+    from absence.services import bookings
+    from tests.factories import absence_type, hours_employee
+    return bookings.request(employee_user, hours_employee(), absence_type("MAT"), date(2026, 7, 1),
+                            date(2027, 3, 31), expected_start=date(2026, 7, 1))
+
+
+def test_family_dates_are_edited_in_admin_through_the_service(admin_client, hr_admin, employee_user):
+    from datetime import date
+
+    from people.models import AuditEntry
+    a = _family_absence(employee_user)
+    url = f"/admin/absence/absence/{a.pk}/change/"
+    page = admin_client.get(url).content.decode()
+    assert 'name="actual_start"' in page and 'name="start_date"' not in page and 'name="status"' not in page
+    resp = admin_client.post(url, {"expected_start": "2026-07-01", "actual_start": "2026-07-06",
+                                   "expected_return": "2027-04-05", "status": "cancelled"})
+    assert resp.status_code == 302
+    a.refresh_from_db()
+    assert (a.actual_start, a.expected_return, a.status) == (date(2026, 7, 6), date(2027, 4, 5), "requested")
+    assert AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, actor=hr_admin,
+                                     field="actual_start", after="2026-07-06").exists()
+
+
+def test_family_dates_out_of_order_show_a_message_and_save_nothing(admin_client, employee_user):
+    a = _family_absence(employee_user)
+    url = f"/admin/absence/absence/{a.pk}/change/"
+    resp = admin_client.post(url, {"expected_start": "2026-07-01", "actual_start": "2026-07-06",
+                                   "expected_return": "2026-07-02"}, follow=True)
+    body = resp.content.decode()
+    assert resp.status_code == 200 and "after the actual start" in body and "changed successfully" not in body
+    a.refresh_from_db()
+    assert a.actual_start is None and a.expected_return is None
+    from django.contrib.admin.models import LogEntry
+    assert not LogEntry.objects.filter(object_id=str(a.pk)).exists()
+
+
+def test_other_absences_stay_read_only_in_admin(admin_client, employee_user):
+    from datetime import date
+
+    from absence.services import bookings
+    from tests.factories import absence_type, hours_employee
+    leave = bookings.request(employee_user, hours_employee(), absence_type("AL"), date(2026, 6, 1))
+    url = f"/admin/absence/absence/{leave.pk}/change/"
+    assert 'name="expected_return"' not in admin_client.get(url).content.decode()
+    assert admin_client.post(url, {"expected_return": "2026-06-02"}).status_code == 403

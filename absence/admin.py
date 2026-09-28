@@ -1,16 +1,18 @@
-"""Unfold admin over the absence models. Policy set-up is edited here; pots,
-their ledger and absences are read-only, and the one action (recalculate)
-goes through the ledger service."""
+"""Unfold admin over the absence models. Policy set-up is edited here; pots
+and their ledger are read-only, and the one action (recalculate) goes through
+the ledger service. Absences are read-only but for a family-leave absence's
+three dates, which an HR admin sets through bookings.set_family_dates."""
 
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.http import HttpResponseRedirect
 from unfold.admin import ModelAdmin, TabularInline
 
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
                             Policy, PolicyTier, Pot)
-from absence.services import ledger
+from absence.services import bookings, ledger
 from people.models import ContractType
-from people.services import audit
+from people.services import access, audit
 
 
 @admin.register(AbsenceType)
@@ -164,10 +166,35 @@ class AbsenceAdmin(ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None):
-        return False
+        # HR admins change a family-leave absence's dates; nothing else
+        if not access.can_view_restricted(request.user):
+            return False
+        return obj is None or obj.absence_type.is_family
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in Absence._meta.fields if f.name not in bookings.FAMILY_DATES]
+
+    def save_model(self, request, obj, form, change):
+        # never obj.save(): the service locks the row, checks the dates and audits
+        dates = {f: form.cleaned_data.get(f) for f in bookings.FAMILY_DATES}
+        try:
+            bookings.set_family_dates(request.user, obj, **dates)
+        except ValidationError as e:
+            request._absence_not_saved = True
+            messages.error(request, " ".join(e.messages))
+
+    def log_change(self, request, obj, message):
+        if getattr(request, "_absence_not_saved", False):
+            return None                        # refused: nothing changed to log
+        return super().log_change(request, obj, message)
+
+    def response_change(self, request, obj):
+        if getattr(request, "_absence_not_saved", False):
+            return HttpResponseRedirect(request.path)
+        return super().response_change(request, obj)
 
 
 @admin.register(EmailFailure)
