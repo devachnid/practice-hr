@@ -57,3 +57,24 @@ def test_missing_bank_holiday_policy_is_reported_in_failed(db):
     result = nightly.run(date(2026, 6, 1))
     assert any("No Bank holiday policy for Reception" in f for f in result["failed"])
     assert result["bank_holiday_created"] == 0
+
+
+def test_nightly_removes_automatic_bank_holidays_after_the_leaving_date(db, hr_admin):
+    from absence.models import Absence, LedgerEntry, Policy
+    from absence.services import bank_holidays
+    from people.services import contracts, employments
+    emp = hours_employee(start=date(2026, 4, 1))
+    ct = emp.contracts.first().contract_type
+    ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
+    make_policy(ct, "BH", bank_holiday_handling="pot")
+    pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    bank_holidays.sync_auto_absences(emp, date(2026, 4, 1), date(2027, 3, 31))
+    contracts.end(hr_admin, emp.contracts.get(), date(2026, 11, 30))
+    employments.end(hr_admin, emp, date(2026, 11, 30), "resigned")
+    result = nightly.run(date(2026, 10, 1))
+    # 25 and 28 Dec, 1 Jan, and Easter 2027 fall after the leaving date
+    assert result["bank_holiday_removed"] == 5 and result["failed"] == []
+    live = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
+    assert live.count() == 5 and max(a.start_date for a in live) <= date(2026, 11, 30)
+    cancellations = LedgerEntry.objects.filter(kind=LedgerEntry.Kind.CANCELLATION)
+    assert cancellations.count() == 5 and {c.pot.absence_type.code for c in cancellations} == {"BH"}

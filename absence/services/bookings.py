@@ -40,6 +40,18 @@ def _lock(absence):
     return Absence.objects.select_for_update().get(pk=absence.pk)
 
 
+def _booked_pot(absence):
+    """The pot this absence's own lines are on. Cancelling and re-costing
+    never re-resolve it from today's contracts and policy: a leaver has no
+    contract on the day, and a changed leave year would pick another pot.
+    Only an absence with no line yet (approved at zero, re-costed upwards)
+    falls back to the pot for its start date."""
+    line = absence.ledger_entries.select_related("pot").order_by("id").first()
+    if line is not None:
+        return line.pot
+    return pots.for_day(absence.employment, absence.absence_type, absence.start_date)
+
+
 def _copy_back(fresh, absence):
     for field in fresh._meta.concrete_fields:
         setattr(absence, field.attname, getattr(fresh, field.attname))
@@ -117,7 +129,7 @@ def cancel(actor, absence):
     absence.cancelled_by = actor
     absence.save()
     if was == Absence.Status.APPROVED and absence.absence_type.uses_pot and absence.cost_units:
-        pot = pots.for_day(absence.employment, absence.absence_type, absence.start_date)
+        pot = _booked_pot(absence)
         ledger.write(pot, LedgerEntry.Kind.CANCELLATION, absence.cost_units, actor, absence=absence,
                      note="cancelled", date=absence.start_date)
     audit.record(actor, absence, {"status": (was, "cancelled")})
@@ -139,7 +151,7 @@ def recost(actor, absence, note):
     absence.cost_units = new
     absence.save()
     _copy_back(absence, caller)
-    pot = pots.for_day(absence.employment, absence.absence_type, absence.start_date)
+    pot = _booked_pot(absence)
     line = ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, delta, actor, absence=absence, note=note)
     audit.record(actor, absence, {"cost_units": (str(old), str(new))}, note=note)
     return line

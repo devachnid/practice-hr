@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
-from absence.models import Absence, LedgerEntry
+from absence.models import Absence, LedgerEntry, Pot
 from people.models import AuditEntry
 from absence.services import balances, bookings, ledger, pots
 from tests.factories import absence_type, hours_employee, make_pattern
@@ -193,3 +193,34 @@ def test_ordinary_bookings_and_automatic_bank_holidays_do_not_clash(db, employee
     bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
     assert bookings.overlaps(emp, WED, WED)
     assert not bookings.overlaps(emp, WED, WED, auto=True)
+
+
+def test_a_leavers_future_leave_is_cancelled_on_the_pot_it_was_booked_to(db, hr_admin):
+    from people.services import contracts, employments
+    emp = hours_employee()
+    leave = bookings.approve(hr_admin, bookings.request(hr_admin, emp, absence_type("AL"),
+                                                        date(2026, 12, 14), date(2026, 12, 16)))
+    booking = leave.ledger_entries.get(kind=LedgerEntry.Kind.BOOKING)
+    contracts.end(hr_admin, emp.contracts.get(), date(2026, 11, 30))
+    employments.end(hr_admin, emp, date(2026, 11, 30), "resigned")
+    bookings.cancel(hr_admin, leave)       # no contract on 14 Dec any more: must not matter
+    line = leave.ledger_entries.get(kind=LedgerEntry.Kind.CANCELLATION)
+    assert line.pot == booking.pot and line.units == D("22.50")
+    assert Absence.objects.get(pk=leave.pk).status == Absence.Status.CANCELLED
+
+
+def test_recost_and_cancel_stay_on_the_booked_pot_after_the_leave_year_changes(db, hr_admin):
+    emp = hours_employee(start=date(2025, 10, 1))
+    leave = bookings.approve(hr_admin, bookings.request(hr_admin, emp, absence_type("AL"), MON, WED))
+    booked_pot = leave.ledger_entries.get().pot
+    assert booked_pot.year_start == date(2026, 4, 1)
+    # the policy moves to anniversary years: today's resolution of 1 June is the 2025/26 pot
+    emp.contracts.first().contract_type.policies.update(leave_year_basis="anniversary")
+    make_pattern(emp, {0: (D("3.75"), D("3.75"))}, effective_from=date(2026, 5, 1))   # Mon only
+    pots_before = set(Pot.objects.values_list("pk", flat=True))
+    line = bookings.recost(hr_admin, leave, "pattern changed")
+    assert line.pot == booked_pot and line.units == D("15.00")
+    bookings.cancel(hr_admin, leave)
+    cancellation = leave.ledger_entries.get(kind=LedgerEntry.Kind.CANCELLATION)
+    assert cancellation.pot == booked_pot and cancellation.units == D("7.50")
+    assert set(Pot.objects.values_list("pk", flat=True)) == pots_before   # nothing re-resolved
