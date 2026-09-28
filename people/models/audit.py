@@ -10,8 +10,14 @@ class AuditEntry(models.Model):
         CHANGE = "change", "Change"
         VIEWED = "viewed", "Viewed"
 
+    # PROTECT: a login that has written to the log cannot be deleted, so the
+    # log never loses who did what (deactivate the login instead). Null is
+    # for writes with no person behind them.
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.PROTECT, related_name="+")
+    # The actor's email as it was at the write, kept as text: the login's
+    # email can be changed later, and this is what the entry says.
+    actor_email = models.CharField(max_length=254, blank=True, default="")
     at = models.DateTimeField(auto_now_add=True)
     kind = models.CharField(max_length=6, choices=Kind.choices)
     model = models.CharField(max_length=60)       # "people.employee"

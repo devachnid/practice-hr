@@ -56,7 +56,9 @@ set-password form — by URL alone, an emergency tool nothing links to.
 
 Untick **Active**. An inactive account cannot sign in by password or
 passkey, its links are refused, and its history stays. Only a superuser can
-delete a login outright.
+delete a login outright, and not even a superuser can delete one that has
+written to the [audit log](people.md#audit-log). Deleting one would also
+take Django's record of any admin changes that person made.
 
 `hr_nightly` (see [below](#nightly-housekeeping)) does this automatically
 for anyone whose employment has ended.

@@ -319,6 +319,13 @@ dated data hanging off itself the way Positions and Contracts are.
 deleted here by hand. One row is written automatically for every field a
 service function changes (a **Change** entry, with the before and after
 values) and for every view of a restricted section (a **Viewed** entry —
-currently, opening an Employment page with pay records; see
-[Pay record](#pay-record)). Filter by kind or model, or search the field,
-before/after and note columns.
+opening an Employment page with pay records, see [Pay record](#pay-record),
+or an Employee page with an NI number, see [NI number](#ni-number)). Filter
+by kind or model, or search the actor's email, the field, before/after and
+note columns.
+
+Each row keeps the email of the login that made the change as it was at
+the time, as text, so a later change to that login's email does not
+rewrite the log. A login that has written to the log cannot be deleted,
+not even by a superuser — deactivate it instead (see
+[Deactivating](sign-in.md#deactivating)).

@@ -287,9 +287,9 @@ class ContractTypeAdmin(ModelAdmin):
 
 @admin.register(AuditEntry)
 class AuditEntryAdmin(ModelAdmin):
-    list_display = ("at", "actor", "kind", "model", "object_id", "field", "before", "after")
+    list_display = ("at", "actor_email", "kind", "model", "object_id", "field", "before", "after")
     list_filter = ("kind", "model")
-    search_fields = ("field", "before", "after", "note")
+    search_fields = ("actor_email", "field", "before", "after", "note")
 
     def has_add_permission(self, request):
         return False

@@ -8,9 +8,14 @@ def _label(obj):
     return f"{obj._meta.app_label}.{obj._meta.model_name}"
 
 
+def _email(actor):
+    return getattr(actor, "email", "") or ""
+
+
 def record(actor, obj, changes, note=""):
     rows = [
-        AuditEntry(actor=actor, kind=AuditEntry.Kind.CHANGE, model=_label(obj),
+        AuditEntry(actor=actor, actor_email=_email(actor), kind=AuditEntry.Kind.CHANGE,
+                   model=_label(obj),
                    object_id=obj.pk, field=field, before=str(before), after=str(after), note=note)
         for field, (before, after) in changes.items() if before != after
     ]
@@ -19,5 +24,5 @@ def record(actor, obj, changes, note=""):
 
 def viewed(actor, obj, section):
     return AuditEntry.objects.create(
-        actor=actor, kind=AuditEntry.Kind.VIEWED, model=_label(obj), object_id=obj.pk,
+        actor=actor, actor_email=_email(actor), kind=AuditEntry.Kind.VIEWED, model=_label(obj), object_id=obj.pk,
         field=section)
