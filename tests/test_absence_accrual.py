@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+from django.core.exceptions import ValidationError
 
 from absence.models import PolicyTier
 from absence.services import accrual, pots
@@ -91,3 +92,36 @@ def test_entitlement_reads_its_rows_once_not_per_day(db, django_assert_max_num_q
     with django_assert_max_num_queries(30):
         assert accrual.bank_holiday_entitlement(bh_pot) == D("75.00")
 
+
+def test_a_change_of_unit_inside_one_pot_is_refused(db):
+    from people.models import Contract
+    emp = make_employment(start=date(2026, 4, 1))
+    gp = make_contract_type("Salaried GP", "sessions", D("9"))
+    make_policy(gp)
+    make_pattern(emp, {d: (D("1"), D("1")) for d in range(4)})
+    make_contract(emp, gp, amount=D("8"), to_date=date(2026, 9, 30))
+    pot = pots.for_day(emp, absence_type("AL"), Y)                     # a sessions pot
+    reception = make_contract_type()
+    make_policy(reception)
+    # written without the contract signal, so the pot is only computed here
+    Contract.objects.bulk_create([Contract(employment=emp, contract_type=reception,
+                                           weekly_amount=D("37.5"), from_date=date(2026, 10, 1))])
+    with pytest.raises(ValidationError) as e:
+        accrual.entitlement(pot)
+    assert str(pot) in str(e.value) and "sessions" in str(e.value) and "hours" in str(e.value)
+
+
+def test_adding_a_contract_in_another_unit_is_refused_while_the_pot_is_open(db, hr_admin):
+    from tests.factories import current_leave_year
+    start, _ = current_leave_year()
+    emp = make_employment(start=start)
+    gp = make_contract_type("Salaried GP", "sessions", D("9"))
+    make_policy(gp)
+    make_contract(emp, gp, amount=D("8"), to_date=start + timedelta(days=182))
+    pots.for_day(emp, absence_type("AL"), start)
+    reception = make_contract_type()
+    make_policy(reception)
+    with pytest.raises(ValidationError) as e:
+        contracts.add(hr_admin, emp, reception, D("37.5"), start + timedelta(days=183))
+    assert "sessions" in str(e.value)
+    assert emp.contracts.count() == 1

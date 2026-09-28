@@ -53,6 +53,13 @@ class _Rows:
         raise ValidationError(f"No {self.pot.absence_type} policy for {ct} on {day:%d %b %Y}. "
                               f"Add one under Absence › Policies.")
 
+    def check_unit(self, active, day):
+        unit = active[0].contract_type.unit
+        if unit != self.pot.unit:
+            raise ValidationError(
+                f"{self.pot} is in {self.pot.unit}, but the contract on {day:%d %b %Y} is in {unit}. "
+                f"A change of unit needs a new pot; it cannot be mixed into this one.")
+
 
 def _rates(pot, rows, weeks_for_day):
     employment = rows.employment
@@ -67,6 +74,7 @@ def _rates(pot, rows, weeks_for_day):
         if not weekly:
             out.append((day, Decimal("0")))
             continue
+        rows.check_unit(active, day)
         policy = rows.policy(active, day)
         if weeks_for_day is not None:
             weeks = weeks_for_day(policy, day)
@@ -78,7 +86,8 @@ def _rates(pot, rows, weeks_for_day):
 
 def daily_rates(pot, weeks_for_day=None):
     """[(day, unrounded units accrued that day)]. weeks_for_day(policy, day)
-    overrides the weeks figure; bank_holiday_entitlement uses that."""
+    overrides the weeks figure; bank_holiday_entitlement uses that. Raises
+    ValidationError when a day's contract is in another unit than the pot."""
     return _rates(pot, _Rows(pot), weeks_for_day)
 
 
