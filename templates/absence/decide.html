@@ -48,6 +48,10 @@
   {% endif %}
 </section>
 <section class="card">
+  {% if closed %}
+  <h2>Already {{ closed.what }}</h2>
+  <p>Already {{ closed.what }}{% if closed.by %} by {{ closed.by }}{% endif %}{% if closed.on %} on {{ closed.on|date:"j M Y" }}{% endif %}.{% if a.decision_comment %} Comment: {{ a.decision_comment }}{% endif %}</p>
+  {% else %}
   <h2>Your decision</h2>
   <form method="post">{% csrf_token %}
     {% for e in form.non_field_errors %}<p class="flash flash-error" role="alert">{{ e }}</p>{% endfor %}
@@ -57,6 +61,7 @@
       <button type="submit" name="action" value="decline" class="btn">Decline</button>
     </div>
   </form>
+  {% endif %}
 </section>
 </div>
 {% endblock %}

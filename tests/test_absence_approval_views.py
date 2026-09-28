@@ -101,11 +101,49 @@ def test_stranger_cannot_decide(employee_user):
     assert c.post(_decide(a), {"action": "approve"}).status_code == 403
 
 
-def test_a_decided_request_cannot_be_decided_again(employee_user):
+def test_a_routed_approver_sees_a_decided_request_read_only(employee_user, admin_client, hr_admin):
     c, a, _ = _setup(employee_user)
-    assert c.post(_decide(a), {"action": "approve"}).status_code == 302
-    assert c.post(_decide(a), {"action": "decline"}).status_code == 403
+    assert admin_client.post(_decide(a), {"action": "decline", "comment": "no cover"}).status_code == 302
+    r = c.get(_decide(a))           # the routed manager, after an HR admin decided
+    body = r.content.decode()
+    assert r.status_code == 200
+    assert "Already declined by hr@example.com on" in body and "no cover" in body
+    assert "Approve" not in body.replace("Approvals", "") and 'name="action"' not in body
+
+
+def test_a_double_post_shows_the_read_only_page_and_writes_nothing(employee_user):
+    c, a, boss_user = _setup(employee_user)
+    assert c.post(_decide(a), {"action": "approve", "comment": "ok"}).status_code == 302
+    before = Absence.objects.get(pk=a.pk)
+    r = c.post(_decide(a), {"action": "decline", "comment": "changed my mind"})
+    after = Absence.objects.get(pk=a.pk)
+    assert r.status_code == 200 and "Already approved by Boss" in r.content.decode()
+    assert (after.status, after.decided_at, after.decision_comment) == ("approved", before.decided_at, "ok")
+
+
+def test_a_cancelled_request_reads_as_cancelled(employee_user):
+    c, a, _ = _setup(employee_user)
+    bookings.cancel(employee_user, a)
+    body = c.get(_decide(a)).content.decode()
+    assert "Already cancelled by Sam Patel on" in body and 'name="action"' not in body
+
+
+def test_a_stranger_gets_403_on_a_decided_request_too(employee_user):
+    c, a, _ = _setup(employee_user)
+    c.post(_decide(a), {"action": "approve"})
+    other = User.objects.create_user(email="x@example.org", password="pw")
+    s = Client()
+    s.force_login(other)
+    assert s.get(_decide(a)).status_code == 403
+    assert s.post(_decide(a), {"action": "decline"}).status_code == 403
     assert Absence.objects.get(pk=a.pk).status == "approved"
+
+
+def test_the_decider_is_warned_when_the_email_did_not_go(employee_user, monkeypatch):
+    c, a, _ = _setup(employee_user)
+    monkeypatch.setattr(notify, "request_decided", lambda absence: False)
+    r = c.post(_decide(a), {"action": "approve"}, follow=True)
+    assert "did not go" in r.content.decode() and Absence.objects.get(pk=a.pk).status == "approved"
 
 
 def test_decide_page_shows_the_calendar_and_the_warning(employee_user, monkeypatch):
