@@ -303,11 +303,21 @@ the service.
 
 **Costing — `costing.cost(absence)`**, pure. For a range: for each day, for
 each half the absence covers, add that half's pattern units, unless the day
-is a bank holiday under `closed_not_charged` or a practice closed day. For a
+is a bank holiday or a practice closed day. For a
 partial day: `hours`, capped at the sum of the halves it touches. The cost is
 stored on approval. A later pattern change never re-prices an approved
 absence; an HR admin can re-cost, which writes an `adjustment` line with the
 difference and a note.
+
+> **Amended during plan 2 execution (2026-09-28), pending the spec author's
+> confirmation:** this paragraph originally skipped a bank holiday only under
+> `closed_not_charged`. Combined with the overlap rule and the automatic
+> bank-holiday absences below, that refused a week's leave over a bank holiday
+> when the automatic row already existed, and charged the day to annual leave
+> when the leave was booked first. Bank holidays are now charged only by the
+> automation: an ordinary booking skips them under every handling, an ordinary
+> booking and an automatic row may coexist on the day, and two ordinary
+> bookings still clash. The plan-2 ledger records the ruling.
 
 **`BankHoliday`** — `date`, `name`, `nation` (England and Wales seeded for
 the coming years; editable). **`ClosedDay`** — `date`, `reason`, for
@@ -320,8 +330,11 @@ that pattern and drawing on the bank-holiday pot or the annual pot
 respectively. It runs when a pot is created, when a pattern version is saved,
 and nightly for the year ahead, and it removes its own absences (with a
 `cancellation` line) when a pattern change makes a bank holiday a non-working
-day. Under `closed_not_charged` no absence is created and the costing loop
-skips the day.
+day. Under `closed_not_charged` no absence is created. Automatic absences
+dated today or later are re-costed (an `adjustment` line) when the pattern's
+units on that day change. The pattern-save trigger is not yet wired; pots
+opening and the nightly are the two triggers in place (plan 3 may add the
+hook).
 
 **Pot-less types** (sickness, family leave, compassionate, dependants,
 unpaid, other) create an `Absence` and no ledger line. They show on the
