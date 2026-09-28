@@ -52,8 +52,23 @@ def end(actor, employment, end_date, leaving_reason):
     return employment
 
 
+def _anniversary(start, year):
+    try:
+        return start.replace(year=year)
+    except ValueError:            # 29 February in a common year
+        return start.replace(year=year, day=28)
+
+
 def service_years(employment, day):
-    """Continuous service on `day`, in years to two places, rounded down so
-    a tier is never reached a day early."""
-    delta = day - employment.continuous_service_date
-    return (Decimal(delta.days) / Decimal("365.25")).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    """Continuous service on `day`: whole years by calendar anniversary,
+    plus the fraction of the current anniversary year, rounded down to two
+    places so a tier is never reached a day early. The anniversary itself
+    reads exactly N.00."""
+    start = employment.continuous_service_date
+    years = day.year - start.year
+    if _anniversary(start, start.year + years) > day:
+        years -= 1
+    last = _anniversary(start, start.year + years)
+    nxt = _anniversary(start, start.year + years + 1)
+    fraction = Decimal((day - last).days) / Decimal((nxt - last).days)
+    return (Decimal(years) + fraction).quantize(Decimal("0.01"), rounding=ROUND_DOWN)

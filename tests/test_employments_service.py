@@ -35,8 +35,18 @@ def test_overlapping_spell_refused(hr_admin):
 
 def test_service_years_reads_service_date(db):
     emp = make_employment(start=date(2026, 4, 6), continuous_service_date=date(2020, 10, 6))
-    assert employments.service_years(emp, date(2026, 4, 7)) == Decimal("5.50")
+    assert employments.service_years(emp, date(2026, 4, 6)) == Decimal("5.49")   # 182/365 into year six
     assert employments.service_years(emp, date(2025, 10, 5)) == Decimal("4.99")
+    assert employments.service_years(emp, date(2025, 10, 6)) == Decimal("5.00")
+
+
+def test_service_years_on_the_anniversary_is_whole(db):
+    emp = make_employment(start=date(2026, 4, 1), continuous_service_date=date(2021, 10, 1))
+    assert employments.service_years(emp, date(2026, 9, 30)) == Decimal("4.99")
+    assert employments.service_years(emp, date(2026, 10, 1)) == Decimal("5.00")
+    leap = make_employment(employee=make_employee(first="Lea"), start=date(2026, 4, 1),
+                           continuous_service_date=date(2024, 2, 29))
+    assert employments.service_years(leap, date(2025, 2, 28)) == Decimal("1.00")
 
 
 def test_active_on_filters_by_day(db):
