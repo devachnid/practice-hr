@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 
 from absence.models import AbsenceType, Policy, Pot
-from absence.services import bank_holidays, ledger, policies, pots
+from absence.services import bank_holidays, ledger, policies, pots, year_end
 from people.services import employments
 
 
@@ -46,12 +46,15 @@ def _open_current_pots(today, failed):
 
 
 def run(today):
-    """Open the current pots of every active employment, then re-sync every
-    open pot's entitlement and every open annual-leave pot's automatic
-    bank-holiday absences. Idempotent. A pot or employment that cannot be
-    synced (no contract, or no policy covers a day) is listed in `failed`
-    and skipped, so one bad row never stops the rest."""
-    failed = []
+    """Close the pots whose leave year has ended and run the carry-in and
+    TOIL expiries (year_end.run), open the current pots of every active
+    employment, then re-sync every open pot's entitlement and every open
+    annual-leave pot's automatic bank-holiday absences. Idempotent. A pot or
+    employment that cannot be processed (no contract, or no policy covers a
+    day) is listed in `failed` and skipped, so one bad row never stops the
+    rest."""
+    ended = year_end.run(today)
+    failed = list(ended["failed"])
     opened = _open_current_pots(today, failed)
     open_pots = list(pots.open_pots(today))     # after the bootstrap: the new pots are synced too
     synced = revisions = 0
@@ -78,4 +81,6 @@ def run(today):
         recosted += r["recosted"]
     return {"pots_opened": opened, "pots_synced": synced, "revisions": revisions,
             "bank_holiday_created": created, "bank_holiday_removed": removed,
-            "bank_holiday_recosted": recosted, "failed": failed}
+            "bank_holiday_recosted": recosted, "year_end_closed": ended["closed"],
+            "carry_in_expired": ended["carry_in_expired"], "toil_expired": ended["toil_expired"],
+            "leaver_debts": ended["leaver_debts"], "failed": failed}
