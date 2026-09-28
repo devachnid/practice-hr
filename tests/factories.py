@@ -66,3 +66,11 @@ from absence.models import AbsenceType  # noqa: E402
 
 def absence_type(code="AL"):
     return AbsenceType.objects.get(code=code)
+
+
+def make_policy(ctype, code="AL", **kw):
+    from absence.models import Policy
+    kw.setdefault("weeks_per_year", Decimal("5.6"))
+    kw.setdefault("effective_from", date(2020, 1, 1))
+    kw.setdefault("rounding", Decimal("0.25") if ctype.unit == "hours" else Decimal("0.5"))
+    return Policy.objects.create(contract_type=ctype, absence_type=absence_type(code), **kw)
