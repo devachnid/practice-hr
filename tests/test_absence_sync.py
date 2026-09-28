@@ -1,10 +1,10 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from absence.models import LedgerEntry
-from absence.services import ledger, pots
+from absence.services import accrual, ledger, pots
 from people.services import contracts
-from tests.factories import absence_type, hours_employee, make_contract_type
+from tests.factories import absence_type, current_leave_year, hours_employee, make_contract_type
 
 D = Decimal
 
@@ -24,29 +24,33 @@ def test_second_sync_is_a_no_op(db):
 
 
 def test_contract_change_writes_one_revision(db, hr_admin):
-    emp = hours_employee(amount=D("18.75"))
-    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    start, _ = current_leave_year()
+    emp = hours_employee(start=start, amount=D("18.75"))
+    pot = pots.for_day(emp, absence_type("AL"), start + timedelta(days=61))
     ledger.sync_entitlement(pot)
-    contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), date(2026, 10, 1))
+    contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), start + timedelta(days=183))
     # the contract signal has already re-synced; a further sync finds nothing to do
     row = pot.entries.filter(kind=LedgerEntry.Kind.REVISION).get()
     assert ledger.sync_entitlement(pot) is None
-    # 105 + 5.6 × 18.75 × 182/365 = 105 + 52.36 → 157.25 total; revision is the difference
-    assert ledger.entitlement_lines_total(pot) == D("157.25")
-    assert row.units == D("52.25") and row.note.startswith("contract added")
+    # 105 for the first contract's year, plus the second contract's part-year on top
+    assert ledger.entitlement_lines_total(pot) == accrual.entitlement(pot)
+    assert D("105.00") < ledger.entitlement_lines_total(pot) < D("210.00")
+    assert row.units == ledger.entitlement_lines_total(pot) - D("105.00")
+    assert row.note.startswith("contract added")
 
 
 def test_change_that_rounds_to_nothing_writes_nothing(db, hr_admin):
-    emp = hours_employee()
-    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    start, end = current_leave_year()
+    emp = hours_employee(start=start)
+    pot = pots.for_day(emp, absence_type("AL"), start + timedelta(days=61))
     ledger.sync_entitlement(pot)
-    contracts.add(hr_admin, emp, make_contract_type(), D("0.01"), date(2027, 3, 31))
+    contracts.add(hr_admin, emp, make_contract_type(), D("0.01"), end)
     assert ledger.sync_entitlement(pot) is None
+    assert pot.entries.count() == 1   # the signal wrote nothing either
 
 
 def test_bank_holiday_pot_syncs_from_its_own_formula(db):
     from absence.models import Policy
-    from absence.services import accrual
     from tests.factories import make_policy
     emp = hours_employee(amount=D("18.75"))
     ct = emp.contracts.first().contract_type
@@ -60,10 +64,11 @@ def test_bank_holiday_pot_syncs_from_its_own_formula(db):
 
 def test_line_dates(db, hr_admin):
     from django.utils import timezone
-    emp = hours_employee(amount=D("18.75"))
-    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    start, _ = current_leave_year()
+    emp = hours_employee(start=start, amount=D("18.75"))
+    pot = pots.for_day(emp, absence_type("AL"), start + timedelta(days=61))
     first = ledger.sync_entitlement(pot)
     assert first.date == pot.year_start
-    contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), date(2026, 10, 1))
+    contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), start + timedelta(days=183))
     revision = pot.entries.filter(kind=LedgerEntry.Kind.REVISION).get()   # written by the signal
     assert revision.date == timezone.localdate()

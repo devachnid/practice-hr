@@ -91,3 +91,11 @@ def hours_employee(start=date(2026, 4, 1), amount=Decimal("37.5"), **kw):
         make_policy(ct)
     make_pattern(emp)
     return emp
+
+
+def current_leave_year(today=None):
+    """(start, end) of the 1 April leave year containing today."""
+    from django.utils import timezone
+    today = today or timezone.localdate()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    return date(start_year, 4, 1), date(start_year + 1, 3, 31)
