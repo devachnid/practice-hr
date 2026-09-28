@@ -231,3 +231,23 @@ def test_an_inactive_login_cannot_refresh(capsys, employee_client, employee_user
     r = refresh(r.json()["refresh_token"])
     assert r.status_code in (400, 401)
     assert "access_token" not in r.content.decode()
+
+
+def test_the_rotas_sign_out_ends_the_session_here_without_a_prompt(capsys, employee_client,
+                                                                    employee_user):
+    """What the rota sends after its own logout: the ID token as
+    id_token_hint, so no "are you sure" page, and back to its login page."""
+    client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user)
+    r = employee_client.get("/o/logout/", {
+        "id_token_hint": tokens["id_token"], "client_id": client_id,
+        "post_logout_redirect_uri": "https://rota.example/accounts/login/"})
+    assert r.status_code == 302 and r["Location"].startswith("https://rota.example/accounts/login/")
+    assert "_auth_user_id" not in employee_client.session
+
+
+def test_a_sign_out_to_an_unregistered_address_is_refused(capsys, employee_client, employee_user):
+    client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user)
+    r = employee_client.get("/o/logout/", {
+        "id_token_hint": tokens["id_token"], "client_id": client_id,
+        "post_logout_redirect_uri": "https://evil.example/"})
+    assert not r.get("Location", "").startswith("https://evil.example")
