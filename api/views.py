@@ -22,6 +22,8 @@ GET /api/v1/patterns?employee=<id>
         "effective_from": "2026-04-01",
         "days": [{"weekday": 0, "am": "3.75", "pm": "3.75"}]   # Monday is 0;
     }]}                                # units in the contract's unit, as strings
+    Patterns of every employment the person has had, so a rehire's earlier
+    spell's patterns are included.
 
 GET /api/v1/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
     {"absences": [{
@@ -86,7 +88,7 @@ def patterns(request):
         return _bad_request("employee=<id> required")
     out = []
     versions = (WorkingPattern.objects.filter(employment__employee=employee)
-                .order_by("effective_from").prefetch_related("days"))
+                .order_by("effective_from", "pk").prefetch_related("days"))
     for v in versions:
         out.append({"effective_from": _iso(v.effective_from),
                     "days": [{"weekday": d.weekday, "am": str(d.am_units), "pm": str(d.pm_units)}

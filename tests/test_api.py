@@ -2,6 +2,7 @@ import logging
 from datetime import date
 
 import pytest
+from django.test import Client
 
 from absence.models import Absence, AbsenceType
 from absence.services import bookings
@@ -223,3 +224,37 @@ def test_check_quiet_in_debug(settings):
     settings.DEBUG = True
     settings.HR_API_TOKENS = frozenset()
     assert api_tokens(None) == []
+
+
+def test_csrf_enforcement_does_not_get_in_the_way(settings):
+    """The test client skips CSRF checks; production does not. Without the
+    exemption a POST got Django's HTML 403 before the token was looked at."""
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    c = Client(enforce_csrf_checks=True)
+    r = c.post("/api/v1/people")
+    assert r.status_code == 401 and r.json() == {"error": "unauthorised"}
+    assert r.headers["Cache-Control"] == "no-store"
+    r = c.post("/api/v1/people", HTTP_AUTHORIZATION="Bearer t0k")
+    assert r.status_code == 405 and r.json() == {"error": "method not allowed"}
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+@pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER"])
+def test_the_scheme_is_case_insensitive(client, settings, db, scheme):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    assert client.get("/api/v1/people", HTTP_AUTHORIZATION=f"{scheme} t0k").status_code == 200
+    assert client.get("/api/v1/people", HTTP_AUTHORIZATION=f"{scheme} wrong").status_code == 401
+
+
+def test_patterns_of_an_earlier_spell_are_included_oldest_first(api, db):
+    from datetime import date
+
+    from tests.factories import make_employment, make_pattern
+    first = hours_employee()
+    employee = first.employee
+    first.end_date = date(2026, 6, 30)
+    first.save()
+    second = make_employment(employee=employee, start=date(2026, 9, 1))
+    make_pattern(second)
+    data = api(f"/api/v1/patterns?employee={employee.pk}").json()["patterns"]
+    assert [v["effective_from"] for v in data] == ["2026-04-01", "2026-09-01"]
