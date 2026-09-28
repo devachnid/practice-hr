@@ -29,3 +29,21 @@ def make_position(employment, manager=None, title="Receptionist", team=None, sta
     return Position.objects.create(
         employment=employment, title=title, team=team, line_manager=manager,
         from_date=start or employment.start_date, **kw)
+
+
+from decimal import Decimal  # noqa: E402
+
+from people.models import Contract, ContractType  # noqa: E402
+
+
+def make_contract_type(name="Reception", unit="hours", full_time=Decimal("37.5")):
+    ct, _ = ContractType.objects.get_or_create(
+        name=name, defaults={"unit": unit, "full_time_weekly": full_time})
+    return ct
+
+
+def make_contract(employment, ctype=None, amount=Decimal("37.5"), start=None, **kw):
+    ctype = ctype or make_contract_type()
+    return Contract.objects.create(
+        employment=employment, contract_type=ctype, weekly_amount=amount,
+        from_date=start or employment.start_date, **kw)
