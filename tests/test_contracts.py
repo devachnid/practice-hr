@@ -56,3 +56,42 @@ def test_contract_outside_employment_refused(hr_admin):
     emp = make_employment(start=date(2026, 4, 6))
     with pytest.raises(ValidationError):
         contracts.add(hr_admin, emp, make_contract_type(), Decimal("10"), date(2026, 4, 1))
+
+
+def test_fte_sums_each_contracts_own_fraction(hr_admin):
+    emp = make_employment(start=date(2026, 4, 1))
+    a = make_contract_type("Reception", "hours", Decimal("37.5"))
+    b = make_contract_type("Administration", "hours", Decimal("40"))
+    contracts.add(hr_admin, emp, a, Decimal("20"), date(2026, 4, 1))
+    contracts.add(hr_admin, emp, b, Decimal("20"), date(2026, 4, 1))
+    assert contracts.fte(emp, date(2026, 6, 1)) == Decimal("1.03")   # 20/37.5 + 20/40
+
+
+def test_extending_into_a_different_unit_refused(hr_admin):
+    emp = make_employment(start=date(2026, 1, 1))
+    hours = make_contract_type()
+    sessions = make_contract_type("Salaried GP", "sessions", Decimal("9"))
+    short = contracts.add(hr_admin, emp, hours, Decimal("10"), date(2026, 1, 1), basis="fixed_term", to_date=date(2026, 3, 31))
+    contracts.add(hr_admin, emp, sessions, Decimal("2"), date(2026, 4, 1))
+    with pytest.raises(ValidationError):
+        contracts.end(hr_admin, short, date(2026, 4, 30))
+    contracts.end(hr_admin, short, date(2026, 3, 15))          # shortening is fine
+
+
+def test_touching_ranges_of_different_units_do_not_clash(hr_admin):
+    emp = make_employment(start=date(2026, 1, 1))
+    hours = make_contract_type()
+    sessions = make_contract_type("Salaried GP", "sessions", Decimal("9"))
+    contracts.add(hr_admin, emp, hours, Decimal("30"), date(2026, 1, 1), basis="fixed_term", to_date=date(2026, 3, 31))
+    contracts.add(hr_admin, emp, sessions, Decimal("4"), date(2026, 4, 1))
+    assert contracts.unit(emp, date(2026, 3, 31)) == "hours"
+    assert contracts.unit(emp, date(2026, 4, 1)) == "sessions"
+
+
+def test_open_ended_clashes_with_a_later_different_unit(hr_admin):
+    emp = make_employment(start=date(2026, 1, 1))
+    hours = make_contract_type()
+    sessions = make_contract_type("Salaried GP", "sessions", Decimal("9"))
+    contracts.add(hr_admin, emp, sessions, Decimal("4"), date(2026, 9, 1))
+    with pytest.raises(ValidationError):
+        contracts.add(hr_admin, emp, hours, Decimal("30"), date(2026, 1, 1))

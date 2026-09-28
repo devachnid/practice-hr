@@ -40,7 +40,7 @@ class Contract(models.Model):
     notes = models.CharField(max_length=200, blank=True, default="")
 
     class Meta:
-        ordering = ["from_date"]
+        ordering = ["from_date", "id"]
 
     def __str__(self):
         return f"{self.weekly_amount} {self.contract_type.unit}/week {self.get_basis_display().lower()}"
