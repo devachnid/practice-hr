@@ -76,3 +76,18 @@ def test_bank_holiday_pot_pro_rata(db):
     pot = pots.for_day(emp, absence_type("BH"), Y)
     # 10 bank holidays fall in 2026/27 (both Easters) → 10/5 weeks × 18.75 = 37.5
     assert accrual.bank_holiday_entitlement(pot) == D("37.50")
+
+
+def test_entitlement_reads_its_rows_once_not_per_day(db, django_assert_max_num_queries):
+    from absence.models import Pot
+    emp = hours_employee(continuous_service_date=date(2021, 10, 1))
+    policy = emp.contracts.first().contract_type.policies.get()
+    PolicyTier.objects.create(policy=policy, after_years=5, extra_weeks=D("1"))
+    make_policy(policy.contract_type, "BH", bank_holiday_handling="pot")
+    al_pot = Pot.objects.get(pk=al(emp).pk)
+    bh_pot = Pot.objects.get(pk=pots.for_day(emp, absence_type("BH"), Y).pk)
+    with django_assert_max_num_queries(30):
+        assert accrual.entitlement(al_pot) == D("228.75")
+    with django_assert_max_num_queries(30):
+        assert accrual.bank_holiday_entitlement(bh_pot) == D("75.00")
+
