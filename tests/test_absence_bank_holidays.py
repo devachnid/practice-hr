@@ -60,11 +60,23 @@ def test_closed_not_charged_creates_nothing(db):
     assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 0, "removed": 0, "skipped": 0}
 
 
-def test_day_already_booked_off_is_skipped_and_counted(db, hr_admin):
+def test_day_already_booked_off_is_skipped_without_writing_anything(db, hr_admin):
     emp = hours_employee()
     _with_pot_handling(emp)
     bookings.request(hr_admin, emp, absence_type("AL"), date(2026, 5, 4))
-    result = bank_holidays.sync_auto_absences(emp, Y0, Y1)
-    assert result == {"created": 9, "removed": 0, "skipped": 1}
-    declined = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=date(2026, 5, 4))
-    assert declined.status == "declined" and declined.decision_comment == "already off that day"
+    assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 9, "removed": 0, "skipped": 1}
+    autos = Absence.objects.filter(employment=emp, auto_bank_holiday=True)
+    assert not autos.filter(start_date=date(2026, 5, 4)).exists()
+    count = Absence.objects.count()
+    assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 0, "removed": 0, "skipped": 1}
+    assert Absence.objects.count() == count
+
+
+def test_bank_holiday_created_once_the_overlapping_leave_is_cancelled(db, hr_admin):
+    emp = hours_employee()
+    _with_pot_handling(emp)
+    leave = bookings.request(hr_admin, emp, absence_type("AL"), date(2026, 5, 4))
+    bank_holidays.sync_auto_absences(emp, Y0, Y1)
+    bookings.cancel(hr_admin, leave)
+    assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 1, "removed": 0, "skipped": 0}
+    assert Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=date(2026, 5, 4)).status == "approved"
