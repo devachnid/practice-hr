@@ -28,7 +28,8 @@ def test_creates_one_per_working_bank_holiday(db):
     a = Absence.objects.get(employment=emp, start_date=date(2026, 5, 4))
     assert a.auto_bank_holiday and a.status == "approved" and a.cost_units == D("7.50")
     pot = pots.for_day(emp, absence_type("BH"), Y0)
-    assert ledger.balance(pot) == D("-75.00")
+    assert sum(e.units for e in pot.entries.filter(kind=LedgerEntry.Kind.BOOKING)) == D("-75.00")
+    assert ledger.balance(pot) == D("0.00")      # the pot opened with its 75.00 entitlement
 
 
 def test_idempotent(db):
@@ -56,7 +57,8 @@ def test_included_in_annual_draws_on_al(db):
     ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.INCLUDED_IN_ANNUAL)
     bank_holidays.sync_auto_absences(emp, Y0, Y1)
     pot = pots.for_day(emp, absence_type("AL"), Y0)
-    assert ledger.balance(pot) == D("-75.00")
+    assert sum(e.units for e in pot.entries.filter(kind=LedgerEntry.Kind.BOOKING)) == D("-75.00")
+    assert ledger.balance(pot) == D("135.00")    # opened with 210.00, ten bank holidays charged
 
 
 def test_closed_not_charged_creates_nothing(db):

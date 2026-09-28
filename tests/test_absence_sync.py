@@ -10,7 +10,7 @@ D = Decimal
 
 
 def test_first_sync_writes_entitlement(db):
-    pot = pots.for_day(hours_employee(), absence_type("AL"), date(2026, 6, 1))
+    pot = pots.for_day(hours_employee(), absence_type("AL"), date(2026, 6, 1), sync=False)
     row = ledger.sync_entitlement(pot, cause="pot created")
     assert row.kind == LedgerEntry.Kind.ENTITLEMENT and row.units == D("210.00")
     assert row.note == "pot created"
@@ -56,7 +56,7 @@ def test_bank_holiday_pot_syncs_from_its_own_formula(db):
     ct = emp.contracts.first().contract_type
     ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
     make_policy(ct, "BH", bank_holiday_handling="pot")
-    pot = pots.for_day(emp, absence_type("BH"), date(2026, 6, 1))
+    pot = pots.for_day(emp, absence_type("BH"), date(2026, 6, 1), sync=False)
     row = ledger.sync_entitlement(pot, cause="pot created")
     assert row.kind == LedgerEntry.Kind.ENTITLEMENT
     assert row.units == accrual.bank_holiday_entitlement(pot) == D("37.50")   # ten holidays / 5 × 18.75
@@ -66,7 +66,7 @@ def test_line_dates(db, hr_admin):
     from django.utils import timezone
     start, _ = current_leave_year()
     emp = hours_employee(start=start, amount=D("18.75"))
-    pot = pots.for_day(emp, absence_type("AL"), start + timedelta(days=61))
+    pot = pots.for_day(emp, absence_type("AL"), start + timedelta(days=61), sync=False)
     first = ledger.sync_entitlement(pot)
     assert first.date == pot.year_start
     contracts.add(hr_admin, emp, make_contract_type(), D("18.75"), start + timedelta(days=183))

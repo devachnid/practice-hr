@@ -15,7 +15,8 @@ def test_pot_recalculate_action_writes_a_revision_through_the_service(admin_clie
     from absence.models import LedgerEntry
     from absence.services import ledger, pots
     from tests.factories import absence_type, hours_employee
-    pot = pots.for_day(hours_employee(start=date(2026, 4, 1)), absence_type("AL"), date(2026, 6, 1))
+    pot = pots.for_day(hours_employee(start=date(2026, 4, 1)), absence_type("AL"), date(2026, 6, 1),
+                       sync=False)     # opened bare, as the nightly opens pots, for the action to fill
     assert not pot.entries.exists()
     resp = admin_client.post("/admin/absence/pot/", {
         "action": "recalculate", "_selected_action": [pot.pk]}, follow=True)
@@ -49,13 +50,13 @@ def test_recalculate_reports_a_pot_with_no_policy_and_revises_the_rest(admin_cli
     from tests.factories import (absence_type, hours_employee, make_contract, make_contract_type,
                                  make_employment, make_pattern, make_policy)
     al = absence_type("AL")
-    good = pots.for_day(hours_employee(start=date(2026, 4, 1)), al, date(2026, 6, 1))
+    good = pots.for_day(hours_employee(start=date(2026, 4, 1)), al, date(2026, 6, 1), sync=False)
     other = make_contract_type("Other")
     emp = make_employment(start=date(2026, 4, 1))
     make_contract(emp, other)
     make_policy(other)
     make_pattern(emp)
-    bad = pots.for_day(emp, al, date(2026, 6, 1))
+    bad = pots.for_day(emp, al, date(2026, 6, 1), sync=False)
     other.policies.all().delete()
     resp = admin_client.post("/admin/absence/pot/", {
         "action": "recalculate", "_selected_action": [good.pk, bad.pk]}, follow=True)

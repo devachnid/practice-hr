@@ -18,7 +18,7 @@ def test_request_then_approve_writes_booking(db, hr_admin, employee_user):
     a = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
     assert a.status == Absence.Status.REQUESTED and a.cost_units == D("22.50")
     pot = pots.for_day(emp, absence_type("AL"), MON)
-    assert pot.entries.count() == 0
+    assert not pot.entries.filter(kind=LedgerEntry.Kind.BOOKING).exists()
     bookings.approve(hr_admin, a, "fine")
     a.refresh_from_db()
     assert a.status == Absence.Status.APPROVED and a.decided_by == hr_admin
@@ -224,3 +224,35 @@ def test_recost_and_cancel_stay_on_the_booked_pot_after_the_leave_year_changes(d
     cancellation = leave.ledger_entries.get(kind=LedgerEntry.Kind.CANCELLATION)
     assert cancellation.pot == booked_pot and cancellation.units == D("7.50")
     assert set(Pot.objects.values_list("pk", flat=True)) == pots_before   # nothing re-resolved
+
+
+def test_a_first_booking_on_a_fresh_pot_shows_a_positive_balance(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    bookings.approve(hr_admin, a)
+    pot = pots.for_day(emp, absence_type("AL"), MON)
+    assert ledger.balance(pot) == D("187.50")               # 210 accrued, 22.50 booked
+    assert balances.summary(pot, MON)["entitlement"] == D("210.00")
+
+
+@pytest.mark.parametrize("handling,charged_to", [("pot", "BH"), ("annual", "AL")])
+def test_opening_the_annual_pot_charges_the_years_bank_holidays_once(db, hr_admin, employee_user,
+                                                                     handling, charged_to):
+    from absence.models import Policy
+    from tests.factories import make_policy
+    emp = hours_employee()
+    ct = emp.contracts.first().contract_type
+    ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=handling)
+    if handling == Policy.BankHolidays.PRO_RATA_POT:
+        make_policy(ct, "BH", bank_holiday_handling="pot")
+    bookings.approve(hr_admin, bookings.request(employee_user, emp, absence_type("AL"), MON, WED))
+    autos = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
+    assert autos.count() == 10
+    assert {a.ledger_entries.get().pot.absence_type.code for a in autos} == {charged_to}
+    al = pots.for_day(emp, absence_type("AL"), MON)
+    if handling == Policy.BankHolidays.PRO_RATA_POT:
+        bh = pots.for_day(emp, absence_type("BH"), MON)
+        assert ledger.balance(bh) == D("0.00")              # 75 accrued on opening, 75 charged
+        assert ledger.balance(al) == D("187.50")
+    else:
+        assert ledger.balance(al) == D("112.50")            # 210 - 75 bank holidays - 22.50

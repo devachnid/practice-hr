@@ -1,5 +1,7 @@
 """Bank holidays are charged automatically under the two pot handlings."""
 
+from contextvars import ContextVar
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
@@ -17,6 +19,15 @@ def _target_type(handling):
     return None
 
 
+_running = ContextVar("bank_holiday_sync_running", default=False)
+
+
+def running():
+    """True inside sync_auto_absences: pots opened by its own approvals must
+    not start a second sync of the same year (pots._open)."""
+    return _running.get()
+
+
 @transaction.atomic
 def sync_auto_absences(employment, year_start, year_end, actor=None, today=None):
     """Create the approved bank-holiday absences the pattern and policy
@@ -24,7 +35,14 @@ def sync_auto_absences(employment, year_start, year_end, actor=None, today=None)
     `today` on whose pattern has changed (a past charge stands). Idempotent.
     A day the person has booked off still gets its row: their booking
     skipped the bank holiday (costing), so this row is what charges it."""
-    today = today or timezone.localdate()
+    token = _running.set(True)
+    try:
+        return _sync(employment, year_start, year_end, actor, today or timezone.localdate())
+    finally:
+        _running.reset(token)
+
+
+def _sync(employment, year_start, year_end, actor, today):
     created = removed = recosted = 0
     al = AbsenceType.objects.get(code="AL")
     existing = {a.start_date: a for a in Absence.objects.filter(

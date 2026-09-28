@@ -96,7 +96,7 @@ def approve(actor, absence, comment=""):
     absence.decision_comment = comment
     absence.save()
     if absence.absence_type.uses_pot and absence.cost_units:
-        pot = pots.for_day(absence.employment, absence.absence_type, absence.start_date)
+        pot = pots.for_day(absence.employment, absence.absence_type, absence.start_date, actor=actor)
         kind = LedgerEntry.Kind.TOIL_TAKEN if absence.absence_type.code == "TOIL" else LedgerEntry.Kind.BOOKING
         ledger.write(pot, kind, -absence.cost_units, actor, absence=absence,
                      note=f"{absence.start_date:%d %b}–{absence.end_date:%d %b %Y}", date=absence.start_date)

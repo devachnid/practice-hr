@@ -30,7 +30,7 @@ def test_for_day_needs_a_contract(db):
 
 
 def test_write_and_balance(db, hr_admin):
-    pot = pots.for_day(hours_employee(), absence_type("AL"), date(2026, 6, 1))
+    pot = pots.for_day(hours_employee(), absence_type("AL"), date(2026, 6, 1), sync=False)
     ledger.write(pot, LedgerEntry.Kind.ENTITLEMENT, Decimal("210"), hr_admin, note="year")
     ledger.write(pot, LedgerEntry.Kind.BOOKING, Decimal("-7.5"))
     assert ledger.balance(pot) == Decimal("202.5")
