@@ -109,6 +109,7 @@ files the app has to read unreadable:
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
 | `DEFAULT_FROM_EMAIL` | The From address on every email the app sends. |
+| `CSP_REPORT_ONLY` | `1` sends the Content-Security-Policy as report-only, blocking nothing — the way back if it blocks something after a deploy. Unset (the default), it is enforced. |
 | `TRUSTED_PROXY_IPS` | Comma-separated addresses whose forwarded-IP header is believed for login rate-limiting. Defaults to loopback, which is right behind a Cloudflare tunnel; never set it to a wildcard. |
 | `OIDC_RSA_PRIVATE_KEY_FILE` | The file holding the key that signs OpenID Connect tokens for relying parties like the rota. Unset switches the provider off. See below and [the OIDC provider](docs/admin/sign-in.md#the-openid-connect-provider). |
 | `OIDC_RSA_PRIVATE_KEY` | The same key inline, one line with `\n` for each newline — for a dev box only. Ignored when `OIDC_RSA_PRIVATE_KEY_FILE` is set. |
@@ -177,6 +178,21 @@ per request (`hr.access`: the client's address from Cloudflare,
 and with a password link's token replaced by `<redacted>`. Also logged:
 server errors with tracebacks, CSRF failures and disallowed hosts
 (`django.security`), and lockouts (`axes`).
+
+**A Content-Security-Policy** is on every page the app renders (not the
+admin, whose theme needs `eval`; `config/middleware.py`). No script runs on
+those pages except the app's own files: no inline script, no event-handler
+attributes and no `eval`. So a future escaping bug shows as text, not as
+script running in a colleague's session. Styles may be inline.
+
+The header also carries a fresh nonce on each response. The app itself uses
+none: it's there for **Cloudflare**, which injects its own bot-detection
+script and stamps it with the nonce it finds in the header.
+
+After a deploy, open the site with the browser's console showing. A
+"Refused to…" line means the policy blocked something. To turn blocking off
+without a code change, set `CSP_REPORT_ONLY=1` in `/etc/practice-hr.env`
+and restart; the browser then only reports what it would have blocked.
 
 **HTTPS.** With `DEBUG` off the app sends any plain-http request to https
 itself (`SECURE_SSL_REDIRECT`), trusting cloudflared's `X-Forwarded-Proto`
