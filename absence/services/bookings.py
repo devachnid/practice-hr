@@ -31,6 +31,17 @@ def _check_leave_year(absence):
         raise ValidationError("This crosses the end of the leave year. Book the two leave years separately.")
 
 
+def _lock(absence):
+    """Re-read the row under a lock, so a stale in-memory copy cannot pass a status guard."""
+    return Absence.objects.select_for_update().get(pk=absence.pk)
+
+
+def _copy_back(fresh, absence):
+    for field in fresh._meta.concrete_fields:
+        setattr(absence, field.attname, getattr(fresh, field.attname))
+    return absence
+
+
 @transaction.atomic
 def request(actor, employment, absence_type, start_date, end_date=None, start_half="", end_half="",
             start_time=None, end_time=None, hours=None, category="", requested_by=None):
@@ -56,6 +67,7 @@ def request(actor, employment, absence_type, start_date, end_date=None, start_ha
 
 @transaction.atomic
 def approve(actor, absence, comment=""):
+    caller, absence = absence, _lock(absence)
     if absence.status != Absence.Status.REQUESTED:
         raise ValidationError("Only a requested absence can be approved.")
     if overlaps(absence.employment, absence.start_date, absence.end_date, exclude_pk=absence.pk):
@@ -72,11 +84,12 @@ def approve(actor, absence, comment=""):
         ledger.write(pot, kind, -absence.cost_units, actor, absence=absence,
                      note=f"{absence.start_date:%d %b}–{absence.end_date:%d %b %Y}", date=absence.start_date)
     audit.record(actor, absence, {"status": ("requested", "approved")})
-    return absence
+    return _copy_back(absence, caller)
 
 
 @transaction.atomic
 def decline(actor, absence, comment=""):
+    caller, absence = absence, _lock(absence)
     if absence.status != Absence.Status.REQUESTED:
         raise ValidationError("Only a requested absence can be declined.")
     absence.status = Absence.Status.DECLINED
@@ -85,11 +98,12 @@ def decline(actor, absence, comment=""):
     absence.decision_comment = comment
     absence.save()
     audit.record(actor, absence, {"status": ("requested", "declined")})
-    return absence
+    return _copy_back(absence, caller)
 
 
 @transaction.atomic
 def cancel(actor, absence):
+    caller, absence = absence, _lock(absence)
     if absence.status not in LIVE:
         raise ValidationError("Only a requested or approved absence can be cancelled.")
     was = absence.status
@@ -102,20 +116,25 @@ def cancel(actor, absence):
         ledger.write(pot, LedgerEntry.Kind.CANCELLATION, absence.cost_units, actor, absence=absence,
                      note="cancelled", date=absence.start_date)
     audit.record(actor, absence, {"status": (was, "cancelled")})
-    return absence
+    return _copy_back(absence, caller)
 
 
 @transaction.atomic
 def recost(actor, absence, note):
     """An HR admin re-prices an approved absence after a pattern change.
     Writes an adjustment for the difference, or nothing."""
+    caller, absence = absence, _lock(absence)
     if absence.status != Absence.Status.APPROVED or not absence.absence_type.uses_pot:
         raise ValidationError("Only an approved, pot-backed absence can be re-costed.")
     new = costing.cost(absence)
     delta = absence.cost_units - new
     if delta == 0:
         return None
+    old = absence.cost_units
     absence.cost_units = new
     absence.save()
+    _copy_back(absence, caller)
     pot = pots.for_day(absence.employment, absence.absence_type, absence.start_date)
-    return ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, delta, actor, absence=absence, note=note)
+    line = ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, delta, actor, absence=absence, note=note)
+    audit.record(actor, absence, {"cost_units": (str(old), str(new))}, note=note)
+    return line

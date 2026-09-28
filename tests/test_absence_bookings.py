@@ -5,6 +5,7 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from absence.models import Absence, LedgerEntry
+from people.models import AuditEntry
 from absence.services import balances, bookings, ledger, pots
 from tests.factories import absence_type, hours_employee, make_pattern
 
@@ -106,3 +107,64 @@ def test_summary_keys(db, employee_user):
     s = balances.summary(pot, MON)
     assert s == {"entitlement": D("210.00"), "carried_in": D("0"), "taken": D("0"), "booked": D("0"),
                  "pending": D("7.50"), "expired": D("0"), "adjustments": D("0"), "remaining": D("210.00")}
+
+
+def _approved_mon_to_wed(hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    bookings.approve(hr_admin, a)
+    return emp, a
+
+
+def test_recost_writes_one_adjustment_for_the_difference(db, hr_admin, employee_user):
+    emp, a = _approved_mon_to_wed(hr_admin, employee_user)
+    pot = pots.for_day(emp, absence_type("AL"), MON)
+    make_pattern(emp, {0: (D("3.75"), D("3.75"))}, effective_from=date(2026, 4, 2))   # Mon only
+    line = bookings.recost(hr_admin, a, "pattern changed")
+    assert line.kind == LedgerEntry.Kind.ADJUSTMENT and line.units == D("15.00")   # 22.50 - 7.50
+    assert pot.entries.filter(kind=LedgerEntry.Kind.ADJUSTMENT).count() == 1
+    assert a.cost_units == D("7.50") and Absence.objects.get(pk=a.pk).cost_units == D("7.50")
+    assert AuditEntry.objects.filter(object_id=a.pk, field="cost_units", before="22.50", after="7.50").exists()
+
+
+def test_recost_with_no_change_writes_nothing(db, hr_admin, employee_user):
+    emp, a = _approved_mon_to_wed(hr_admin, employee_user)
+    count = LedgerEntry.objects.count()
+    assert bookings.recost(hr_admin, a, "checked") is None
+    assert LedgerEntry.objects.count() == count
+    assert not LedgerEntry.objects.filter(kind=LedgerEntry.Kind.ADJUSTMENT).exists()
+
+
+def test_cancel_after_recost_restores_starting_balance(db, hr_admin, employee_user):
+    emp = hours_employee()
+    pot = pots.for_day(emp, absence_type("AL"), MON)
+    ledger.sync_entitlement(pot)
+    start = ledger.balance(pot)
+    a = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    bookings.approve(hr_admin, a)
+    make_pattern(emp, {0: (D("3.75"), D("3.75"))}, effective_from=date(2026, 4, 2))
+    bookings.recost(hr_admin, a, "pattern changed")
+    bookings.cancel(employee_user, a)
+    assert ledger.balance(pot) == start
+
+
+def test_recost_refused_unless_approved_and_pot_backed(db, hr_admin, employee_user):
+    emp = hours_employee()
+    requested = bookings.request(employee_user, emp, absence_type("AL"), MON)
+    with pytest.raises(ValidationError):
+        bookings.recost(hr_admin, requested, "no")
+    sick = bookings.request(employee_user, emp, absence_type("SICK"), date(2026, 6, 8), category="illness")
+    assert sick.status == Absence.Status.APPROVED
+    with pytest.raises(ValidationError):
+        bookings.recost(hr_admin, sick, "no")
+
+
+def test_stale_second_approve_is_refused(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    stale = Absence.objects.get(pk=a.pk)
+    bookings.approve(hr_admin, a)
+    assert stale.status == Absence.Status.REQUESTED
+    with pytest.raises(ValidationError):
+        bookings.approve(hr_admin, stale)
+    assert LedgerEntry.objects.filter(kind=LedgerEntry.Kind.BOOKING).count() == 1
