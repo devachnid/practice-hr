@@ -74,3 +74,20 @@ def make_policy(ctype, code="AL", **kw):
     kw.setdefault("effective_from", date(2020, 1, 1))
     kw.setdefault("rounding", Decimal("0.25") if ctype.unit == "hours" else Decimal("0.5"))
     return Policy.objects.create(contract_type=ctype, absence_type=absence_type(code), **kw)
+
+
+def make_pot(employment, code="AL", day=None):
+    from absence.services import pots
+    return pots.for_day(employment, absence_type(code), day or employment.start_date)
+
+
+def hours_employee(start=date(2026, 4, 1), amount=Decimal("37.5"), **kw):
+    """A Reception employee with a contract, an AL policy and a Mon-Fri
+    3.75/3.75 pattern. Returns the employment."""
+    emp = make_employment(start=start, **kw)
+    ct = make_contract_type()
+    make_contract(emp, ct, amount=amount)
+    if not ct.policies.exists():
+        make_policy(ct)
+    make_pattern(emp)
+    return emp
