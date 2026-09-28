@@ -86,7 +86,8 @@ def balances_for(request, pk):
 @login_required
 def team(request):
     """Whose balances this user may open: an approver's direct reports, every
-    employee for an HR admin."""
+    employee for an HR admin; with a link to record an absence for each one
+    the user may (access.may_record_for)."""
     today = timezone.localdate()
     if access.can_view_restricted(request.user):
         people = list(Employee.objects.all())
@@ -99,7 +100,8 @@ def team(request):
     for e in people:
         emp = employments.current(e, today)
         pos = positions.primary_on(emp, today) if emp else None
-        rows.append({"employee": e, "position": pos, "employed": emp is not None})
+        rows.append({"employee": e, "position": pos, "employed": emp is not None,
+                     "can_record": emp is not None and access.may_record_for(request.user, emp, today)})
     return render(request, "absence/balances_team.html", {"rows": rows})
 
 

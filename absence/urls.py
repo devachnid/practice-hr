@@ -5,6 +5,7 @@ from absence.views import approvals, balances, calendar, payroll, requests
 app_name = "absence"
 urlpatterns = [
     path("request/", requests.request_leave, name="request"),
+    path("request/<int:pk>/", requests.request_for, name="request_for"),
     path("mine/", requests.mine, name="mine"),
     path("calendar/", calendar.calendar_view, name="calendar"),
     path("balances/", balances.balances_view, name="balances"),

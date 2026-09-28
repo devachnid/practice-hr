@@ -117,6 +117,18 @@ def request(actor, employment, absence_type, start_date, end_date=None, start_ha
 
 
 @transaction.atomic
+def record(actor, employment, absence_type, start_date, end_date=None, comment="", **fields):
+    """An absence recorded for someone by the person who would approve it
+    (their routed manager) or an HR admin: requested in the employee's name
+    by `actor` and approved at once, in one transaction, so it is never left
+    waiting on the person who recorded it. Takes request()'s arguments."""
+    a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor, **fields)
+    if a.status == Absence.Status.REQUESTED:
+        a = approve(actor, a, comment)
+    return a
+
+
+@transaction.atomic
 def approve(actor, absence, comment=""):
     caller, absence = absence, _lock(absence)
     if absence.status != Absence.Status.REQUESTED:

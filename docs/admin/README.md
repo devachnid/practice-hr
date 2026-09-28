@@ -39,4 +39,4 @@ Employment page with pay records writes an entry to the
 **Leave is a ledger.** A balance is the sum of a pot's lines, which are only
 ever added; a mistake is put right by a new line, never an edit — see
 [Absence and leave](absence.md#the-mental-model) and
-[Reversing a line](year-end.md#reversing-a-line).
+[Adjusting a balance](year-end.md#adjusting-a-balance).

@@ -252,3 +252,65 @@ def test_other_absences_stay_read_only_in_admin(admin_client, employee_user):
     url = f"/admin/absence/absence/{leave.pk}/change/"
     assert 'name="expected_return"' not in admin_client.get(url).content.decode()
     assert admin_client.post(url, {"expected_return": "2026-06-02"}).status_code == 403
+
+
+# --- "Adjust balance" on the pot's page (I7) ------------------------------------------------
+
+def _open_pot():
+    from datetime import date
+
+    from absence.services import pots
+    from tests.factories import absence_type, hours_employee
+    return pots.for_day(hours_employee(start=date(2025, 4, 1)), absence_type("AL"), date(2026, 6, 1))
+
+
+def test_the_pot_page_offers_adjust_balance_to_an_hr_admin(admin_client, db):
+    pot = _open_pot()
+    body = admin_client.get(f"/admin/absence/pot/{pot.pk}/change/").content.decode()
+    assert f"/admin/absence/pot/{pot.pk}/adjust/" in body and "Adjust balance" in body
+    r = admin_client.get(f"/admin/absence/pot/{pot.pk}/adjust/")
+    assert r.status_code == 200 and 'name="units"' in r.content.decode() and 'name="note"' in r.content.decode()
+
+
+def test_the_adjust_form_writes_one_line_as_the_admin_and_shows_the_new_balance(admin_client, hr_admin, db):
+    from decimal import Decimal
+
+    from absence.models import LedgerEntry
+    from absence.services import ledger
+    pot = _open_pot()
+    count, before = pot.entries.count(), ledger.balance(pot)
+    r = admin_client.post(f"/admin/absence/pot/{pot.pk}/adjust/", {"units": "-3.75", "note": "bought back"},
+                          follow=True)
+    assert r.status_code == 200 and pot.entries.count() == count + 1
+    line = pot.entries.latest("id")
+    assert (line.kind, line.units, line.actor, line.note) == (
+        LedgerEntry.Kind.ADJUSTMENT, Decimal("-3.75"), hr_admin, "bought back")
+    assert f"New balance: {before - Decimal('3.75'):.2f}" in r.content.decode()
+
+
+def test_the_adjust_form_refuses_zero_units(admin_client, db):
+    pot = _open_pot()
+    count = pot.entries.count()
+    r = admin_client.post(f"/admin/absence/pot/{pot.pk}/adjust/", {"units": "0", "note": "nothing"})
+    assert r.status_code == 200 and "other than zero" in r.content.decode()
+    assert pot.entries.count() == count
+
+
+def test_the_adjust_form_refuses_a_closed_pot(admin_client, db):
+    from absence.services import year_end
+    pot = _open_pot()
+    year_end.close(pot)
+    count = pot.entries.count()
+    r = admin_client.post(f"/admin/absence/pot/{pot.pk}/adjust/", {"units": "5", "note": "restore"})
+    assert r.status_code == 200 and "closed" in r.content.decode() and pot.entries.count() == count
+
+
+def test_the_adjust_form_is_for_hr_admins_only(db):
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+    pot = _open_pot()
+    staff = get_user_model().objects.create_user(email="staff@example.org", password="pw", is_staff=True)
+    c = Client()
+    c.force_login(staff)
+    assert c.post(f"/admin/absence/pot/{pot.pk}/adjust/", {"units": "5", "note": "x"}).status_code in (302, 403)
+    assert pot.entries.filter(kind="adjustment").count() == 0

@@ -51,7 +51,7 @@ pot is closed.
   *Recalculate entitlement* on a closed pot are all refused with a message
   saying so: the balance has already carried forward or expired, so a line
   there would be stranded. Put the difference right on the **current**
-  year's pot instead ([reversing a line](#reversing-a-line)).
+  year's pot instead ([adjusting a balance](#adjusting-a-balance)).
 
 ### Carry-in expiry
 
@@ -94,34 +94,46 @@ If you are opening balances by hand (say from BreatheHR), run the year end
 *first*, then enter the carry-overs, or the nightly will close the pots you
 have just filled and write its own lines beside yours.
 
-## Reversing a line
+## Adjusting a balance
 
 The ledger is immutable: a line is never edited or deleted, it is put right by
 a new **adjustment** line. Each expiry looks for its own earlier line before
 it writes, so once it has run it never writes the same one again, and a
 reversal is not undone by the next night.
 
-**There is no adjustment screen in the admin.** Pots and their lines are
-read-only there; the one action, *Recalculate entitlement* on the Pot list,
-only re-syncs the entitlement. Adjustments are written from the shell, as
-you, and show in the ledger with your name:
-
-    deploy/manage shell
-    >>> from decimal import Decimal
-    >>> from absence.models import LedgerEntry, Pot
-    >>> from absence.services import ledger
-    >>> from accounts.models import User
-    >>> me = User.objects.get(email="you@example.org")
-    >>> pot = Pot.objects.get(pk=123)          # the pk is in the ledger page's address
-    >>> ledger.write(pot, LedgerEntry.Kind.ADJUSTMENT, Decimal("2.50"), me, note="restored: agreed with the partners")
+**Adjust balance** on a pot's page in the admin (**Absence › Pots**, open the
+pot, *Adjust balance* at the top; HR admins only) takes the units and a note
+saying why. It writes one adjustment line dated today, as you, shows the new
+balance, and records the change in the [audit log](people.md#audit-log).
+Zero units or an empty note are refused. The note is shown on the ledger,
+to the person too.
 
 Use a positive number to give leave back (reversing an expiry) and a negative
-one to take it away (reversing a carry-in). A closed pot stays closed however
-it is adjusted, so to give someone back leave that expired at year end,
-adjust the **current** year's pot rather than the closed one. An adjustment
-that adds TOIL is treated as a new TOIL lot dated the day it is written, so
-it expires on its own days from then.
+one to take it away (reversing a carry-in). **A closed pot refuses
+adjustments**: its balance has already carried or expired, so to give
+someone back leave that expired at year end, adjust the **current** year's
+pot. An adjustment that adds TOIL is treated as a new TOIL lot dated the day
+it is written, so it expires on its own days from then. The one other action,
+*Recalculate entitlement* on the Pot list, only re-syncs the entitlement.
 
-Hand-entered carry-overs are written the same way with `Kind.CARRY_IN`
-(dated the pot's first day) on the year's pot, which `absence.services.pots.for_day`
-opens if it does not exist yet.
+**Hand-entered carry-overs** (opening balances from BreatheHR, say) are not
+adjustments: they are carry-in lines, so that the policy's carry-in expiry
+applies to them. There is no screen for them; write them from the shell,
+dated the pot's first day, on the year's pot (`for_day` opens it if it does
+not exist yet):
+
+    deploy/manage shell
+    >>> from datetime import date
+    >>> from decimal import Decimal
+    >>> from absence.models import AbsenceType, LedgerEntry
+    >>> from absence.services import ledger, pots
+    >>> from accounts.models import User
+    >>> from people.models import Employee
+    >>> me = User.objects.get(email="you@example.org")
+    >>> employment = Employee.objects.get(pk=45).employments.get(end_date=None)   # the pk is in their page's address
+    >>> pot = pots.for_day(employment, AbsenceType.objects.get(code="AL"), date(2027, 4, 1), actor=me)
+    >>> ledger.write(pot, LedgerEntry.Kind.CARRY_IN, Decimal("15.00"), me, date=pot.year_start, note="carried over from BreatheHR")
+
+The shell is also the fallback for an adjustment if the admin is unavailable:
+`ledger.adjust(me, pot, Decimal("2.50"), "restored: agreed with the partners")`
+writes and audits exactly what the form does.

@@ -37,9 +37,10 @@ class RequestForm(forms.Form):
     expected_start = _date(required=False, help_text="Family leave only.")
     expected_return = _date(required=False, help_text="Family leave only.")
 
-    def __init__(self, *args, employment=None, today=None, **kw):
+    def __init__(self, *args, employment=None, today=None, whose="your", **kw):
         super().__init__(*args, **kw)
         self.employment = employment
+        self.whose = whose
         if employment is not None and today is not None and contracts.unit(employment, today) != "hours":
             for name in ("partial", "start_time", "end_time", "hours"):
                 del self.fields[name]
@@ -67,7 +68,7 @@ class RequestForm(forms.Form):
                 runs = f"from {dateformat.format(emp.start_date, 'j M Y')}"
                 if emp.end_date:
                     runs += f" to {dateformat.format(emp.end_date, 'j M Y')}"
-                raise forms.ValidationError(f"Those dates are outside your employment, which runs {runs}.")
+                raise forms.ValidationError(f"Those dates are outside {self.whose} employment, which runs {runs}.")
         return d
 
 

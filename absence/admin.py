@@ -1,12 +1,17 @@
 """Unfold admin over the absence models. Policy set-up is edited here; pots
-and their ledger are read-only, and the one action (recalculate) goes through
-the ledger service. Absences are read-only but for a family-leave absence's
+and their ledger are read-only, and their two actions (recalculate on the
+list, "Adjust balance" on a pot's page) go through the ledger service. Absences are read-only but for a family-leave absence's
 three dates, which an HR admin sets through bookings.set_family_dates."""
 
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import action
+from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWidget
 
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
                             Policy, PolicyTier, Pot)
@@ -113,12 +118,44 @@ class LedgerEntryInline(TabularInline):
         return False
 
 
+class AdjustForm(forms.Form):
+    units = forms.DecimalField(
+        max_digits=7, decimal_places=2, widget=UnfoldAdminDecimalFieldWidget,
+        help_text="Positive gives leave back (say, reversing an expiry); negative takes it away.")
+    note = forms.CharField(max_length=200, widget=UnfoldAdminTextInputWidget,
+                           help_text="Why. Shown on the ledger, to the person too.")
+
+
 @admin.register(Pot)
 class PotAdmin(ModelAdmin):
     list_display = ("employment", "absence_type", "year_start", "year_end", "unit", "balance")
     list_filter = ("absence_type",)
     inlines = [LedgerEntryInline]
     actions = ["recalculate"]
+    actions_detail = ["adjust_balance"]
+
+    def has_adjust_permission(self, request, object_id=None):
+        return access.can_view_restricted(request.user)
+
+    @action(description="Adjust balance", url_path="adjust", permissions=["adjust"])
+    def adjust_balance(self, request, object_id):
+        """A form on its own page: units and a note, written by
+        ledger.adjust as the admin. The ledger itself stays read-only."""
+        pot = get_object_or_404(Pot.objects.select_related("employment__employee", "absence_type"), pk=object_id)
+        form = AdjustForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                ledger.adjust(request.user, pot, form.cleaned_data["units"], form.cleaned_data["note"])
+            except ValidationError as e:
+                form.add_error(None, e.messages)
+            else:
+                messages.success(request, f"{pot}: adjusted by {form.cleaned_data['units']:+.2f}. "
+                                          f"New balance: {ledger.balance(pot):.2f} {pot.unit}.")
+                return HttpResponseRedirect(reverse("admin:absence_pot_change", args=[pot.pk]))
+        return render(request, "absence/admin/adjust_pot.html", {
+            **self.admin_site.each_context(request), "title": f"Adjust balance: {pot}", "pot": pot,
+            "form": form, "balance": ledger.balance(pot), "opts": self.model._meta,
+            "closed": year_end.is_closed(pot)})
 
     @admin.display(description="Balance")
     def balance(self, obj):

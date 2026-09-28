@@ -55,3 +55,15 @@ def route_for(employment, day):
     if employments.current(manager, day) is None:
         return None
     return manager
+
+
+def may_record_for(user, employment, day):
+    """Who records an absence for someone else (spec §5, "or by their
+    manager on the day"): the person their requests are routed to, and HR
+    admins. Never for yourself: that is an ordinary request."""
+    me = employee_for(user)
+    if me is not None and me.pk == employment.employee_id:
+        return False
+    if can_view_restricted(user):
+        return True
+    return me is not None and route_for(employment, day) == me

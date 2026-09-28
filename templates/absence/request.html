@@ -1,10 +1,15 @@
 {% extends "base.html" %}{% load absence_extras %}
-{% block title %}Request leave{% endblock %}
+{% block title %}{% if for_employee %}Record leave for {{ for_employee.name }}{% else %}Request leave{% endif %}{% endblock %}
 {% block content %}
 <div class="stack">
+{% if for_employee %}
+<div class="page-head"><h1>Record leave for {{ for_employee.name }}</h1><a href="{% url 'absence:balances_for' for_employee.pk %}">Their balances</a></div>
+<p class="muted">Recorded by you, approved at once, and {{ for_employee.name }} is emailed.</p>
+{% else %}
 <div class="page-head"><h1>Request leave</h1><a href="{% url 'absence:mine' %}">My absences</a></div>
+{% endif %}
 {% if no_employment %}
-  <p class="notice">{% if employee %}You have no current employment, so there is nothing to book against.{% else %}There is no employee record linked to your login yet. Ask the practice manager.{% endif %}</p>
+  <p class="notice">{% if for_employee %}{{ for_employee.name }} has no current employment, so there is nothing to book against.{% elif employee %}You have no current employment, so there is nothing to book against.{% else %}There is no employee record linked to your login yet. Ask the practice manager.{% endif %}</p>
 {% else %}
   {% if preview %}
   <section class="card">
@@ -24,17 +29,17 @@
       {% endif %}
     </dl>
     {% if preview.balance.over %}
-      <p class="flash flash-warning" role="alert">This is more than your balance. You can still ask; your approver will see it.</p>
+      <p class="flash flash-warning" role="alert">{% if for_employee %}This is more than their balance. You can still record it.{% else %}This is more than your balance. You can still ask; your approver will see it.{% endif %}</p>
     {% endif %}
     <form method="post">{% csrf_token %}
       {% for name, value in preview.fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
       <input type="hidden" name="confirm" value="1">
-      <div class="form-actions"><button type="submit" class="btn btn-primary">Confirm request</button></div>
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% if for_employee %}Confirm and record{% else %}Confirm request{% endif %}</button></div>
     </form>
   </section>
   {% endif %}
   <section class="card">
-    <h2>{% if preview %}Or change it{% else %}Your request{% endif %}</h2>
+    <h2>{% if preview %}Or change it{% elif for_employee %}The absence{% else %}Your request{% endif %}</h2>
     <form method="post">{% csrf_token %}{{ form.as_div }}
       <div class="form-actions"><button type="submit" class="btn{% if not preview %} btn-primary{% endif %}">Check cost and balance</button></div>
     </form>

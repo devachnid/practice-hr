@@ -248,6 +248,20 @@ falls outside the employment, or (pot-backed) crosses the end of the leave
 year. Types that need no approval are recorded as approved straight away;
 otherwise the approver is emailed and the request shows as Requested.
 
+## Recording leave for someone else
+
+A manager records a report's absence on the day (a phone call saying they
+are ill, or leave agreed in person), and an HR admin anyone's, from
+**Record leave for …**: on *Leave* (under "Record leave for someone else")
+and on the **Team** balances page, one link per person. It is the same
+two-step form, at `/absence/request/<employee>/`, showing *their* balances.
+Only the person the employee's requests go to (their line manager) and HR
+admins may use it; anyone else gets "forbidden". Because the person
+recording it is the one who would have approved it, it is **approved at
+once** (audited as requested and approved by you, with the comment
+"Recorded by …"), and the employee is emailed the decision. Your own
+absences go through the ordinary request.
+
 ## Deciding a request
 
 Approvers (people with direct reports) see **Approvals (N)** in the menu, with
@@ -337,14 +351,15 @@ are relative and cannot be opened. `check --deploy` warns (`hr.W002`).
 
 ## Pots and the ledger in the admin
 
-**Pots** and their ledger lines are read-only in the admin: no one adds,
-edits or deletes a line there. The one action is **Recalculate
-entitlement** on selected pots, which writes a revision line if the
-entitlement is out of step (for example after a working-pattern change).
-There is **no adjustment screen**. To correct a balance or reverse a line
-write an adjustment (or the opposite line) from the shell; see
-[Reversing a line](year-end.md#reversing-a-line). TOIL is earned the same
-way (`absence.services.toil.earn`); there is no screen for it yet.
+**Pots** and their ledger lines are read-only in the admin: no one edits or
+deletes a line there. Two actions write through the ledger service:
+**Recalculate entitlement** on selected pots (the Pot list), which writes a
+revision line if the entitlement is out of step (for example after a
+working-pattern change), and **Adjust balance** on a pot's own page (HR
+admins), which writes one audited adjustment line with your note; see
+[Adjusting a balance](year-end.md#adjusting-a-balance). Both refuse a pot
+whose leave year has been closed. TOIL is earned from the shell
+(`absence.services.toil.earn`); there is no screen for it yet.
 
 The **Absences** list is a read-only record of every absence, apart from a
 family-leave absence's dates (see [above](#family-leave-and-keeping-in-touch-days)).

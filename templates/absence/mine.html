@@ -40,5 +40,15 @@
     </div>
   </section>
 {% endif %}
+{% if record_for or record_any %}
+  <section class="card">
+    <h2>Record leave for someone else</h2>
+    <p class="muted">For someone who reports to you{% if record_any %}, or anyone as an HR admin{% endif %}: sickness on the day, or leave agreed in person. It is approved at once and they are emailed.</p>
+    <ul>
+      {% for e in record_for %}<li><a href="{% url 'absence:request_for' e.pk %}">Record leave for {{ e.name }}</a></li>{% endfor %}
+      {% if record_any %}<li><a href="{% url 'absence:balances_team' %}">Record leave for anyone: choose them on the team page</a></li>{% endif %}
+    </ul>
+  </section>
+{% endif %}
 </div>
 {% endblock %}

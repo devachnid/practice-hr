@@ -263,3 +263,110 @@ def test_after_the_nightly_a_next_year_request_shows_next_years_balance_and_warn
     assert r.status_code == 200 and "Not opened yet" not in body and "Remaining now" in body
     assert "37.5" in body and "more than your balance" in body.lower()
     assert not Absence.objects.filter(auto_bank_holiday=False).exists()
+
+
+# --- recording an absence for someone else (I7) ------------------------------------------
+
+def _report_and_manager(employee_user):
+    """The employee (Sam, employee_user's record) reporting to a manager
+    with a login. Returns (employment, manager's user, manager's client)."""
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+
+    from people.services import positions
+    from tests.factories import make_employment, make_team
+    emp = _me(employee_user)
+    boss_user = get_user_model().objects.create_user(email="boss@example.org", password="pw")
+    boss = make_employee(first="Bea", last="Boss", user=boss_user)
+    make_employment(employee=boss, start=emp.start_date)
+    positions.add(None, emp, "Receptionist", make_team(), boss, emp.start_date)
+    c = Client()
+    c.force_login(boss_user)
+    return emp, boss_user, c
+
+
+def _in_this_year(days):
+    from tests.factories import current_leave_year
+    return current_leave_year()[0] + timedelta(days=days)
+
+
+def test_a_manager_records_sickness_for_a_report_approved_audited_and_emailed(employee_user, configured):
+    from people.models import AuditEntry
+    emp, boss_user, boss = _report_and_manager(employee_user)
+    url = f"/absence/request/{emp.employee.pk}/"
+    body = boss.get(url).content.decode()
+    assert f"Record leave for {emp.employee.name}" in body
+    day = timezone.localdate()
+    r = boss.post(url, _form("SICK", day, category="illness"))
+    assert r.status_code == 200 and "Confirm" in r.content.decode() and not Absence.objects.exists()
+    r = boss.post(url, _confirmed("SICK", day, category="illness"))
+    assert r.status_code == 302
+    a = Absence.objects.get()
+    assert a.status == Absence.Status.APPROVED and a.employment == emp
+    assert a.requested_by == boss_user and a.decided_by == boss_user
+    assert AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, actor=boss_user,
+                                     field="requested").exists()
+    assert [m.to for m in mail.outbox] == [[emp.employee.work_email]]
+    assert "approved" in mail.outbox[0].subject and "illness" not in mail.outbox[0].body
+
+
+def test_annual_leave_recorded_by_the_approver_is_approved_at_once(employee_user, configured):
+    from absence.models import LedgerEntry
+    emp, boss_user, boss = _report_and_manager(employee_user)
+    day = _in_this_year(61)
+    r = boss.post(f"/absence/request/{emp.employee.pk}/", _confirmed("AL", day, day + timedelta(days=2)))
+    assert r.status_code == 302
+    a = Absence.objects.get()
+    assert a.status == Absence.Status.APPROVED
+    line = a.ledger_entries.get()
+    assert line.kind == LedgerEntry.Kind.BOOKING and line.actor == boss_user
+    assert [m.to for m in mail.outbox] == [[emp.employee.work_email]]       # no "please decide" email
+
+
+def test_a_peer_cannot_record_leave_for_someone(employee_user):
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+    emp, _, _ = _report_and_manager(employee_user)
+    peer_user = get_user_model().objects.create_user(email="peer@example.org", password="pw")
+    hours_employee(employee=make_employee(first="Pat", user=peer_user))
+    c = Client()
+    c.force_login(peer_user)
+    url = f"/absence/request/{emp.employee.pk}/"
+    assert c.get(url).status_code == 403
+    assert c.post(url, _confirmed("SICK", timezone.localdate(), category="illness")).status_code == 403
+    assert not Absence.objects.exists()
+
+
+def test_an_hr_admin_records_annual_leave_for_anyone(admin_client, hr_admin, employee_user):
+    emp = _me(employee_user)                          # nobody manages Sam: HR would decide
+    day = _in_this_year(61)
+    r = admin_client.post(f"/absence/request/{emp.employee.pk}/", _confirmed("AL", day))
+    assert r.status_code == 302
+    a = Absence.objects.get()
+    assert a.status == Absence.Status.APPROVED and a.decided_by == hr_admin and a.requested_by == hr_admin
+
+
+def test_recording_for_yourself_goes_to_the_ordinary_request_page(employee_user):
+    from django.test import Client
+    emp, boss_user, boss = _report_and_manager(employee_user)
+    from people.services import access
+    me = access.employee_for(boss_user)
+    r = boss.get(f"/absence/request/{me.pk}/")
+    assert r.status_code == 302 and r["Location"] == "/absence/request/"
+    c = Client()
+    c.force_login(employee_user)
+    assert c.get(f"/absence/request/{me.pk}/").status_code == 403          # Sam is not Bea's approver
+
+
+def test_mine_and_team_pages_link_to_recording_for_reports(employee_user):
+    emp, _, boss = _report_and_manager(employee_user)
+    link = f'href="/absence/request/{emp.employee.pk}/"'
+    assert link in boss.get("/absence/mine/").content.decode()
+    body = boss.get("/absence/balances/team/").content.decode()
+    assert link in body and f"Record leave for {emp.employee.name}" in body
+
+
+def test_an_hr_admin_gets_the_link_for_everyone_employed(admin_client, employee_user):
+    emp = _me(employee_user)
+    assert f'href="/absence/request/{emp.employee.pk}/"' in admin_client.get("/absence/balances/team/").content.decode()
+    assert 'href="/absence/balances/team/"' in admin_client.get("/absence/mine/").content.decode()
