@@ -22,6 +22,18 @@ def test_register_client_prints_credentials_once(db, capsys):
     assert app.authorization_grant_type == Application.GRANT_AUTHORIZATION_CODE
 
 
+def test_reregister_keeps_secret_unless_rotate(db, capsys):
+    call_command("register_oidc_client", name="rota", redirect_uri="https://a.example/cb/")
+    first = Application.objects.get(name="rota").client_secret
+    call_command("register_oidc_client", name="rota", redirect_uri="https://b.example/cb/")
+    app = Application.objects.get(name="rota")
+    assert app.client_secret == first and app.redirect_uris == "https://b.example/cb/"
+    assert "Secret unchanged" in capsys.readouterr().out
+    call_command("register_oidc_client", name="rota", redirect_uri="https://b.example/cb/", rotate=True)
+    assert Application.objects.get(name="rota").client_secret != first
+    assert "Secret rotated" in capsys.readouterr().out
+
+
 def test_claims_carry_email_and_employee_id(employee_user):
     e = make_employee(user=employee_user)
     request = type("R", (), {"user": employee_user})()
