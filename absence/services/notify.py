@@ -10,7 +10,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from absence import mail
-from people.services import access
+from people.services import access, contracts
 
 log = logging.getLogger(__name__)
 
@@ -28,11 +28,14 @@ def hr_admin_addresses():
 
 
 def approver_addresses(absence):
-    """The routed manager's work email, or every active HR admin's."""
+    """The routed manager's work email, or every active HR admin's but the
+    requester's own (an HR admin's request goes to the other HR admins)."""
     manager = access.route_for(absence.employment, timezone.localdate())
     if manager is not None and manager.work_email:
         return [manager.work_email]
-    return hr_admin_addresses()
+    employee = absence.employment.employee
+    own = {address.lower() for address in (employee.work_email, getattr(employee.user, "email", "")) if address}
+    return [address for address in hr_admin_addresses() if address.lower() not in own]
 
 
 def _requester_address(absence):
@@ -58,7 +61,8 @@ def _deliver(subject, build):
 def request_submitted(absence):
     name = absence.employment.employee.name
     return _deliver(f"Leave request from {name}", lambda: (
-        _render("submitted", a=absence, url=decide_url(absence)),
+        _render("submitted", a=absence, url=decide_url(absence),
+                unit=contracts.unit(absence.employment, absence.start_date) or ""),
         approver_addresses(absence), _requester_address(absence)))
 
 

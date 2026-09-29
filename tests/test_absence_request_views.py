@@ -370,3 +370,18 @@ def test_an_hr_admin_gets_the_link_for_everyone_employed(admin_client, employee_
     emp = _me(employee_user)
     assert f'href="/absence/request/{emp.employee.pk}/"' in admin_client.get("/absence/balances/team/").content.decode()
     assert 'href="/absence/balances/team/"' in admin_client.get("/absence/mine/").content.decode()
+
+
+def test_an_hr_admin_cancels_their_own_absence_by_the_employee_rule(admin_client, hr_admin, employee_user):
+    mine = hours_employee(employee=make_employee(first="Hana", user=hr_admin))
+    started = bookings.approve(employee_user, bookings.request(hr_admin, mine, absence_type("AL"), date(2026, 4, 6)))
+    soon = bookings.approve(employee_user, bookings.request(
+        hr_admin, mine, absence_type("AL"), timezone.localdate() + timedelta(days=14)))
+    assert admin_client.post(f"/absence/{started.pk}/cancel/").status_code == 403
+    assert Absence.objects.get(pk=started.pk).status == "approved"
+    assert admin_client.post(f"/absence/{soon.pk}/cancel/").status_code == 302
+    assert Absence.objects.get(pk=soon.pk).status == "cancelled"
+    # another person's absence, already started: still an HR admin's to cancel
+    other = _me(employee_user)
+    theirs = bookings.approve(hr_admin, bookings.request(employee_user, other, absence_type("AL"), date(2026, 4, 7)))
+    assert admin_client.post(f"/absence/{theirs.pk}/cancel/").status_code == 302

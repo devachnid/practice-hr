@@ -144,3 +144,18 @@ def test_failures_are_listed_in_the_admin_read_only(superuser_client):
     listing = superuser_client.get("/admin/absence/emailfailure/")
     assert listing.status_code == 200 and b"Leave request from Sam Patel" in listing.content
     assert superuser_client.get("/admin/absence/emailfailure/add/").status_code == 403
+
+
+def test_a_request_routed_to_hr_never_goes_to_the_requester(configured, hr_admin, django_user_model):
+    other_admin = django_user_model.objects.create_user(email="hr2@example.com", password="pw", is_hr_admin=True)
+    emp = hours_employee(employee=make_employee(first="Hana", email="HR@example.com", user=hr_admin))
+    a = bookings.request(hr_admin, emp, absence_type("AL"), date(2026, 6, 1))     # no manager: the HR group
+    assert notify.request_submitted(a) is True
+    assert mail.outbox[-1].to == [other_admin.email]
+
+
+def test_submitted_gives_the_cost_in_the_unit(configured, employee_user, hr_admin):
+    emp = _pair(employee_user, hr_admin)
+    a = bookings.request(employee_user, emp, absence_type("AL"), date(2026, 6, 1))
+    notify.request_submitted(a)
+    assert "Cost: 7.50 hours." in mail.outbox[-1].body

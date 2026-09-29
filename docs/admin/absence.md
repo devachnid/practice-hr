@@ -273,7 +273,7 @@ goes negative), who else in the team is off each day and how many are
 present, and a warning when approving would leave the team under its
 [minimum present](people.md#min-present). Approve or decline, with an
 optional comment; the requester is emailed. Nobody decides their own
-request: an HR admin's goes to another HR admin. Approving costs the request
+request: an HR admin's goes to (and is emailed to) the other HR admins. Approving costs the request
 afresh and writes the booking line in one transaction; declining writes
 nothing to the pot.
 
@@ -284,6 +284,8 @@ A request already decided or cancelled (say, from an old email) opens
 
 An employee can cancel their own request at any time, and their own approved
 absence **until it starts**; after that only an HR admin can, at any time.
+An HR admin's own absences follow the employee's rule: another HR admin
+cancels one that has started.
 Cancelling an approved pot-backed absence puts its cost back with a
 cancellation line. **Automatic bank-holiday rows can never be cancelled** (the
 nightly would only recreate them; change the policy or the pattern
