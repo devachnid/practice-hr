@@ -2151,3 +2151,17 @@ git commit -m "feat: absence admin, nightly recalculation and bank-holiday sync"
 **Type consistency:** `pots.for_day(employment, absence_type, day)`, `ledger.write(pot, kind, units, actor, absence, note, date)`, `ledger.sync_entitlement(pot, actor, cause)`, `costing.cost(absence)`, `bookings.request/approve/decline/cancel`, `balances.summary(pot, today)` are used with those signatures throughout and are what plan 3 consumes.
 
 **Review Focus:** year-boundary refusal (Task 9 `test_crossing_leave_year_refused`), no-pattern day (Task 8 `test_weekend_and_no_pattern_cost_zero`), leap year (Task 5 `test_leap_year_same_as_common`), double sync and rounding-to-nothing (Task 6), non-working bank holiday and pattern change (Task 10).
+
+---
+
+## Execution notes (2026-09-28)
+
+The plan was executed subagent-driven; the ledger at `.superpowers/sdd/2026-09-28-absence-ledger/progress.md` (untracked) recorded each ruling. What the final whole-branch review changed after the eleven tasks:
+
+- **Bank-holiday model (C2 ruling, spec amended in §4):** bank holidays are charged only by the automatic rows. Ordinary range bookings skip them under every handling; `bookings.overlaps(..., auto=)` compares ordinary rows with ordinary rows and automatic rows with automatic rows; `sync_auto_absences` no longer has a `skipped` count and re-costs kept rows dated today or later (`recosted` key).
+- **Seeded bank-holiday policies (C1):** migration `0007` seeds a `BH` policy for every seeded hours contract type; `costing` raises rather than swallowing a missing policy for pot-backed types, and an automatic row is never skipped as a bank holiday.
+- **Cancel and re-cost follow the booking line (C3):** `bookings.cancel/recost` use the pot of the absence's first ledger line, so a leaver's future leave can be cancelled after their contract ends.
+- **Pots open synced and the nightly bootstraps them (I1):** `pots.for_day` writes the entitlement (and, for an AL pot, the year's automatic bank holidays) on creation; `nightly.run` first opens the current-year AL pot, and the BH pot under `pot` handling, for every employment active today (`pots_opened`, `failed`). `for_day` therefore writes: plan 3 must not call it on a GET.
+- **Policy re-sync moved to the admin (I2):** the `Policy`/`PolicyTier` `post_save` handlers are gone; `PolicyAdmin.save_related` re-syncs once with the admin as actor and an audit row, and reports a `ValidationError` as a message. `accrual` reads a pot's contracts, policies and tiers once (about 5 queries per entitlement, from about 1,465).
+- **Also:** views of health-sensitive absences write a `viewed` audit row; a contract in a different unit from the pot's is refused; `Policy.clean` checks the leave-year start is a real date; `AbsenceType.code` is read-only once saved; `nightly.run` now also returns `pots_opened`, `bank_holiday_recosted` and `failed`.
+- **Deferred to plan 3:** an opt-out marker so HR's cancellation of an automatic bank holiday is not re-created nightly; bank-holiday seeds beyond 2028; refusing bookings outside the employment spell; the nightly reporting a missing BH policy twice; concurrent contracts of different types taking weeks from the earliest contract's policy (open question for the spec author); the pattern-save trigger for the automation.

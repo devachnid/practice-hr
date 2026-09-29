@@ -60,3 +60,42 @@ def make_pattern(employment, days=None, effective_from=None):
         am, pm = days.get(weekday, (Decimal("0"), Decimal("0")))
         PatternDay.objects.create(pattern=pattern, weekday=weekday, am_units=am, pm_units=pm)
     return pattern
+
+from absence.models import AbsenceType  # noqa: E402
+
+
+def absence_type(code="AL"):
+    return AbsenceType.objects.get(code=code)
+
+
+def make_policy(ctype, code="AL", **kw):
+    from absence.models import Policy
+    kw.setdefault("weeks_per_year", Decimal("5.6"))
+    kw.setdefault("effective_from", date(2020, 1, 1))
+    kw.setdefault("rounding", Decimal("0.25") if ctype.unit == "hours" else Decimal("0.5"))
+    return Policy.objects.create(contract_type=ctype, absence_type=absence_type(code), **kw)
+
+
+def make_pot(employment, code="AL", day=None):
+    from absence.services import pots
+    return pots.for_day(employment, absence_type(code), day or employment.start_date)
+
+
+def hours_employee(start=date(2026, 4, 1), amount=Decimal("37.5"), **kw):
+    """A Reception employee with a contract, an AL policy and a Mon-Fri
+    3.75/3.75 pattern. Returns the employment."""
+    emp = make_employment(start=start, **kw)
+    ct = make_contract_type()
+    make_contract(emp, ct, amount=amount)
+    if not ct.policies.exists():
+        make_policy(ct)
+    make_pattern(emp)
+    return emp
+
+
+def current_leave_year(today=None):
+    """(start, end) of the 1 April leave year containing today."""
+    from django.utils import timezone
+    today = today or timezone.localdate()
+    start_year = today.year if today.month >= 4 else today.year - 1
+    return date(start_year, 4, 1), date(start_year + 1, 3, 31)
