@@ -1,0 +1,40 @@
+{% extends "admin/index.html" %}{% load absence_extras %}
+{% comment %}Extends unfold's own index (Django skips this file when it resolves
+the name again), adding the absence workflow's card above the app list.{% endcomment %}
+{% block content %}
+<div class="mb-8 flex flex-col gap-6">
+  <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
+    <h2 class="text-lg font-semibold mb-2">Leave requests waiting</h2>
+    {% if waiting %}
+      <p class="mb-4">{{ waiting|length }} request{{ waiting|length|pluralize }} waiting more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
+      <ul class="flex flex-col gap-2">
+      {% for a in waiting %}
+        <li><a href="{% url 'absence:decide' a.pk %}" class="underline">{{ a.employment.employee.name }}, {{ a.absence_type.name }}, {{ a|when }}</a>
+          <span class="text-font-subtle-light dark:text-font-subtle-dark">asked {{ a.requested_at|date:"j M Y" }}</span></li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p>No requests have waited more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
+    {% endif %}
+  </section>
+
+  {% if not email_configured %}
+  <section class="border border-base-200 dark:border-base-800 rounded-default p-6" role="status">
+    <p><strong>Outgoing email is not configured.</strong> Requests and decisions are not being emailed to anyone; people will need to check the site.</p>
+  </section>
+  {% endif %}
+
+  {% if email_failures %}
+  <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
+    <h2 class="text-lg font-semibold mb-2">Emails that did not go</h2>
+    <p class="mb-4">The last {{ email_failures|length }}, newest first.</p>
+    <ul class="flex flex-col gap-2">
+    {% for f in email_failures %}
+      <li>{{ f.created_at|date:"j M Y H:i" }} &ndash; {{ f.subject }}: {{ f.error }}</li>
+    {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+</div>
+{{ block.super }}
+{% endblock %}

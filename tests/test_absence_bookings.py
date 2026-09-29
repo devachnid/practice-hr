@@ -202,8 +202,8 @@ def test_a_leavers_future_leave_is_cancelled_on_the_pot_it_was_booked_to(db, hr_
                                                         date(2026, 12, 14), date(2026, 12, 16)))
     booking = leave.ledger_entries.get(kind=LedgerEntry.Kind.BOOKING)
     contracts.end(hr_admin, emp.contracts.get(), date(2026, 11, 30))
+    # ending the employment cancels it (bookings.cancel): no contract on 14 Dec any more must not matter
     employments.end(hr_admin, emp, date(2026, 11, 30), "resigned")
-    bookings.cancel(hr_admin, leave)       # no contract on 14 Dec any more: must not matter
     line = leave.ledger_entries.get(kind=LedgerEntry.Kind.CANCELLATION)
     assert line.pot == booking.pot and line.units == D("22.50")
     assert Absence.objects.get(pk=leave.pk).status == Absence.Status.CANCELLED
@@ -256,3 +256,107 @@ def test_opening_the_annual_pot_charges_the_years_bank_holidays_once(db, hr_admi
         assert ledger.balance(al) == D("187.50")
     else:
         assert ledger.balance(al) == D("112.50")            # 210 - 75 bank holidays - 22.50
+
+
+def test_preview_costs_without_writing(db, employee_user):
+    emp = hours_employee()
+    a = bookings.preview(emp, absence_type("AL"), MON, WED)
+    assert a.pk is None and a.cost_units == D("22.50")
+    assert not Absence.objects.exists() and not Pot.objects.exists()
+    bookings.request(employee_user, emp, absence_type("AL"), MON, WED)
+    with pytest.raises(ValidationError, match="already an absence"):
+        bookings.preview(emp, absence_type("AL"), WED)
+
+
+def test_request_stores_expected_family_dates(db, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31),
+                         expected_start=date(2026, 7, 1), expected_return=date(2027, 4, 1))
+    a.refresh_from_db()
+    assert (a.expected_start, a.expected_return) == (date(2026, 7, 1), date(2027, 4, 1))
+    with pytest.raises(ValidationError, match="Only family leave"):
+        bookings.request(employee_user, emp, absence_type("AL"), MON, expected_return=WED)
+    with pytest.raises(ValidationError, match="after the expected start"):
+        bookings.request(employee_user, emp, absence_type("PAT"), date(2027, 6, 1),
+                         expected_start=date(2027, 6, 1), expected_return=date(2027, 5, 1))
+
+
+def test_set_family_dates_audits_each_change(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31),
+                         expected_start=date(2026, 7, 1))
+    out = bookings.set_family_dates(hr_admin, a, expected_start=date(2026, 7, 1), actual_start=date(2026, 7, 6),
+                                    expected_return=date(2027, 4, 5))
+    assert out is a and a.actual_start == date(2026, 7, 6)
+    a.refresh_from_db()
+    assert (a.expected_start, a.actual_start, a.expected_return) == (
+        date(2026, 7, 1), date(2026, 7, 6), date(2027, 4, 5))
+    rows = AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, actor=hr_admin)
+    assert {(r.field, r.before, r.after) for r in rows} == {
+        ("actual_start", "", "2026-07-06"), ("expected_return", "", "2027-04-05")}
+
+
+def test_set_family_dates_refuses_a_return_before_the_start_or_another_type(db, hr_admin, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31))
+    with pytest.raises(ValidationError, match="after the actual start"):
+        bookings.set_family_dates(hr_admin, a, actual_start=date(2026, 7, 6), expected_return=date(2026, 7, 1))
+    a.refresh_from_db()
+    assert a.actual_start is None
+    leave = bookings.request(employee_user, emp, absence_type("AL"), MON)
+    with pytest.raises(ValidationError, match="Only family leave"):
+        bookings.set_family_dates(hr_admin, leave, actual_start=MON)
+
+
+def test_add_kit_day_within_live_family_leave_once(db, employee_user):
+    emp = hours_employee()
+    a = bookings.request(employee_user, emp, absence_type("MAT"), date(2026, 7, 1), date(2027, 3, 31))
+    bookings.add_kit_day(employee_user, a, date(2026, 9, 15))
+    bookings.add_kit_day(employee_user, a, date(2026, 9, 15))
+    assert a.kit_days.count() == 1
+    assert AuditEntry.objects.filter(model="absence.absence", object_id=a.pk, field="kit_day",
+                                     after="2026-09-15").count() == 1
+    with pytest.raises(ValidationError, match="within the leave"):
+        bookings.add_kit_day(employee_user, a, date(2027, 4, 1))
+    leave = bookings.request(employee_user, emp, absence_type("AL"), MON)
+    with pytest.raises(ValidationError, match="family leave"):
+        bookings.add_kit_day(employee_user, leave, MON)
+    bookings.cancel(employee_user, a)
+    with pytest.raises(ValidationError, match="requested or approved"):
+        bookings.add_kit_day(employee_user, a, date(2026, 9, 16))
+
+
+def test_ending_an_employment_cancels_the_live_absences_after_the_leaving_date(db, hr_admin, employee_user):
+    from people.models import AuditEntry
+    from people.services import employments
+    emp = hours_employee()
+    al = absence_type("AL")
+    before = bookings.approve(hr_admin, bookings.request(employee_user, emp, al, date(2026, 11, 23)))
+    spanning = bookings.approve(hr_admin, bookings.request(employee_user, emp, al, date(2026, 11, 30),
+                                                           date(2026, 12, 2)))
+    after = bookings.approve(hr_admin, bookings.request(employee_user, emp, al, date(2026, 12, 14),
+                                                        date(2026, 12, 16)))
+    waiting = bookings.request(employee_user, emp, al, date(2027, 1, 11))
+    booked_pot = after.ledger_entries.get().pot
+    employments.end(hr_admin, emp, date(2026, 12, 1), "resigned")
+    status = dict(Absence.objects.values_list("pk", "status"))
+    assert status[after.pk] == status[waiting.pk] == Absence.Status.CANCELLED
+    assert status[before.pk] == status[spanning.pk] == Absence.Status.APPROVED     # started by then: untouched
+    line = after.ledger_entries.get(kind=LedgerEntry.Kind.CANCELLATION)
+    assert line.pot == booked_pot and line.units == D("22.50") and line.actor == hr_admin
+    assert not waiting.ledger_entries.exists()
+    note = AuditEntry.objects.get(model="people.employment", object_id=emp.pk, field="end_date").note
+    assert note.startswith("cancelled 2 absence(s) after the leaving date") and "14 Dec" in note
+
+
+def test_ending_an_employment_leaves_an_absence_on_a_closed_pot_and_says_so(db, hr_admin, employee_user):
+    from people.models import AuditEntry
+    from people.services import employments
+    from absence.services import year_end
+    emp = hours_employee(start=date(2025, 4, 1))
+    late = bookings.approve(hr_admin, bookings.request(employee_user, emp, absence_type("AL"), date(2027, 3, 15)))
+    year_end.close(late.ledger_entries.get().pot)
+    employments.end(hr_admin, emp, date(2027, 3, 1), "resigned")              # recorded late
+    assert Absence.objects.get(pk=late.pk).status == Absence.Status.APPROVED
+    note = AuditEntry.objects.get(model="people.employment", object_id=emp.pk, field="end_date").note
+    assert "not cancelled" in note and "closed" in note

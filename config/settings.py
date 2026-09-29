@@ -150,12 +150,16 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
+# The address the site is served at, for links in emails. Unfold's "back to
+# site" link reads the same value, so the two agree.
+SITE_URL = os.environ.get("SITE_URL", "/")
+
 # The admin's chrome. Plain values and dotted paths only — unfold resolves
 # the paths per request, so hr.admin_site is never imported here.
 UNFOLD = {
     "SITE_TITLE": "HR",
     "SITE_HEADER": "Practice HR",
-    "SITE_URL": "/",
+    "SITE_URL": SITE_URL,
     "SITE_SYMBOL": "badge",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": False,
@@ -178,7 +182,37 @@ UNFOLD = {
         },
     },
     "STYLES": ["hr.admin_site.style_fonts", "hr.admin_site.style_admin"],
+    "DASHBOARD_CALLBACK": "absence.admin_dashboard.dashboard",
 }
+
+# A leave request still undecided after this many working days is chased, once.
+CHASE_AFTER_WORKING_DAYS = int(os.environ.get("CHASE_AFTER_WORKING_DAYS", "3"))
+
+# How long after an employment ends each category of record may be kept, in
+# days: six years, and seven for the audit trail. Each is overridable by a
+# RETENTION_DAYS_<CATEGORY> environment variable. The retention report only
+# lists what is past its period; nothing is deleted automatically.
+def _retention_days():
+    from django.core.exceptions import ImproperlyConfigured
+
+    days = {}
+    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555)):
+        name = f"RETENTION_DAYS_{category.upper()}"
+        raw = os.environ.get(name)
+        if raw is None:
+            days[category] = default
+            continue
+        try:
+            days[category] = int(raw)
+        except ValueError:
+            days[category] = 0
+        if days[category] < 1:
+            raise ImproperlyConfigured(
+                f"{name} must be a whole number of days, 1 or more; got {raw!r}.")
+    return days
+
+
+RETENTION_DAYS = _retention_days()
 
 LANGUAGE_CODE = "en-gb"
 TIME_ZONE = "Europe/London"
@@ -188,6 +222,12 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Files the app writes (the payroll reports). Never served by Django: the
+# HR-admin-only view streams them. Production points MEDIA_ROOT into the
+# state directory (/var/lib/practice-hr/media), as DB_PATH does, because the
+# code tree is read-only there; backup.sh archives it.
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT") or BASE_DIR / "media")
+MEDIA_URL = "media/"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     # The manifest storage requires a collectstatic run, which the test suite
@@ -218,6 +258,11 @@ TRUSTED_PROXY_IPS = frozenset(
         "TRUSTED_PROXY_IPS", "127.0.0.1,::1"
     ).split(",") if h.strip()
 )
+
+# Bearer tokens for the read API the rota polls (api/). From the environment
+# only, comma-separated so one can be rotated in beside another. Empty means
+# the API refuses every request; hr/checks.py warns about that.
+HR_API_TOKENS = frozenset(t.strip() for t in os.environ.get("HR_API_TOKENS", "").split(",") if t.strip())
 
 # Outgoing mail: invitations and password-reset links, and nothing else.
 # Standard Django keys, every one from the environment. EMAIL_HOST being set

@@ -48,6 +48,7 @@ class Absence(models.Model):
     actual_start = models.DateField(null=True, blank=True)
     expected_return = models.DateField(null=True, blank=True)
     auto_bank_holiday = models.BooleanField(default=False)
+    chased_at = models.DateTimeField(null=True, blank=True)   # when HR were last nagged about this request
 
     class Meta:
         ordering = ["-start_date"]

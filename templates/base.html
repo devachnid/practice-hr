@@ -21,6 +21,12 @@
 <nav class="nav">
   <span class="nav-brand">Practice HR</span>
   <a href="{% url 'people:me' %}" class="nav-link{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  <a href="{% url 'absence:mine' %}" class="nav-link{% if request.path == '/absence/mine/' or request.path == '/absence/request/' %} is-active{% endif %}">Leave</a>
+  <a href="{% url 'absence:calendar' %}" class="nav-link{% if request.path == '/absence/calendar/' %} is-active{% endif %}">Calendar</a>
+  <a href="{% url 'absence:balances' %}" class="nav-link{% if '/absence/balances/' in request.path or '/absence/ledger/' in request.path %} is-active{% endif %}">Balances</a>
+  {% if can_approve %}
+    <a href="{% url 'absence:queue' %}" class="nav-link{% if request.path == '/absence/queue/' or '/absence/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
+  {% endif %}
   {% if is_approver %}
     <a href="{% url 'people:team' %}" class="nav-link{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
   {% endif %}
@@ -64,12 +70,18 @@ no password (accounts/recent_auth.py).{% endcomment %}
 <main class="main">{% block content %}{% endblock %}</main>
 <nav class="tabbar" aria-label="Sections">
   <a href="{% url 'people:me' %}" class="tabbar-item{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  <a href="{% url 'absence:mine' %}" class="tabbar-item{% if request.path == '/absence/mine/' or request.path == '/absence/request/' %} is-active{% endif %}">Leave</a>
+  {% if can_approve %}
+    <a href="{% url 'absence:queue' %}" class="tabbar-item{% if request.path == '/absence/queue/' or '/absence/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
+  {% endif %}
   {% if is_approver %}
     <a href="{% url 'people:team' %}" class="tabbar-item{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
   {% endif %}
   <details class="tabbar-more">
     <summary class="tabbar-item">More</summary>
     <div class="tabbar-sheet">
+      <a href="{% url 'absence:balances' %}" class="tabbar-link">Balances</a>
+      <a href="{% url 'absence:calendar' %}" class="tabbar-link">Calendar</a>
       {% if user.is_hr_admin or user.is_superuser %}
         <a href="{% url 'admin:index' %}" class="tabbar-link">Admin</a>
       {% endif %}

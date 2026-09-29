@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Team balances{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Team balances</h1><a href="{% url 'absence:balances' %}" class="btn">My balances</a></div>
+<section class="card">
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Name</th><th>Position</th><th></th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><th scope="row">{{ r.employee.name }}</th>
+        <td>{% if r.position %}{{ r.position.title }}, {{ r.position.team }}{% elif not r.employed %}Not currently employed{% endif %}</td>
+        <td><a href="{% url 'absence:balances_for' r.employee.pk %}" class="btn">Balances</a>
+          {% if r.can_record %}<a href="{% url 'absence:request_for' r.employee.pk %}" class="btn btn-quiet">Record leave for {{ r.employee.name }}</a>{% endif %}</td></tr>
+    {% empty %}<tr><td colspan="3">Nobody reports to you today.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+{% endblock %}

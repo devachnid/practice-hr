@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% load absence_extras %}
+{% block title %}Approvals{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Approvals</h1></div>
+<section class="card">
+  <h2>Waiting for a decision</h2>
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Who</th><th>Type</th><th>When</th><th>Asked</th><th></th></tr></thead>
+    <tbody>
+    {% for a in rows %}
+      <tr>
+        <th scope="row">{{ a.employment.employee.name }}</th>
+        <td>{{ a.absence_type.name }}</td>
+        <td>{{ a|when }}</td>
+        <td>{{ a.requested_at|date:"j M Y" }}</td>
+        <td><a href="{% url 'absence:decide' a.pk %}" class="btn">Decide</a></td>
+      </tr>
+    {% empty %}<tr><td colspan="5">Nothing is waiting for you.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+{% endblock %}

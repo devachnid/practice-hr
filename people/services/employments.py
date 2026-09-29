@@ -72,16 +72,48 @@ def start(actor, employee, start_date, continuous_service_date=None, end_date=No
     return emp
 
 
+def _cancel_after(actor, employment, end_date):
+    """Cancel, through the absence service, the employment's live absences
+    (requested or approved) that start after its last day, so they leave the
+    calendar, the rota's feed and the balances. One that cannot be cancelled
+    (its pot's leave year has closed) is left as it is. Returns the audit
+    note saying which were cancelled and which were not, or ""."""
+    if end_date is None:
+        return ""
+    from absence.models import Absence
+    from absence.services import bookings
+    done, left = [], []
+    live = (Absence.objects.filter(employment=employment, status__in=bookings.LIVE, start_date__gt=end_date)
+            .select_related("employment__employee", "absence_type").order_by("start_date", "id"))
+    for absence in live:
+        try:
+            bookings.cancel(actor, absence)       # its own savepoint: a refusal leaves the rest
+        except ValidationError as e:
+            left.append(f"{absence} ({'; '.join(e.messages)})")
+        else:
+            done.append(f"{absence.absence_type} {absence.start_date:%d %b %Y}")
+    parts = []
+    if done:
+        parts.append(f"cancelled {len(done)} absence(s) after the leaving date: {', '.join(done)}")
+    if left:
+        parts.append(f"not cancelled: {'; '.join(left)}")
+    return "; ".join(parts)[:200]
+
+
 @transaction.atomic
 def end(actor, employment, end_date, leaving_reason):
+    """Set (or clear) the last day. Live absences starting after it are
+    cancelled in the same transaction (_cancel_after), and the audit entry's
+    note lists them."""
     check_end(employment, end_date)
     before = (employment.end_date, employment.leaving_reason)
     employment.end_date = end_date
     employment.leaving_reason = leaving_reason
     employment.full_clean()
     employment.save()
+    note = _cancel_after(actor, employment, end_date)
     audit.record(actor, employment, {"end_date": (before[0], end_date),
-                                     "leaving_reason": (before[1], leaving_reason)})
+                                     "leaving_reason": (before[1], leaving_reason)}, note=note)
     return employment
 
 

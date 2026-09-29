@@ -1,5 +1,8 @@
 from django.db import models
 
+# The family-leave types: they carry expected and actual dates and KIT days.
+FAMILY_CODES = ("MAT", "PAT", "SPL", "ADOPT")
+
 
 class AbsenceType(models.Model):
     """Configurable. The flags decide the workflow; nothing in the code
@@ -26,3 +29,7 @@ class AbsenceType(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def is_family(self):
+        return self.code in FAMILY_CODES

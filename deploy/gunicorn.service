@@ -18,7 +18,8 @@ Group=practice-hr
 # practice-hr user, so the app cannot rewrite itself. Its data lives in
 # /var/lib/practice-hr: systemd creates that as StateDirectory, owned by
 # practice-hr and closed to everyone else, and DB_PATH in
-# /etc/practice-hr.env points the database there. SQLite needs to write the
+# /etc/practice-hr.env points the database there (and MEDIA_ROOT the payroll
+# reports, in a directory beneath it). SQLite needs to write the
 # directory its database sits in, which is why the two are apart.
 WorkingDirectory=/srv/practice-hr
 StateDirectory=practice-hr
@@ -46,6 +47,7 @@ UMask=0077
 #
 #   DEBUG=0
 #   DB_PATH=/var/lib/practice-hr/db.sqlite3
+#   MEDIA_ROOT=/var/lib/practice-hr/media
 #   ALLOWED_HOSTS=hr.example.org
 #   CSRF_TRUSTED_ORIGINS=https://hr.example.org
 #   OIDC_RSA_PRIVATE_KEY_FILE=/etc/practice-hr/oidc.pem

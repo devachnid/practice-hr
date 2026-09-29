@@ -52,3 +52,74 @@ def test_open_pots(db):
     pots.for_day(emp, absence_type("AL"), date(2025, 6, 1))
     current = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
     assert list(pots.open_pots(date(2026, 6, 1))) == [current]
+
+
+def test_lookup_finds_an_open_pot_and_never_creates_one(db):
+    emp = hours_employee()
+    al = absence_type("AL")
+    assert pots.lookup(emp, al, date(2026, 6, 1)) is None
+    assert not Pot.objects.exists()
+    pot = pots.for_day(emp, al, date(2026, 6, 1))
+    assert pots.lookup(emp, al, date(2027, 3, 31)) == pot          # the same leave year
+    assert pots.lookup(emp, al, date(2027, 4, 1)) is None          # the next is not open
+    assert Pot.objects.count() == 1
+
+
+def test_lookup_names_a_missing_policy(db):
+    emp = hours_employee()
+    emp.contracts.first().contract_type.policies.all().delete()
+    with pytest.raises(ValidationError, match="No Annual leave policy"):
+        pots.lookup(emp, absence_type("AL"), date(2026, 6, 1))
+
+
+def test_balance_rows_read_open_pots_only(db):
+    from absence.services import balances
+    emp = hours_employee()
+    today = date(2026, 6, 1)
+    rows = {r["type"].code: r for r in balances.rows(emp, today)}
+    assert "BH" not in rows and rows["AL"]["pot"] is None and rows["AL"]["summary"] is None
+    assert "STUDY" not in rows                       # no policy: not for an employee to see
+    with_gaps = {r["type"].code: r for r in balances.rows(emp, today, show_setup_gaps=True)}
+    assert "No Study leave policy" in with_gaps["STUDY"]["error"]
+    assert not Pot.objects.exists()
+    pot = pots.for_day(emp, absence_type("AL"), today)
+    rows = {r["type"].code: r for r in balances.rows(emp, today, include_bh=True, show_setup_gaps=True)}
+    assert "BH" not in rows                          # annual leave's handling is "closed": no bank-holiday pot
+    assert rows["AL"]["pot"] == pot and rows["AL"]["summary"]["remaining"] == Decimal("210.00")
+
+
+# --- ledger.adjust (I7) -------------------------------------------------------------------
+
+def test_adjust_writes_one_audited_adjustment_line_today(db, hr_admin):
+    from django.utils import timezone
+
+    from people.models import AuditEntry
+    emp = hours_employee()
+    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    before = ledger.balance(pot)
+    line = ledger.adjust(hr_admin, pot, Decimal("2.5"), "  restored: agreed with the partners ")
+    assert (line.kind, line.units, line.actor, line.note, line.date) == (
+        LedgerEntry.Kind.ADJUSTMENT, Decimal("2.50"), hr_admin, "restored: agreed with the partners",
+        timezone.localdate())
+    assert ledger.balance(pot) == before + Decimal("2.50")
+    entry = AuditEntry.objects.get(model="absence.pot", object_id=pot.pk)
+    assert entry.actor == hr_admin and entry.after == "+2.50" and entry.note == "restored: agreed with the partners"
+
+
+@pytest.mark.parametrize("units, note, message", [
+    (Decimal("0"), "nothing", "other than zero"), (Decimal("1"), "   ", "Say why")])
+def test_adjust_refuses_zero_units_or_no_note(db, hr_admin, units, note, message):
+    pot = pots.for_day(hours_employee(), absence_type("AL"), date(2026, 6, 1))
+    count = pot.entries.count()
+    with pytest.raises(ValidationError, match=message):
+        ledger.adjust(hr_admin, pot, units, note)
+    assert pot.entries.count() == count
+
+
+def test_adjust_refuses_a_closed_pot(db, hr_admin):
+    from absence.services import year_end
+    pot = pots.for_day(hours_employee(start=date(2025, 4, 1)), absence_type("AL"), date(2026, 6, 1))
+    year_end.close(pot)
+    with pytest.raises(ValidationError, match="closed"):
+        ledger.adjust(hr_admin, pot, Decimal("5"), "restore expired leave")
+    assert ledger.balance(pot) == Decimal("0")

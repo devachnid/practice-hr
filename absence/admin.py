@@ -1,16 +1,23 @@
-"""Unfold admin over the absence models. Policy set-up is edited here; pots,
-their ledger and absences are read-only, and the one action (recalculate)
-goes through the ledger service."""
+"""Unfold admin over the absence models. Policy set-up is edited here; pots
+and their ledger are read-only, and their two actions (recalculate on the
+list, "Adjust balance" on a pot's page) go through the ledger service. Absences are read-only but for a family-leave absence's
+three dates, which an HR admin sets through bookings.set_family_dates."""
 
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import action
+from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWidget
 
-from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, LedgerEntry, Policy,
-                            PolicyTier, Pot)
-from absence.services import ledger
+from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
+                            Policy, PolicyTier, Pot)
+from absence.services import bookings, ledger, year_end
 from people.models import ContractType
-from people.services import audit
+from people.services import access, audit
 
 
 @admin.register(AbsenceType)
@@ -111,12 +118,44 @@ class LedgerEntryInline(TabularInline):
         return False
 
 
+class AdjustForm(forms.Form):
+    units = forms.DecimalField(
+        max_digits=7, decimal_places=2, widget=UnfoldAdminDecimalFieldWidget,
+        help_text="Positive gives leave back (say, reversing an expiry); negative takes it away.")
+    note = forms.CharField(max_length=200, widget=UnfoldAdminTextInputWidget,
+                           help_text="Why. Shown on the ledger, to the person too.")
+
+
 @admin.register(Pot)
 class PotAdmin(ModelAdmin):
     list_display = ("employment", "absence_type", "year_start", "year_end", "unit", "balance")
     list_filter = ("absence_type",)
     inlines = [LedgerEntryInline]
     actions = ["recalculate"]
+    actions_detail = ["adjust_balance"]
+
+    def has_adjust_permission(self, request, object_id=None):
+        return access.can_view_restricted(request.user)
+
+    @action(description="Adjust balance", url_path="adjust", permissions=["adjust"])
+    def adjust_balance(self, request, object_id):
+        """A form on its own page: units and a note, written by
+        ledger.adjust as the admin. The ledger itself stays read-only."""
+        pot = get_object_or_404(Pot.objects.select_related("employment__employee", "absence_type"), pk=object_id)
+        form = AdjustForm(request.POST or None)
+        if request.method == "POST" and form.is_valid():
+            try:
+                ledger.adjust(request.user, pot, form.cleaned_data["units"], form.cleaned_data["note"])
+            except ValidationError as e:
+                form.add_error(None, e.messages)
+            else:
+                messages.success(request, f"{pot}: adjusted by {form.cleaned_data['units']:+.2f}. "
+                                          f"New balance: {ledger.balance(pot):.2f} {pot.unit}.")
+                return HttpResponseRedirect(reverse("admin:absence_pot_change", args=[pot.pk]))
+        return render(request, "absence/admin/adjust_pot.html", {
+            **self.admin_site.each_context(request), "title": f"Adjust balance: {pot}", "pot": pot,
+            "form": form, "balance": ledger.balance(pot), "opts": self.model._meta,
+            "closed": year_end.is_closed(pot)})
 
     @admin.display(description="Balance")
     def balance(self, obj):
@@ -136,6 +175,7 @@ class PotAdmin(ModelAdmin):
         n = 0
         for pot in queryset:
             try:
+                year_end.check_open(pot)
                 if ledger.sync_entitlement(pot, request.user, "recalculated by admin"):
                     n += 1
             except ValidationError as e:
@@ -159,6 +199,46 @@ class AbsenceAdmin(ModelAdmin):
                     and self.has_view_permission(request, obj)):
                 audit.viewed(request.user, obj, "health")
         return super().change_view(request, object_id, form_url, extra_context)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        # HR admins change a family-leave absence's dates; nothing else
+        if not access.can_view_restricted(request.user):
+            return False
+        return obj is None or obj.absence_type.is_family
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_readonly_fields(self, request, obj=None):
+        return [f.name for f in Absence._meta.fields if f.name not in bookings.FAMILY_DATES]
+
+    def save_model(self, request, obj, form, change):
+        # never obj.save(): the service locks the row, checks the dates and audits
+        dates = {f: form.cleaned_data.get(f) for f in bookings.FAMILY_DATES}
+        try:
+            bookings.set_family_dates(request.user, obj, **dates)
+        except ValidationError as e:
+            request._absence_not_saved = True
+            messages.error(request, " ".join(e.messages))
+
+    def log_change(self, request, obj, message):
+        if getattr(request, "_absence_not_saved", False):
+            return None                        # refused: nothing changed to log
+        return super().log_change(request, obj, message)
+
+    def response_change(self, request, obj):
+        if getattr(request, "_absence_not_saved", False):
+            return HttpResponseRedirect(request.path)
+        return super().response_change(request, obj)
+
+
+@admin.register(EmailFailure)
+class EmailFailureAdmin(ModelAdmin):
+    """The emails that did not go: listed, never added to, changed or deleted."""
+    list_display = ("created_at", "subject", "error")
 
     def has_add_permission(self, request):
         return False

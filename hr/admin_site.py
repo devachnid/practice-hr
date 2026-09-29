@@ -108,6 +108,8 @@ def navigation(request):
             _nav_item("Closed days", "event_available", "admin:absence_closedday_changelist"),
             _nav_item("Pots", "savings", "admin:absence_pot_changelist"),
             _nav_item("Absences", "beach_access", "admin:absence_absence_changelist"),
+            _nav_item("Payroll", "payments", "absence:payroll"),
+            _nav_item("Retention", "auto_delete", "people:retention"),
         ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),

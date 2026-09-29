@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Calendar: {{ first|date:"F Y" }}</h1><span>{% if team %}{{ team }}{% else %}Whole practice{% endif %}</span></div>
+<section class="card">
+  <form method="get" class="toolbar">
+    <input type="hidden" name="month" value="{{ month_value }}">
+    <label for="team">Team</label>
+    <select name="team" id="team" class="inline-input">
+      <option value="">Whole practice</option>
+      {% for t in teams %}<option value="{{ t.pk }}"{% if team and t.pk == team.pk %} selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn">Show</button>
+    <a href="{{ prev_url }}" class="btn btn-quiet">Previous month</a>
+    <a href="{{ next_url }}" class="btn btn-quiet">Next month</a>
+  </form>
+</section>
+<section class="card">
+  <h2>Who is off</h2>
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Day</th><th>Off</th></tr></thead>
+    {% for week in weeks %}
+    <tbody>
+      <tr><th scope="rowgroup" colspan="2">Week of {{ week.0.day|date:"j M" }}</th></tr>
+      {% for d in week %}{% if d.in_month %}
+      <tr{% if d.day == today %} aria-current="date"{% endif %}>
+        <th scope="row">{{ d.day|date:"D j" }}{% if d.day == today %} (today){% endif %}</th>
+        <td>{% for o in d.off %}{{ o.employee.name }} ({{ o.label }}{% if o.partial_hours %}, {{ o.partial_hours|floatformat:"-2" }} hours{% elif o.halves|length == 1 %}, {{ o.halves.0 }} only{% endif %}){% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">Nobody</span>{% endfor %}</td>
+      </tr>
+      {% endif %}{% endfor %}
+    </tbody>
+    {% endfor %}
+  </table>
+  </div>
+</section>
+</div>
+{% endblock %}

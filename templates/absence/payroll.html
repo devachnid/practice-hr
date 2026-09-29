@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Payroll changes{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Payroll changes</h1></div>
+<section class="card">
+  <h2>Generate a month</h2>
+  <p>Starters, leavers, contract and pay changes, sickness dates, unpaid leave, family leave and TOIL for the
+     month, as a spreadsheet for the payroll bureau. Generating a month again replaces its file with the
+     latest figures and is recorded as another run.</p>
+  <form method="post">{% csrf_token %}
+    {% for e in form.non_field_errors %}<p class="flash flash-error" role="alert">{{ e }}</p>{% endfor %}
+    {{ form.period.as_field_group }}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Generate and download</button></div>
+  </form>
+</section>
+<section class="card">
+  <h2>Earlier runs</h2>
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th>Month</th><th>Generated</th><th>By</th><th>Rows</th></tr></thead>
+    <tbody>
+    {% for r in runs %}
+      <tr>
+        <th scope="row">{{ r.period_start|date:"F Y" }}</th>
+        <td>{{ r.generated_at|date:"j M Y H:i" }}</td>
+        <td>{{ r.generated_by.email|default:"the command line" }}</td>
+        <td>{% for name, n in r.counts.items %}{{ name }} {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+      </tr>
+    {% empty %}<tr><td colspan="4">Nothing generated yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+</div>
+{% endblock %}

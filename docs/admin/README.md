@@ -10,7 +10,11 @@ there.
 
 | Page | Covers |
 |---|---|
-| [People](people.md) | Employees, employments, positions, teams, contract types, contracts, working patterns, pay records, the audit log |
+| [People](people.md) | Employees, employments, positions, teams, contract types, contracts, working patterns, pay records, the audit log, the retention report |
+| [Absence and leave](absence.md) | Absence types and their flags, policies and every field, tiers, bank holidays and closed days, how a request is costed, requesting, deciding and cancelling, family leave, the calendar, balances |
+| [Year end](year-end.md) | What the nightly closes at the end of a leave year: carry cap, expiry, TOIL, leavers' debts; running it by hand; reversing a line |
+| [Payroll changes report](payroll.md) | The monthly spreadsheet for the payroll bureau: what each sheet holds, which absence types reach it, spanning months, leaver balances, where the files live |
+| [The read API](api.md) | The three JSON endpoints the rota polls, the token in `HR_API_TOKENS`, and the shapes they return |
 | [Login accounts and signing in](sign-in.md) | Login accounts, admin status, passkeys, invitations, nightly housekeeping, and the OpenID Connect provider |
 
 ## The mental model
@@ -31,3 +35,8 @@ Login accounts. History stays intact whatever changes.
 visible to [HR admins](sign-in.md#admin-status) only, and opening an
 Employment page with pay records writes an entry to the
 [audit log](people.md#audit-log).
+
+**Leave is a ledger.** A balance is the sum of a pot's lines, which are only
+ever added; a mistake is put right by a new line, never an edit — see
+[Absence and leave](absence.md#the-mental-model) and
+[Adjusting a balance](year-end.md#adjusting-a-balance).

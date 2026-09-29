@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% comment %}PotAdmin.adjust_balance: one adjustment line through ledger.adjust.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:absence_pot_change' pot.pk %}" class="underline">{{ pot }}</a>:
+    balance now <strong>{{ balance|floatformat:2 }} {{ pot.unit }}</strong>.</p>
+  {% if closed %}
+    <p role="status"><strong>This pot is closed.</strong> Its leave year has ended; adjust the current year's pot instead.</p>
+  {% endif %}
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    {% if form.non_field_errors %}<div role="alert" class="text-red-600">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    {% for field in form %}
+      <div class="flex flex-col gap-1">
+        <label for="{{ field.id_for_label }}" class="font-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% for e in field.errors %}<p role="alert" class="text-red-600">{{ e }}</p>{% endfor %}
+        <p class="text-font-subtle-light dark:text-font-subtle-dark">{{ field.help_text }}</p>
+      </div>
+    {% endfor %}
+    <p>Written as you, dated today, as one adjustment line on the ledger. Ledger lines are never edited or deleted: to undo it, adjust again.</p>
+    <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Adjust balance</button></div>
+  </form>
+</div>
+{% endblock %}

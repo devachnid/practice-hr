@@ -1,0 +1,4 @@
+{% autoescape off %}Your {{ a.absence_type }} request for {% include "absence/email/_dates.txt" %} was {{ a.get_status_display|lower }}.
+{% if a.decision_comment %}
+Comment: {{ a.decision_comment }}
+{% endif %}{% endautoescape %}

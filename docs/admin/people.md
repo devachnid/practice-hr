@@ -104,6 +104,15 @@ date of its own is not automatically ended, so a leaver whose positions and
 contracts were left open still shows them as current on a day after they
 left. End those too if that matters for the report in question.
 
+Saving an end date also **cancels the person's absences that start after
+it**, requested or approved (automatic bank-holiday charges included), as if
+cancelled by you: an approved one's cost goes back to its pot with a
+cancellation line. The [audit log](#audit-log) entry for the end date lists
+them. An absence that started on or before the last day is left for you to
+shorten or cancel, and one whose leave year has already been
+[closed](year-end.md#adjusting-a-balance) is left as it is and listed as
+not cancelled.
+
 ### Continuous service date
 
 **Defaults to the start date; only set it earlier.** This is what service
@@ -225,9 +234,9 @@ The contract's own dated span. Must fall inside the employment's own dates.
 ### Notes
 
 A short free-text note on the arrangement — "maternity cover for X", "phased
-return, review June". Nothing depends on it: it appears on the payroll
-changes report in a later release, and nothing else in the app reads it, so
-there is nothing to get wrong beyond being unhelpful to whoever reads it
+return, review June". Nothing depends on it: it appears on the
+[payroll changes report](payroll.md) and nothing else in the app reads it,
+so there is nothing to get wrong beyond being unhelpful to whoever reads it
 next.
 
 ### The one-unit-at-a-time rule
@@ -334,3 +343,27 @@ the time, as text, so a later change to that login's email does not
 rewrite the log. A login that has written to the log cannot be deleted,
 not even by a superuser — deactivate it instead (see
 [Deactivating](sign-in.md#deactivating)).
+
+## Retention report
+
+`/people/retention/` (**Retention** in the admin menu, HR admins only) lists
+the people whose records are past their retention period, so HR can act on
+them. **It lists and deletes nothing**: there is no automatic deletion, and
+deleting is a manual decision in this release.
+
+The period runs from the end of the person's **last employment**. Anyone with
+a current or future employment (a returner) is never listed. Each row is one
+person with the categories that are overdue, since when, and by how many days.
+No figures or absence detail appear. The four categories and their defaults:
+
+| Category | Default |
+|---|---|
+| Personal record | 2190 days (six years) |
+| Pay records | 2190 days |
+| Health records | 2190 days |
+| Audit log | 2555 days (seven years) |
+
+Change one with `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`,
+`RETENTION_DAYS_HEALTH` or `RETENTION_DAYS_AUDIT` in `/etc/practice-hr.env`. The
+value is a whole number of days, 1 or more; anything else stops the app
+starting, with a message naming the variable.

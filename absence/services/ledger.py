@@ -15,6 +15,30 @@ def write(pot, kind, units, actor=None, absence=None, note="", date=None):
         absence=absence, note=note[:200], actor=actor)
 
 
+@transaction.atomic
+def adjust(actor, pot, units, note):
+    """An HR admin's correction to a pot: one adjustment line of `units`
+    (positive gives leave back, negative takes it away), dated today, as
+    `actor`, with the reason as its note, and audited on the pot. Refuses
+    zero units, an empty note, and a closed pot (adjust the current year's
+    instead). On a TOIL pot a positive adjustment is a new TOIL lot
+    (year_end._toil_lots)."""
+    from absence.models import Pot
+    from absence.services import year_end
+    from people.services import audit
+    units = Decimal(units).quantize(Decimal("0.01"))
+    note = (note or "").strip()
+    if units == 0:
+        raise ValidationError("An adjustment needs a number of units other than zero.")
+    if not note:
+        raise ValidationError("Say why: the note is shown on the ledger.")
+    Pot.objects.select_for_update().get(pk=pot.pk)     # the year end holds the same lock while it closes
+    year_end.check_open(pot)
+    line = write(pot, LedgerEntry.Kind.ADJUSTMENT, units, actor, note=note)
+    audit.record(actor, pot, {"adjustment": ("", f"{units:+}")}, note=note[:200])
+    return line
+
+
 def balance(pot):
     return pot.entries.aggregate(t=Sum("units"))["t"] or Decimal("0")
 

@@ -1,0 +1,19 @@
+{% comment %}One year's row of the balances table. Expects type, pot, summary, links, label.{% endcomment %}
+{% load absence_extras %}
+<tr>
+  <th scope="row">{{ type.name }}</th>
+  <td>{{ label }}{% if pot %}<br><span class="muted">{{ pot.year_start|date:"j M Y" }} – {{ pot.year_end|date:"j M Y" }}</span>{% endif %}</td>
+  {% if summary %}
+    <td><a href="{{ links.entitlement }}">{{ summary.entitlement|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.carried_in }}">{{ summary.carried_in|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.taken }}">{{ summary.taken|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.booked }}">{{ summary.booked|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.pending }}">{{ summary.pending|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.expired }}">{{ summary.expired|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.adjustments }}">{{ summary.adjustments|floatformat:"-2" }}</a></td>
+    <td{% if summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ summary.remaining|units:pot.unit }}</strong></td>
+    <td><a href="{% url 'absence:ledger' pot.pk %}">Ledger</a></td>
+  {% else %}
+    <td colspan="9">{% if error %}{{ error }}{% elif unavailable %}{{ unavailable }}{% else %}Not opened yet: it opens overnight.{% endif %}</td>
+  {% endif %}
+</tr>

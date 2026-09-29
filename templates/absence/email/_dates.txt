@@ -1,0 +1,1 @@
+{% autoescape off %}{{ a.start_date|date:"j M Y" }}{% if a.end_date != a.start_date %} to {{ a.end_date|date:"j M Y" }}{% endif %}{% if a.is_partial %} ({{ a.hours }} hours){% endif %}{% endautoescape %}
