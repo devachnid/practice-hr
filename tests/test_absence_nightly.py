@@ -69,7 +69,7 @@ def test_missing_bank_holiday_policy_is_reported_in_failed(db):
 def test_nightly_removes_automatic_bank_holidays_after_the_leaving_date(db, hr_admin):
     from absence.models import Absence, LedgerEntry, Policy
     from absence.services import bank_holidays
-    from people.services import contracts, employments
+    from people.services import contracts
     emp = hours_employee(start=date(2026, 4, 1))
     ct = emp.contracts.first().contract_type
     ct.policies.filter(absence_type__code="AL").update(bank_holiday_handling=Policy.BankHolidays.PRO_RATA_POT)
@@ -77,7 +77,9 @@ def test_nightly_removes_automatic_bank_holidays_after_the_leaving_date(db, hr_a
     pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
     bank_holidays.sync_auto_absences(emp, date(2026, 4, 1), date(2027, 3, 31))
     contracts.end(hr_admin, emp.contracts.get(), date(2026, 11, 30))
-    employments.end(hr_admin, emp, date(2026, 11, 30), "resigned")
+    # employments.end cancels them itself (test_absence_bookings); the nightly is the
+    # safety net for a leaving date written some other way
+    type(emp).objects.filter(pk=emp.pk).update(end_date=date(2026, 11, 30), leaving_reason="resigned")
     result = nightly.run(date(2026, 10, 1))
     # 25 and 28 Dec, 1 Jan, and Easter 2027 fall after the leaving date
     assert result["bank_holiday_removed"] == 5 and result["failed"] == []
@@ -181,3 +183,18 @@ def test_a_missing_annual_policy_for_next_year_is_reported(db):
     assert result["pots_opened"] == 1
     assert result["failed"] == [f"{emp}: No Annual leave policy for Other on 01 Apr 2027. "
                                 "Add one under Absence › Policies."]
+
+
+def test_ending_the_employment_cancels_its_automatic_bank_holidays_at_once(db, hr_admin):
+    from absence.models import Absence
+    from absence.services import bank_holidays
+    from people.services import contracts, employments
+    emp = hours_employee(start=date(2026, 4, 1))
+    _pot_handling(emp)
+    pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
+    bank_holidays.sync_auto_absences(emp, date(2026, 4, 1), date(2027, 3, 31))
+    contracts.end(hr_admin, emp.contracts.get(), date(2026, 11, 30))
+    employments.end(hr_admin, emp, date(2026, 11, 30), "resigned")
+    live = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
+    assert live.count() == 5 and max(a.start_date for a in live) <= date(2026, 11, 30)
+    assert nightly.run(date(2026, 10, 1))["bank_holiday_removed"] == 0

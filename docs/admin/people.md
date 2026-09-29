@@ -104,6 +104,15 @@ date of its own is not automatically ended, so a leaver whose positions and
 contracts were left open still shows them as current on a day after they
 left. End those too if that matters for the report in question.
 
+Saving an end date also **cancels the person's absences that start after
+it**, requested or approved (automatic bank-holiday charges included), as if
+cancelled by you: an approved one's cost goes back to its pot with a
+cancellation line. The [audit log](#audit-log) entry for the end date lists
+them. An absence that started on or before the last day is left for you to
+shorten or cancel, and one whose leave year has already been
+[closed](year-end.md#adjusting-a-balance) is left as it is and listed as
+not cancelled.
+
 ### Continuous service date
 
 **Defaults to the start date; only set it earlier.** This is what service
