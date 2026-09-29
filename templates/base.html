@@ -1,0 +1,85 @@
+{% load static %}{% load design %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}Practice HR{% endblock %}</title>
+<!-- Two states rather than a manifest's one theme_color: --accent light / dark. -->
+<meta name="theme-color" content="#2F5D50" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#6FAE99" media="(prefers-color-scheme: dark)">
+<script src="{% static 'js/theme.js' %}"></script>
+<link rel="preload" href="{% static 'fonts/plus-jakarta-sans-latin.woff2' %}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'css/components.css' %}">
+<link rel="stylesheet" href="{% static 'css/screens.css' %}">
+{% palette_css %}
+<script src="{% static 'js/passkeys.js' %}" defer></script>
+</head>
+<body{% block body_attrs %}{% endblock %}>
+<nav class="nav">
+  <span class="nav-brand">Practice HR</span>
+  <a href="{% url 'people:me' %}" class="nav-link{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  {% if is_approver %}
+    <a href="{% url 'people:team' %}" class="nav-link{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
+  {% endif %}
+  {% if user.is_hr_admin or user.is_superuser %}
+    <a href="{% url 'admin:index' %}" class="nav-link">Admin</a>
+  {% endif %}
+  <button type="button" id="theme-toggle" class="btn btn-quiet">Theme</button>
+  <span class="nav-spacer"></span>
+  {% if user.is_authenticated %}
+    <a href="{% url 'account' %}" class="nav-user">{{ user.email }}</a>
+    <form method="post" action="/accounts/logout/">{% csrf_token %}<button class="btn btn-quiet">Log out</button></form>
+  {% endif %}
+</nav>
+{% if messages %}
+<div class="flashes">
+  {% for m in messages %}<div class="flash flash-{{ m.level_tag }}"{% if m.level_tag == "error" %} role="alert"{% else %} role="status"{% endif %}>{{ m }}</div>{% endfor %}
+</div>
+{% endif %}
+{% if user.is_authenticated %}
+{% comment %}Offered once per browser, by the script, where no passkey has been used
+here — and only in the minutes after signing in, the one time adding one needs
+no password (accounts/recent_auth.py).{% endcomment %}
+{% if signed_in_recently %}
+<div class="flashes" id="passkey-nudge" style="display:none">
+  <div class="flash" role="status">
+    <form id="passkey-nudge-form">
+      {% csrf_token %}
+      <p><strong>Sign in faster next time.</strong> Add a passkey to this device and use your face, fingerprint or device PIN instead of a password.</p>
+      <div class="form-actions">
+        <button type="button" id="passkey-nudge-add" class="btn btn-primary"
+                data-options-url="{% url 'passkey_register_options' %}"
+                data-register-url="{% url 'passkey_register' %}">Add a passkey</button>
+        <button type="button" id="passkey-later" class="btn btn-quiet">Not now</button>
+      </div>
+      <p id="passkey-nudge-error" class="field-error" style="display:none" role="alert"></p>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+<main class="main">{% block content %}{% endblock %}</main>
+<nav class="tabbar" aria-label="Sections">
+  <a href="{% url 'people:me' %}" class="tabbar-item{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  {% if is_approver %}
+    <a href="{% url 'people:team' %}" class="tabbar-item{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
+  {% endif %}
+  <details class="tabbar-more">
+    <summary class="tabbar-item">More</summary>
+    <div class="tabbar-sheet">
+      {% if user.is_hr_admin or user.is_superuser %}
+        <a href="{% url 'admin:index' %}" class="tabbar-link">Admin</a>
+      {% endif %}
+      <button type="button" id="theme-toggle-mobile" class="tabbar-link">Theme</button>
+      {% if user.is_authenticated %}
+        <a href="{% url 'account' %}" class="tabbar-user">{{ user.email }}</a>
+        <form method="post" action="/accounts/logout/">{% csrf_token %}<button class="tabbar-link">Log out</button></form>
+      {% endif %}
+    </div>
+  </details>
+</nav>
+</body>
+</html>

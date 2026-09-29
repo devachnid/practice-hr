@@ -1,0 +1,10 @@
+.venv/
+db.sqlite3*
+staticfiles/
+media/
+__pycache__/
+*.pyc
+.pytest_cache/
+.superpowers/
+# The development SECRET_KEY (config/settings.py): per checkout, never shared.
+.dev_secret_key

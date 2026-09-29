@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}My record{% endblock %}
+{% block content %}
+<h1>My record</h1>
+{% if not employee %}
+  <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
+{% else %}
+  <section class="card">
+    <h2>{{ employee.name }}</h2>
+    {% if employment %}
+      <dl class="facts">
+        <dt>Employed since</dt><dd>{{ employment.start_date|date:"j M Y" }}</dd>
+        <dt>Continuous service from</dt><dd>{{ employment.continuous_service_date|date:"j M Y" }}</dd>
+        {% if position %}<dt>Position</dt><dd>{{ position.title }}, {{ position.team }}{% if position.line_manager %}, reports to {{ position.line_manager.name }}{% endif %}</dd>{% endif %}
+        <dt>Contracted</dt><dd>{{ contracted|floatformat:"-2" }} {{ unit|default:"" }} a week</dd>
+      </dl>
+      {% if pattern %}
+      <table class="pattern"><thead><tr><th></th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th></tr></thead>
+        <tbody>
+          <tr><th>AM</th>{% for d in pattern.days.all %}<td>{{ d.am_units|floatformat:"-2" }}</td>{% endfor %}</tr>
+          <tr><th>PM</th>{% for d in pattern.days.all %}<td>{{ d.pm_units|floatformat:"-2" }}</td>{% endfor %}</tr>
+        </tbody></table>
+      {% endif %}
+    {% else %}
+      <p>No current employment.</p>
+    {% endif %}
+  </section>
+  <section class="card">
+    <h2>Personal details</h2>
+    <form method="post">{% csrf_token %}{{ form.as_div }}<button type="submit" class="btn">Save</button></form>
+  </section>
+{% endif %}
+{% endblock %}

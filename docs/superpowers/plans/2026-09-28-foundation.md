@@ -893,6 +893,8 @@ git commit -m "feat: Employment spells with their own continuous-service date, a
 
 ### Task 6: Employments service: start, end, current, service years
 
+> **Execution note (2026-09-28):** the days/365.25 formula below was replaced during execution by a calendar-anniversary computation (whole years by anniversary plus the fraction of the current year, rounded down), because 1826 days is 4.99 on a fifth anniversary and a tier would never start on the day the spec implies. The test expectations changed with it. The ledger for this plan records the ruling.
+
 **Files:**
 - Create: `people/services/employments.py`, `tests/test_employments_service.py`
 
@@ -1245,6 +1247,8 @@ git commit -m "feat: positions with a cycle-checked reporting line"
 ---
 
 ### Task 8: Contract types and contracts
+
+> **Execution note (2026-09-28):** `fte()` now sums each active contract's own `weekly_amount / full_time_weekly` (the code below divided the total by the first contract's figure, incoherent when two same-unit types coexist); `end()` re-runs the unit-clash check for the new range; `Contract` orders by `from_date, id`; and two boundary tests were added because the ones below never reached the date logic. The ledger records the rulings.
 
 **Files:**
 - Create: `people/models/contract.py`, `people/services/contracts.py`, `tests/test_contracts.py`; Modify: `people/models/__init__.py`, `tests/factories.py`

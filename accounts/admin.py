@@ -1,0 +1,254 @@
+from django import forms
+from django.contrib import admin, messages
+from django.contrib.auth.admin import UserAdmin
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.utils import timezone
+from django.utils.html import format_html
+from unfold.admin import ModelAdmin, TabularInline
+from unfold.decorators import action
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm
+
+from .mail import link_expires, send_password_link
+from .models import Passkey, User
+
+
+class InviteForm(forms.ModelForm):
+    """The add form: who, and whether they are an HR admin. No password — the
+    person chooses their own from the emailed link (save_model below)."""
+
+    class Meta:
+        model = User
+        fields = ("email", "is_hr_admin")
+
+
+def _report(request, user, result, *, invite):
+    """The three outcomes of a send, as the message the admin reads. A link
+    is shown here, once, and nowhere else."""
+    what = "Invitation" if invite else "Password-reset link"
+    if result is None:
+        messages.success(request, f"{what} sent to {user.email}.")
+    elif not result.reason:
+        messages.warning(request, format_html(
+            "Email isn't set up — copy this link and send it to {} yourself: "
+            '<a href="{}">{}</a>', user.email, result.link, result.link))
+    else:
+        messages.error(request, format_html(
+            "Sending to {} failed ({}) — copy this link and send it yourself: "
+            '<a href="{}">{}</a>', user.email, result.reason, result.link, result.link))
+
+
+class PasskeyInline(TabularInline):
+    """Show and delete, never add: a passkey can only be made by the
+    browser that holds its key. This is where an HR admin revokes a lost
+    phone. It inherits the account page's guards — an HR admin never
+    reaches a superuser's page at all."""
+
+    model = Passkey
+    extra = 0
+    fields = ("name", "aaguid", "created_at", "last_used_at")
+    readonly_fields = fields
+    can_delete = True
+    verbose_name_plural = "Passkeys"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(User)
+class CustomUserAdmin(UserAdmin, ModelAdmin):
+    """An HR admin (not a superuser) can open this changelist through
+    HrAdminBackend's blanket accounts.* grant. Without the guards below,
+    that grant would let them edit is_superuser on any account —
+    including their own — through the ordinary change form, and reach a
+    superuser's delete/password views. Only a superuser requester sees or
+    can touch those fields or accounts; the guards defer to Django's normal
+    checks for everyone else.
+
+    Passwords: an admin never types one. Adding an account sends an
+    invitation; the change page offers one send button, chosen by state;
+    the direct set-password form stays for superusers only."""
+
+    form = UserChangeForm
+    add_form = InviteForm
+    change_password_form = AdminPasswordChangeForm
+    ordering = ("email",)
+    list_display = ("email", "is_hr_admin", "is_active", "is_set_up")
+    list_filter = ("is_hr_admin", "is_active")
+    search_fields = ("email",)
+    readonly_fields = ("account_state",)
+    add_fieldsets = (
+        (None, {"fields": ("email", "is_hr_admin")}),
+    )
+    actions = ("send_links",)
+    actions_submit_line = ("send_invitation", "send_reset_link")
+
+    inlines = (PasskeyInline,)
+
+    def get_inline_instances(self, request, obj=None):
+        # Nothing to list on the add page, and the inline's formset would
+        # otherwise render an empty "Passkeys" block there.
+        return [] if obj is None else super().get_inline_instances(request, obj)
+
+    def get_queryset(self, request):
+        """The changelist an HR admin sees excludes superuser rows
+        entirely — see the docstring above. get_object() below does NOT
+        go through this filtered queryset: a pk lookup (change/delete/
+        password views) must still find a superuser's row so has_view_
+        permission/has_change_permission/has_delete_permission can turn
+        it away with their own 403, rather than this filter making
+        Django treat the row as not existing (a redirect instead)."""
+        qs = super().get_queryset(request)
+        if not request.user.is_superuser:
+            qs = qs.filter(is_superuser=False)
+        return qs
+
+    def get_object(self, request, object_id, from_field=None):
+        queryset = admin.ModelAdmin.get_queryset(self, request)
+        model = queryset.model
+        field = model._meta.pk if from_field is None else model._meta.get_field(from_field)
+        try:
+            object_id = field.to_python(object_id)
+            return queryset.get(**{field.name: object_id})
+        except (model.DoesNotExist, ValidationError, ValueError):
+            return None
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        # No password field for anyone: an admin sends a link, they never
+        # set one. (A superuser's direct set-password view stays reachable
+        # by URL — user_change_password below — but nothing links to it.)
+        sets = [
+            ("Account", {"fields": ("email", "account_state")}),
+            ("HR admin", {
+                "fields": ("is_hr_admin",),
+                "description": "An HR admin can use this admin, decide any leave "
+                               "request, and see pay and health records.",
+            }),
+        ]
+        if request.user.is_superuser:
+            # is_staff is derived on save (accounts/models.py), so it is
+            # not offered here.
+            sets.append(("System", {"fields": ("is_active", "is_superuser")}))
+        else:
+            sets.append(("Status", {"fields": ("is_active",)}))
+        return sets
+
+    def get_readonly_fields(self, request, obj=None):
+        fields = super().get_readonly_fields(request, obj)
+        if not request.user.is_superuser:
+            fields = tuple(fields) + ("is_superuser",)
+        return fields
+
+    def has_view_permission(self, request, obj=None):
+        # Django's changeform_view checks has_view_OR_change_permission on a
+        # GET, so has_change_permission alone would still hand an HR admin
+        # a read-only look at (and, per the check below, a working change
+        # form URL for) a superuser's account. Blocking view too closes that.
+        if obj is not None and obj.is_superuser and not request.user.is_superuser:
+            return False
+        return super().has_view_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        if obj is not None and obj.is_superuser and not request.user.is_superuser:
+            return False
+        return super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        # Only a superuser deletes a login; an HR admin makes it inactive,
+        # which does everything a deletion is for — no sign-in, no links —
+        # and keeps the history. Deleting one used to be open to any HR
+        # admin, their own included, and it takes Django's record of that
+        # person's admin changes with it. This covers superuser rows too,
+        # which were the only ones closed before. (A login with audit-log
+        # rows cannot be deleted even by a superuser: AuditEntry.actor
+        # protects it.)
+        if not request.user.is_superuser:
+            return False
+        return super().has_delete_permission(request, obj)
+
+    # --- invitations ---------------------------------------------------------
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.set_unusable_password()
+        # unfold's save_model runs whichever submit-line button was pressed,
+        # after the save — so the two send_* methods below fire from here.
+        super().save_model(request, obj, form, change)
+        if not change:
+            _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+
+    def get_actions_submit_line(self, request, object_id):
+        """One button, chosen by state: an account with no usable password
+        can be invited again; one with a password can be sent a reset. The
+        add page has no buttons at all — save_model sends the invitation
+        itself, so a button name smuggled into an add POST must not send a
+        second one."""
+        if request.resolver_match and request.resolver_match.url_name.endswith("_add"):
+            return []
+        obj = self.get_object(request, object_id)
+        want = ("send_reset_link" if obj is not None and obj.has_usable_password()
+                else "send_invitation")
+        name = f"{self.opts.app_label}_{self.opts.model_name}_{want}"
+        return [a for a in super().get_actions_submit_line(request, object_id)
+                if a.action_name == name]
+
+    @action(description="Send invitation again")
+    def send_invitation(self, request, obj):
+        _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+
+    @action(description="Send password-reset link")
+    def send_reset_link(self, request, obj):
+        _report(request, obj, send_password_link(request, obj, invite=False), invite=False)
+
+    @admin.action(description="Send invitation or reset link", permissions=["change"])
+    def send_links(self, request, queryset):
+        """Onboard a practice at once. Each row gets whichever it needs;
+        rows the requester may not change (a superuser's, for an HR
+        admin) are skipped — the changelist filter hides them anyway."""
+        sent = copies = 0
+        for user in queryset:
+            # Belt and braces: the changelist queryset already hides the
+            # rows an HR admin may not change, and permissions=["change"]
+            # above keeps the action off a view-only menu.
+            if not self.has_change_permission(request, user):
+                continue
+            invite = not user.has_usable_password()
+            result = send_password_link(request, user, invite=invite)
+            if result is None:
+                sent += 1
+            else:
+                copies += 1
+                _report(request, user, result, invite=invite)
+        messages.info(request, f"{sent} sent, {copies} to copy.")
+
+    @admin.display(description="Set up?", boolean=True)
+    def is_set_up(self, obj):
+        return obj.has_usable_password()
+
+    @admin.display(description="State")
+    def account_state(self, obj):
+        sent = obj.password_link_sent_at
+        if obj.has_usable_password():
+            if sent is None:
+                return "Set up"
+            # The admin's buttons are never throttled, but the person's own
+            # request is quiet for five minutes after any link — so say
+            # when the last one went.
+            return f"Set up — last link sent {timezone.localtime(sent):%-d %b %H:%M}"
+        if sent is None:
+            return "Not yet invited"
+        expires = link_expires(sent)
+        if timezone.now() < expires:
+            return (f"Invited {timezone.localtime(sent):%-d %b}, "
+                    f"link expires {timezone.localtime(expires):%-d %b}")
+        return "Invitation expired — send another"
+
+    def user_change_password(self, request, id, form_url=""):
+        """Django's direct set-password form. An HR admin sends links
+        instead — so this is a superuser's tool, whatever has_change_
+        permission says about the account. Nothing links here any more;
+        it stays reachable by URL for a superuser's emergency."""
+        if not request.user.is_superuser:
+            raise PermissionDenied
+        return super().user_change_password(request, id, form_url)

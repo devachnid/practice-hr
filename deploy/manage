@@ -1,0 +1,36 @@
+#!/bin/sh
+# Run a manage.py command the way the services run it: as the practice-hr
+# user, with the settings in /etc/practice-hr.env, in the practice-hr state
+# directory. Run it as root.
+#
+#   /srv/practice-hr/deploy/manage migrate
+#   /srv/practice-hr/deploy/manage check --deploy
+#   /srv/practice-hr/deploy/manage createsuperuser
+#   /srv/practice-hr/deploy/manage register_oidc_client --name rota --redirect-uri ...
+#
+# systemd reads the settings file, exactly as it does for the services. The
+# shell cannot: `. /etc/practice-hr.env` fails on a SECRET_KEY holding ( or
+# $ or &, which Django's generated keys do.
+#
+# Why not plain `python manage.py` as root: the database is in WAL mode, and
+# a root process that opens it can leave root-owned db.sqlite3-wal/-shm
+# files (or, on a first migrate, a root-owned database) that the app then
+# cannot open. The one exception is collectstatic, which writes into the
+# code tree — root's, read-only to the app — so it runs as root,
+# world-readable.
+set -eu
+if [ "$(id -u)" != 0 ]; then
+    echo "deploy/manage: run as root; it runs the command as the practice-hr user" >&2
+    exit 1
+fi
+code="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -t 0 ]; then io=--pty; else io=--pipe; fi
+if [ "${1:-}" = collectstatic ]; then
+    as_whom="-p UMask=0022"
+else
+    as_whom="--uid=practice-hr --gid=practice-hr -p StateDirectory=practice-hr -p StateDirectoryMode=0700 -p UMask=0077 -E HOME=/var/lib/practice-hr"
+fi
+# shellcheck disable=SC2086  # $as_whom is a list of options
+exec systemd-run --quiet --collect --wait "$io" $as_whom \
+    -p EnvironmentFile=/etc/practice-hr.env -p WorkingDirectory="$code" \
+    "$code/.venv/bin/python" manage.py "$@"
