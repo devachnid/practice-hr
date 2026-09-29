@@ -67,11 +67,11 @@ def _open_pots(today, failed):
 def run(today):
     """Close the pots whose leave year has ended and run the carry-in and
     TOIL expiries (year_end.run), open this year's and next year's pots of
-    every active employment (_open_pots), then re-sync every open pot's entitlement and every open
-    annual-leave pot's automatic bank-holiday absences. Idempotent. A pot or
-    employment that cannot be processed (no contract, or no policy covers a
-    day) is listed in `failed` and skipped, so one bad row never stops the
-    rest."""
+    every active employment (_open_pots), then re-sync every open pot's
+    entitlement and every open annual-leave pot's automatic bank-holiday
+    absences. Idempotent. A pot or employment that cannot be processed (no
+    contract, or no policy covers a day) is listed in `failed` and skipped,
+    so one bad row never stops the rest."""
     ended = year_end.run(today)
     failed = list(ended["failed"])
     opened = _open_pots(today, failed)
