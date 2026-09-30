@@ -1,0 +1,14 @@
+{% extends "admin/base_site.html" %}
+{% comment %}AbsenceAdmin.charge_again: confirm, then bank_holidays.charge_again as the admin.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:absence_absence_change' absence.pk %}" class="underline">{{ absence }}</a>:
+    cancelled, and not charged since.</p>
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    <p>The day is charged again at once, as you: a new automatic bank-holiday row is made and approved, if the
+      person's working pattern and policy still charge that day. This row stays as it is, cancelled.</p>
+    <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Charge again</button></div>
+  </form>
+</div>
+{% endblock %}

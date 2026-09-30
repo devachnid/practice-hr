@@ -346,8 +346,9 @@ entitlement. The nightly's log warns when the last one entered is about a
 year away; add the next year's from gov.uk here, under Absence › Bank
 holidays. Only `EW` entries count. An HR admin's cancellation of an
 automatic bank-holiday row (Absence › Absences, open the row, **Cancel
-absence**) stands: the nightly will not re-create it, and to charge the
-day again HR [records it](#recording-leave-for-someone-else).
+absence**) stands: the nightly will not re-create it. To charge the day
+again, open the cancelled row and choose **Charge again**: its automatic
+row comes back at once if the pattern and policy still charge that day.
 `/admin/absence/closedday/`
 holds practice closures that are not bank holidays. **Closed days are never
 charged.** Bank holidays are charged only by the automation above: an

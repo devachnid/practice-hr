@@ -8,7 +8,7 @@
   <form method="post" class="flex flex-col gap-4">{% csrf_token %}
     <p>Cancelled as you. An approved absence's cost goes back to its pot with a cancellation line.
       {% if absence.auto_bank_holiday %}This is an automatic bank-holiday row: once cancelled it stays cancelled,
-      and the nightly does not make it again. To charge the day later, record it.{% endif %}</p>
+      and the nightly does not make it again. To charge the day later, open this row and choose Charge again.{% endif %}</p>
     <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Cancel absence</button></div>
   </form>
 </div>

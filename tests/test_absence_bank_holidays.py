@@ -261,3 +261,50 @@ def test_automatic_rows_cancelled_before_the_reason_existed_count_as_not_implied
     leave.refresh_from_db()
     assert (auto.cancel_reason, leave.cancel_reason) == (bank_holidays.NOT_IMPLIED, "")
     assert bank_holidays.sync_auto_absences(emp, start, end)["created"] == 1
+
+
+# --- HR undoes an opt-out: charge_again ---------------------------------------------------------
+
+def test_charge_again_brings_the_automatic_row_back_at_once(db, hr_admin):
+    from people.models import AuditEntry
+    emp, start, end, day = _this_year_with_a_holiday()
+    bank_holidays.sync_auto_absences(emp, start, end)
+    auto = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day)
+    bookings.cancel(hr_admin, auto)
+    assert bank_holidays.sync_auto_absences(emp, start, end)["kept_cancelled"] == 1
+    result = bank_holidays.charge_again(hr_admin, auto)
+    assert result == NOTHING | {"created": 1}
+    auto.refresh_from_db()
+    assert (auto.status, auto.cancel_reason) == ("cancelled", bank_holidays.NOT_IMPLIED)
+    back = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day, status="approved")
+    assert back.cost_units == D("7.50") and back.decided_by == hr_admin
+    entry = AuditEntry.objects.get(model="absence.absence", object_id=auto.pk, field="cancel_reason")
+    assert (entry.actor, entry.before, entry.after) == (hr_admin, "", bank_holidays.NOT_IMPLIED)
+    assert bank_holidays.sync_auto_absences(emp, start, end) == NOTHING
+
+
+def test_charge_again_leaves_a_day_no_longer_implied_uncharged(db, hr_admin):
+    emp, start, end, day = _this_year_with_a_holiday()
+    bank_holidays.sync_auto_absences(emp, start, end)
+    auto = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day)
+    bookings.cancel(hr_admin, auto)
+    working = {d: (D("3.75"), D("3.75")) for d in range(5) if d != 2}         # no Wednesdays now
+    patterns.set_pattern(hr_admin, emp, start, working)
+    assert bank_holidays.charge_again(hr_admin, auto)["created"] == 0
+    assert not Absence.objects.filter(employment=emp, start_date=day, status="approved").exists()
+
+
+@pytest.mark.parametrize("which", ["approved", "not automatic"])
+def test_charge_again_refuses_anything_but_a_cancelled_automatic_row(db, hr_admin, which):
+    emp, start, end, day = _this_year_with_a_holiday()
+    if which == "approved":
+        bank_holidays.sync_auto_absences(emp, start, end)
+        row = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day)
+    else:
+        from datetime import timedelta
+        row = bookings.request(hr_admin, emp, absence_type("AL"), day + timedelta(days=1))
+        bookings.cancel(hr_admin, row)
+    with pytest.raises(ValidationError, match="Only a cancelled automatic bank-holiday row"):
+        bank_holidays.charge_again(hr_admin, row)
+    row.refresh_from_db()
+    assert row.cancel_reason == ""

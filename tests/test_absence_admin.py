@@ -348,9 +348,110 @@ def test_a_manager_does_not_cancel_from_the_admin(db):
     make_position(auto.employment, manager=make_employee(first="Mo", user=manager))
     c = Client()
     c.force_login(manager)
-    assert c.post(f"/admin/absence/absence/{auto.pk}/cancel/").status_code in (302, 403)
+    r = c.post(f"/admin/absence/absence/{auto.pk}/cancel/")
+    assert r.status_code == 302 and r["Location"].startswith("/admin/login/")     # not an admin at all
     auto.refresh_from_db()
     assert auto.status == "approved"
+
+
+def test_cancelling_an_ordinary_absence_here_emails_the_approver_and_an_automatic_row_does_not(
+        admin_client, hr_admin, configured, db):
+    from datetime import timedelta
+
+    from django.core import mail
+
+    from absence.services import bookings
+    from tests.factories import absence_type, current_leave_year, hours_employee
+    start, _ = current_leave_year()
+    monday = start + timedelta(days=70)
+    monday -= timedelta(days=monday.weekday())
+    leave = bookings.request(hr_admin, hours_employee(start=start), absence_type("AL"), monday)
+    mail.outbox.clear()
+    assert admin_client.post(f"/admin/absence/absence/{leave.pk}/cancel/").status_code == 302
+    assert len(mail.outbox) == 1 and "cancelled" in mail.outbox[0].subject
+    auto = _auto_row()
+    assert admin_client.post(f"/admin/absence/absence/{auto.pk}/cancel/").status_code == 302
+    assert len(mail.outbox) == 1
+
+
+def test_the_cancel_page_of_a_health_sensitive_absence_is_audited_as_viewed(admin_client, hr_admin, db):
+    from datetime import timedelta
+
+    from absence.services import bookings
+    from people.models import AuditEntry
+    from tests.factories import absence_type, current_leave_year, hours_employee
+    start, _ = current_leave_year()
+    sick = bookings.request(hr_admin, hours_employee(start=start), absence_type("SICK"),
+                            start + timedelta(days=70), category="illness")
+    viewed = AuditEntry.objects.filter(kind=AuditEntry.Kind.VIEWED, model="absence.absence", object_id=sick.pk)
+    assert admin_client.get(f"/admin/absence/absence/{sick.pk}/cancel/").status_code == 200
+    assert [(v.actor, v.field) for v in viewed] == [(hr_admin, "health")]
+    auto = _auto_row()
+    admin_client.get(f"/admin/absence/absence/{auto.pk}/cancel/")
+    assert not AuditEntry.objects.filter(kind=AuditEntry.Kind.VIEWED, object_id=auto.pk).exists()
+
+
+def _opted_out(admin_client):
+    """A real automatic row (the sync's), cancelled by HR on its admin page."""
+    from absence.models import Absence
+    from absence.services import bank_holidays
+    from tests.test_absence_bank_holidays import _this_year_with_a_holiday
+    emp, start, end, day = _this_year_with_a_holiday()
+    bank_holidays.sync_auto_absences(emp, start, end)
+    auto = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day)
+    assert admin_client.post(f"/admin/absence/absence/{auto.pk}/cancel/").status_code == 302
+    auto.refresh_from_db()
+    return auto
+
+
+def test_an_hr_admin_charges_an_opted_out_day_again_from_its_page(admin_client, hr_admin, db):
+    from absence.models import Absence
+    from absence.services import bank_holidays
+    from people.models import AuditEntry
+    auto = _opted_out(admin_client)
+    change, again = f"/admin/absence/absence/{auto.pk}/change/", f"/admin/absence/absence/{auto.pk}/charge-again/"
+    body = admin_client.get(change).content.decode()
+    assert again in body and "Charge again" in body
+    confirm = admin_client.get(again)
+    assert confirm.status_code == 200 and 'method="post"' in confirm.content.decode()
+    auto.refresh_from_db()
+    assert auto.cancel_reason == ""                                     # a GET writes nothing
+    assert not AuditEntry.objects.filter(kind=AuditEntry.Kind.VIEWED, object_id=auto.pk).exists()
+    r = admin_client.post(again)
+    assert r.status_code == 302 and r["Location"] == change
+    auto.refresh_from_db()
+    assert auto.cancel_reason == bank_holidays.NOT_IMPLIED
+    back = Absence.objects.get(employment=auto.employment, start_date=auto.start_date, status="approved")
+    assert back.auto_bank_holiday and back.decided_by == hr_admin
+    assert again not in admin_client.get(change).content.decode()       # no longer an opt-out
+    assert admin_client.post(again).status_code == 403
+
+
+def test_charge_again_is_only_for_an_opt_out_and_an_hr_admin(admin_client, hr_admin, db):
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+
+    from absence.models import Absence
+    from absence.services import bank_holidays, bookings
+    from tests.factories import make_employee
+    live = _auto_row()
+    by_sync = _auto_row()
+    bookings.cancel(hr_admin, by_sync, reason=bank_holidays.NOT_IMPLIED)
+    own = _auto_row(make_employee(first="Hana", user=hr_admin))
+    bookings.cancel(get_user_model().objects.create_user(email="hr2@example.org", password="pw",
+                                                         is_hr_admin=True), own)
+    for row in (live, by_sync, own):
+        page = admin_client.get(f"/admin/absence/absence/{row.pk}/change/").content.decode()
+        assert "/charge-again/" not in page
+        assert admin_client.post(f"/admin/absence/absence/{row.pk}/charge-again/").status_code == 403
+    opted_out = _auto_row()
+    bookings.cancel(hr_admin, opted_out)
+    manager = get_user_model().objects.create_user(email="manager@example.org", password="pw", is_staff=True)
+    c = Client()
+    c.force_login(manager)
+    r = c.post(f"/admin/absence/absence/{opted_out.pk}/charge-again/")
+    assert r.status_code == 302 and r["Location"].startswith("/admin/login/")     # not an admin at all
+    assert Absence.objects.get(pk=opted_out.pk).cancel_reason == ""
 
 
 # --- "Adjust balance" on the pot's page (I7) ------------------------------------------------

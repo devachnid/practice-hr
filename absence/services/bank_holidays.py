@@ -7,8 +7,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from absence.models import Absence, AbsenceType, BankHoliday, Policy
-from absence.services import bookings, costing, policies
-from people.services import patterns
+from absence.services import bookings, costing, policies, pots
+from people.services import audit, patterns
 
 
 def _target_type(handling):
@@ -99,3 +99,27 @@ def _sync(employment, year_start, year_end, actor, today):
         bookings.approve(actor, a, comment="bank holiday")
         created += 1
     return {"created": created, "removed": removed, "recosted": recosted, "kept_cancelled": kept_cancelled}
+
+
+@transaction.atomic
+def charge_again(actor, absence):
+    """HR undoes an opt-out: the cancelled automatic row's day is charged
+    again. Its cancel reason (and that of any other cancelled automatic row
+    of the same person and day, so the latest cannot still hold the day) is
+    set to NOT_IMPLIED, audited, and the row's leave year is synced at once
+    as `actor`: the day comes back as a new automatic row if the pattern and
+    policy still imply it, and stays uncharged if they do not. Returns the
+    sync's counts."""
+    if not (absence.auto_bank_holiday and absence.status == Absence.Status.CANCELLED):
+        raise ValidationError("Only a cancelled automatic bank-holiday row can be charged again.")
+    employment, day = absence.employment, absence.start_date
+    rows = (Absence.objects.select_for_update()
+            .filter(employment=employment, auto_bank_holiday=True, status=Absence.Status.CANCELLED, start_date=day)
+            .exclude(cancel_reason=NOT_IMPLIED))
+    for row in rows:
+        audit.record(actor, row, {"cancel_reason": (row.cancel_reason, NOT_IMPLIED)}, note="charged again")
+        row.cancel_reason = NOT_IMPLIED
+        row.save(update_fields=["cancel_reason"])
+    absence.refresh_from_db(fields=["cancel_reason"])
+    year_start, year_end = pots.bounds(employment, AbsenceType.objects.get(code="AL"), day)
+    return sync_auto_absences(employment, year_start, year_end, actor=actor)
