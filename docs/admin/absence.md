@@ -394,6 +394,10 @@ falls outside the employment, or (pot-backed) crosses the end of the leave
 year. Types that need no approval are recorded as approved straight away;
 otherwise the approver is emailed and the request shows as Requested.
 
+*My absences* lists what is coming up, then what came earlier this leave
+year. A request still waiting is always listed, whatever its dates, so the
+employee can cancel it even when it has passed or is from an earlier leave year.
+
 ## Recording leave for someone else
 
 A manager records a report's absence on the day (a phone call saying they

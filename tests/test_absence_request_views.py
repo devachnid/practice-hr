@@ -537,3 +537,23 @@ def test_a_part_day_is_accepted_for_a_potless_type(employee_client, employee_use
     assert r.status_code == 302
     a = Absence.objects.get()
     assert a.absence_type.code == "DEP" and a.hours == Decimal("1.5") and a.start_time == time(9)
+
+
+def test_a_request_still_waiting_from_before_this_leave_year_is_listed_to_cancel(employee_client, employee_user,
+                                                                                hr_admin):
+    from tests.factories import current_leave_year
+    emp = _me(employee_user, start=date(2025, 1, 6))
+    before = _weekday(current_leave_year()[0] - timedelta(days=60), -1)
+    al = absence_type("AL")
+    waiting = bookings.request(employee_user, emp, al, before)
+    declined = bookings.request(employee_user, emp, al, _weekday(before - timedelta(days=7), -1))
+    bookings.decline(hr_admin, declined)
+    body = employee_client.get("/absence/mine/").content.decode()
+    earlier = body.split("<h2>Earlier</h2>")[1].split("</section>")[0]
+    assert f"{waiting.start_date:%-d %b %Y}" in earlier
+    assert '<span class="badge badge-warning">Requested</span>' in earlier
+    assert f"/absence/{waiting.pk}/cancel/" in earlier
+    assert f"{declined.start_date:%-d %b %Y}" not in body
+    assert employee_client.post(f"/absence/{waiting.pk}/cancel/").status_code == 302
+    waiting.refresh_from_db()
+    assert waiting.status == Absence.Status.CANCELLED

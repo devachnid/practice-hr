@@ -189,7 +189,8 @@ def _toil(employment, today):
 def mine(request):
     """The employee's absences in three parts: coming up (requested or
     approved, not yet over, soonest first), earlier this leave year (newest
-    first, declined and cancelled ones too), and the automatic bank-holiday
+    first, declined and cancelled ones too, and any request still waiting
+    whatever its dates), and the automatic bank-holiday
     rows of this leave year and the next, folded away under their counts
     and totals."""
     today = timezone.localdate()
@@ -207,7 +208,7 @@ def mine(request):
                     bank.append({"a": a})
                 continue
             upcoming = a.status in bookings.LIVE and a.end_date >= today
-            if not (upcoming or in_view):
+            if not (upcoming or in_view or a.status == S.REQUESTED):    # a request waiting is always listed
                 continue
             over = False
             if a.absence_type.uses_pot and a.status == S.REQUESTED and a.cost_units:
