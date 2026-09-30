@@ -15,8 +15,9 @@ from people.services import audit
 @transaction.atomic
 def earn(actor, employment, units, day, note):
     """Credit `units` of TOIL earned on `day` to the TOIL pot for that day,
-    opening it if needed. Raises ValidationError for non-positive units, or
-    when there is no contract or TOIL policy on the day."""
+    opening it if needed (it borrows the annual-leave policy's leave year:
+    TOIL has no policy). Raises ValidationError for non-positive units, or
+    when there is no contract or annual-leave policy on the day."""
     units = Decimal(units).quantize(Decimal("0.01"))
     if units <= 0:
         raise ValidationError("TOIL earned must be more than zero.")

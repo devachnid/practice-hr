@@ -24,7 +24,7 @@ from people.services import access, audit
 
 @admin.register(AbsenceType)
 class AbsenceTypeAdmin(ModelAdmin):
-    list_display = ("name", "code", "paid", "uses_pot", "needs_approval", "self_certified",
+    list_display = ("name", "code", "paid", "uses_pot", "accrues", "needs_approval", "self_certified",
                     "calendar_label", "payroll_reportable", "health_sensitive", "active")
     list_editable = ("active",)
 

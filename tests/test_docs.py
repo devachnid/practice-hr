@@ -67,7 +67,7 @@ def test_the_link_checker_catches_a_broken_anchor(tmp_path):
 def test_absence_guide_names_every_policy_field():
     text = (DOCS / "absence.md").read_text()
     for field in ("weeks_per_year", "carry_over_max_weeks", "carry_over_expires_after_days", "rounding",
-                  "bank_holiday_handling", "toil_expires_after_days", "leave_year_basis", "accrual",
+                  "bank_holiday_handling", "earned_expires_after_days", "leave_year_basis", "accrual",
                   "days_per_year", "carry_over_days"):
         assert field in text, field
 

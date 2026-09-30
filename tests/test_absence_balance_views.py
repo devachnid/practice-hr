@@ -266,3 +266,44 @@ def test_next_year_for_someone_leaving_before_it_does_not_promise_a_pot(employee
     emp.save()
     body = employee_client.get("/absence/balances/").content.decode()
     assert "Not opened yet" not in body and "Not employed then." in body
+
+
+# --- TOIL: earned, not accrued, so a row at zero before anything is earned ----------------
+
+def test_rows_give_toil_a_zero_row_with_no_pot_and_no_policy_of_its_own(db, hr_admin):
+    from absence.services import toil
+    emp = hours_employee()
+    today = timezone.localdate()
+    row = {r["type"].code: r for r in balances.rows(emp, today)}["TOIL"]
+    assert row["pot"] is None and row["error"] == "" and row["unit"] == "hours"
+    assert row["summary"]["remaining"] == Decimal("0") and row["summary"]["pending"] == Decimal("0")
+    assert not Pot.objects.exists()
+    toil.earn(hr_admin, emp, Decimal("3"), today, "late clinic")
+    row = {r["type"].code: r for r in balances.rows(emp, today)}["TOIL"]
+    assert row["pot"] is not None and row["summary"]["remaining"] == Decimal("3")
+
+
+def test_the_toil_rows_next_year_is_zero_too_until_its_pot_opens(db):
+    emp = hours_employee()
+    row = {r["type"].code: r for r in balances.rows(emp, timezone.localdate(), with_next=True)}["TOIL"]
+    assert row["next_pot"] is None and row["next_summary"]["remaining"] == Decimal("0")
+    assert row["next_unavailable"] == ""
+
+
+def test_the_balance_pages_show_toil_at_zero_not_as_a_setup_gap(employee_client, employee_user):
+    _me(employee_user)
+    for url in ("/absence/balances/", "/absence/mine/", "/absence/request/"):
+        body = employee_client.get(url).content.decode()
+        toil_row = body[body.index('<th scope="row">TOIL</th>'):]
+        toil_row = toil_row[:toil_row.index("</tr>")]
+        assert "<strong>0 hours</strong>" in toil_row, url
+        assert "Not opened yet" not in toil_row and "policy" not in toil_row, url
+    assert not Pot.objects.exists()
+
+
+def test_after_for_toil_with_no_pot_starts_from_zero(db):
+    emp = hours_employee()
+    today = timezone.localdate()
+    a = balances.after(emp, absence_type("TOIL"), today, Decimal("7.50"), today)
+    assert (a["pot"], a["remaining"], a["after"], a["over"], a["unit"]) == (
+        None, Decimal("0"), Decimal("-7.50"), True, "hours")

@@ -6,10 +6,10 @@ from absence.services import leave_year, policies
 from people.services import contracts
 
 
-def _year(employment, absence_type, day):
+def bounds(employment, absence_type, day):
     """(first day, last day) of the leave year containing `day`, from the
-    policy in force. Raises ValidationError when there is no contract or no
-    policy."""
+    policy in force (annual leave's for a type that does not accrue).
+    Raises ValidationError when there is no contract or no policy."""
     policy = policies.policy_for(employment, absence_type, day)
     return leave_year.bounds(policy, employment, day)
 
@@ -18,7 +18,7 @@ def lookup(employment, absence_type, day):
     """The pot for the leave year containing `day` if it is open, else None.
     Writes nothing, so a page can call it on GET; pots are opened by
     for_day (the nightly, an approval). Raises ValidationError as for_day."""
-    start, _ = _year(employment, absence_type, day)
+    start, _ = bounds(employment, absence_type, day)
     return Pot.objects.filter(employment=employment, absence_type=absence_type, year_start=start).first()
 
 
@@ -33,7 +33,7 @@ def for_day(employment, absence_type, day, actor=None, sync=True):
     rolls the new pot back with it. `sync=False` leaves that to the caller:
     the nightly opens pots that way and syncs them in its own loops, so it
     can count what it wrote."""
-    start, end = _year(employment, absence_type, day)
+    start, end = bounds(employment, absence_type, day)
     pot, created = Pot.objects.get_or_create(
         employment=employment, absence_type=absence_type, year_start=start,
         defaults={"year_end": end, "unit": contracts.unit(employment, day)})

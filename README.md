@@ -58,8 +58,9 @@ running; that guide is the reference for what the settings actually mean.
    type's annual-leave [policy](docs/admin/absence.md#policies) (the seeded
    ones carry nothing over until you set a
    [carry cap](docs/admin/absence.md#carry-over-max-weeks-carry_over_max_weeks)),
-   add a policy for TOIL and study leave if you use them, and set each
-   person's line manager, who approves their leave. If you enter balances by
+   add a policy for study leave if you use it (TOIL needs none: it is
+   [earned by claims](docs/admin/absence.md#accrues)), and set each
+   person's line manager, who approves their leave and TOIL claims. If you enter balances by
    hand, run the [year end](docs/admin/year-end.md#running-it-by-hand) first.
 6. If the rota (or another relying party) is signing in against this
    system, register it — see [Registering a relying

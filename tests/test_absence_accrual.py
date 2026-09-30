@@ -374,3 +374,40 @@ def test_a_type_that_keeps_its_year_counts_every_day_as_before(db):
     # 37.5 × (5.6 × 275 + 6 × 90) / 365 = 213.70 → 213.75
     assert accrual.entitlement(al) == D("213.75")
     assert accrual.bank_holiday_entitlement(pots.for_day(emp, absence_type("BH"), date(2026, 6, 1))) == D("75.00")
+
+
+# --- a type that does not accrue (TOIL) ------------------------------------------------
+
+def test_a_toil_pot_opens_without_a_policy_of_its_own_at_zero_in_annual_leaves_year(db):
+    from absence.models import Policy
+    from absence.services import ledger
+    emp = hours_employee()
+    Policy.objects.update(year_start_month=1)                     # annual leave: a calendar year
+    assert not Policy.objects.filter(absence_type__code="TOIL").exists()
+    pot = pots.for_day(emp, absence_type("TOIL"), Y)
+    assert (pot.year_start, pot.year_end, pot.unit) == (date(2026, 1, 1), date(2026, 12, 31), "hours")
+    assert not pot.entries.exists()                               # opened with nothing: TOIL starts at zero
+    assert accrual.entitlement(pot) == D("0") and accrual.bank_holiday_entitlement(pot) == D("0")
+    assert {r for _, r in accrual.daily_rates(pot)} == {D("0")} and len(accrual.daily_rates(pot)) == 365
+    assert ledger.sync_entitlement(pot) is None and not pot.entries.exists()
+
+
+def test_a_toil_pot_reads_no_policy_for_its_entitlement(db, django_assert_num_queries):
+    emp = hours_employee()
+    pot = pots.for_day(emp, absence_type("TOIL"), Y)
+    pot = type(pot).objects.select_related("absence_type").get(pk=pot.pk)
+    with django_assert_num_queries(0):
+        accrual.entitlement(pot)
+        accrual.daily_rates(pot)
+        accrual.bank_holiday_entitlement(pot)
+
+
+def test_a_toil_booking_is_rounded_to_the_annual_leave_step(db, employee_user):
+    from datetime import time
+
+    from absence.models import Policy
+    from absence.services import bookings
+    emp = hours_employee()
+    Policy.objects.update(rounding=D("0.5"))
+    a = bookings.preview(emp, absence_type("TOIL"), Y, start_time=time(9), end_time=time(10, 6), hours=D("1.1"))
+    assert a.cost_units == D("1.0")

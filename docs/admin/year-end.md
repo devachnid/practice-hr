@@ -71,8 +71,9 @@ a negative carry-in never expires.
 A TOIL pot's positive balance carries forward **uncapped**, as each earned
 line's unused remainder, written to the next pot as a TOIL earned line dated
 the day it was originally earned, so its deadline runs on unchanged. Each
-lot expires by its own policy days: *TOIL expires after days* from the day it
-was earned (blank means never), the policy in force on the day it was earned.
+lot expires [*Earned expires after days*](absence.md#earned-expires-after-days-earned_expires_after_days)
+after the day it was earned, as set on the TOIL absence type (365 as
+seeded, so twelve months; blank means never). TOIL has no policy.
 The same "booked by the deadline" rule applies (requested by then; a lot
 waits while a request made by its deadline is undecided), first in first
 out, in the order the requests were made. An earned line whose deadline has passed by the

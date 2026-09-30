@@ -155,11 +155,11 @@ def test_a_study_policy_gets_a_study_pot_and_a_type_without_one_gets_none(db):
     emp = hours_employee(start=date(2026, 4, 1))
     make_policy(emp.contracts.first().contract_type, "STUDY", weeks_per_year=Decimal("1"))
     result = nightly.run(date(2026, 6, 1))
-    assert result["failed"] == []                                     # no TOIL policy: skipped quietly
+    assert result["failed"] == []                                     # nothing reported for TOIL
     study = Pot.objects.filter(employment=emp, absence_type__code="STUDY").order_by("year_start")
     assert [p.year_start for p in study] == [date(2026, 4, 1), date(2027, 4, 1)]
     assert all(p.entries.get(kind=LedgerEntry.Kind.ENTITLEMENT).units == Decimal("37.50") for p in study)
-    assert not Pot.objects.filter(employment=emp, absence_type__code="TOIL").exists()
+    assert not Pot.objects.filter(employment=emp, absence_type__code="TOIL").exists()   # earned: opens when earned
 
 
 def test_next_year_is_not_opened_for_someone_leaving_before_it(db, hr_admin):

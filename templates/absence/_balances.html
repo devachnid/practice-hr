@@ -11,7 +11,7 @@
         <td>{{ r.summary.entitlement|floatformat:"-2" }}</td><td>{{ r.summary.carried_in|floatformat:"-2" }}</td>
         <td>{{ r.summary.taken|floatformat:"-2" }}</td><td>{{ r.summary.booked|floatformat:"-2" }}</td>
         <td>{{ r.summary.pending|floatformat:"-2" }}</td>
-        <td{% if r.summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ r.summary.remaining|units:r.pot.unit }}</strong></td>
+        <td{% if r.summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ r.summary.remaining|units:r.unit }}</strong></td>
       {% elif r.error %}
         <td colspan="6">{{ r.error }}</td>
       {% else %}

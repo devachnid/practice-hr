@@ -27,10 +27,12 @@ chased by `hr_nightly` (01:30) — see [Nightly housekeeping](sign-in.md#nightly
 and [the year-end page](year-end.md). Each night it opens, for everyone
 employed, **this leave year's and next year's pot** of every allowance-backed
 type they have a policy for (annual leave always; the bank-holiday pot where
-annual leave's policy says "pot"; TOIL, study leave or your own types once
-their contract type has a policy), so the request and decide pages can show
-next year's balance. Until it has run, such a pot shows "Not opened yet: it
+annual leave's policy says "pot"; study leave or your own types once their
+contract type has a policy), so the request and decide pages can show next
+year's balance. Until it has run, such a pot shows "Not opened yet: it
 opens overnight." A year beyond next opens when leave in it is approved.
+TOIL is the exception: it is [earned, not accrued](#accrues), so its pot
+opens when TOIL is first earned or booked, and until then it shows as 0.
 
 ## Absence types
 
@@ -61,10 +63,32 @@ after, and approving writes a booking line to the pot. Unticked, a request
 is costed and recorded but nothing is deducted. *If you tick it on a type
 with no policy,* requests fail with a message naming the missing policy
 (and the nightly reports it) rather than silently costing nothing. Study
-leave and TOIL are seeded pot-backed **without** a policy: add one before
-anyone books them. Once a contract type has one, the nightly opens a pot of
-that type for everyone on it; without one, nobody on that contract type has
-that allowance and nothing is reported.
+leave is seeded pot-backed **without** a policy: add one before anyone
+books it. Once a contract type has one, the nightly opens a pot of that
+type for everyone on it; without one, nobody on that contract type has
+that allowance and nothing is reported. A type that does not
+[accrue](#accrues) (TOIL) needs no policy at all.
+
+### Accrues
+
+Ticked (the default): the pot is given an entitlement from its
+[policy](#policies). **Unticked: the type is earned, not accrued**, as
+TOIL is seeded. Its pots start at zero for everyone and only approved
+claims, adjustments and year-end carry-ins add to them. It has **no policy
+of its own** and the policy page refuses one ("TOIL is earned, not accrued;
+it needs no policy — set its expiry on the absence type"): its pot borrows
+the contract type's **annual-leave** policy for its leave year and rounding
+step, and nothing else of it. So a person with no annual-leave policy
+cannot earn or book it either, and the error names annual leave's policy.
+Balances show it for everyone with a contract, at 0 until something is
+earned. Leave it ticked on every other type.
+
+### Earned expires after days (`earned_expires_after_days`)
+
+Only for a type that does not accrue (the page refuses it otherwise): how
+many days after the day it was earned each amount of TOIL may still be
+used. TOIL is seeded with **365**, twelve months. Blank means never. See
+[Year end](year-end.md#toil).
 
 ### Needs approval
 
@@ -281,11 +305,6 @@ annual-leave policy. Its page shows what the pot comes to ("8 bank holidays
 in 2026, one working day each, pro rata to contracted hours") in place of an
 entitlement, and has no handling of its own (annual leave's decides) and no
 tiers.
-
-### TOIL expires after days (`toil_expires_after_days`)
-
-On a TOIL policy: how long earned TOIL may be used, counted from the day it
-was earned. Blank means never. See [Year end](year-end.md#toil).
 
 ### Tiers
 

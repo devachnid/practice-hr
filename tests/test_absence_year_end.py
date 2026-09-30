@@ -7,7 +7,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from absence.models import LedgerEntry, Policy
+from absence.models import AbsenceType, LedgerEntry, Policy
 from absence.services import bookings, ledger, nightly, pots, toil, year_end
 from people.models import AuditEntry
 from tests.factories import (absence_type, hours_employee, make_contract, make_contract_type, make_employment,
@@ -29,8 +29,10 @@ def _next_pot(emp):
 
 
 def _toil_employee(days=90):
+    """An hours employee whose TOIL expires `days` after the day it is earned
+    (the type's own setting: TOIL has no policy)."""
     emp = hours_employee()
-    make_policy(emp.contracts.first().contract_type, "TOIL", weeks_per_year=D("0"), toil_expires_after_days=days)
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=days)
     return emp
 
 
@@ -266,6 +268,23 @@ def test_toil_earned_and_expired(db, hr_admin):
     expired = year_end.expire_toil(pot, date(2026, 8, 31))
     assert [e.units for e in expired] == [D("-3")]
     assert year_end.expire_toil(pot, date(2026, 9, 1)) == []
+
+
+def test_toil_expires_365_days_after_the_day_it_was_earned_as_seeded(db, hr_admin):
+    emp = hours_employee()                                        # the TOIL type as migrated: 365 days
+    pot = toil.earn(hr_admin, emp, D("3"), date(2026, 6, 1), "late clinic").pot
+    assert year_end.expire_toil(pot, date(2027, 6, 1)) == []                   # the deadline: still usable
+    expired = year_end.expire_toil(pot, date(2027, 6, 2))
+    assert [(e.units, e.date) for e in expired] == [(D("-3"), date(2027, 6, 2))]
+
+
+def test_a_toil_lot_reads_the_expiry_from_the_type_not_a_policy(db, hr_admin):
+    emp = _toil_employee(30)
+    pot = toil.earn(hr_admin, emp, D("3"), date(2026, 6, 1), "late clinic").pot
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=None)   # never
+    pot.absence_type.refresh_from_db()
+    assert [lot["deadline"] for lot in year_end._toil_lots(pot)] == [None]
+    assert year_end.expire_toil(pot, date(2030, 1, 1)) == []
 
 
 def test_toil_earned_is_audited(db, hr_admin):
