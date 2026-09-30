@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="{% static 'css/screens.css' %}">
 {% palette_css %}
 <script src="{% static 'js/passkeys.js' %}" defer></script>
+{% block scripts %}{% endblock %}
 </head>
 <body{% block body_attrs %}{% endblock %}>
 <nav class="nav">

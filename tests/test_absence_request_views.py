@@ -385,3 +385,39 @@ def test_an_hr_admin_cancels_their_own_absence_by_the_employee_rule(admin_client
     other = _me(employee_user)
     theirs = bookings.approve(hr_admin, bookings.request(employee_user, other, absence_type("AL"), date(2026, 4, 7)))
     assert admin_client.post(f"/absence/{theirs.pk}/cancel/").status_code == 302
+
+
+def test_request_form_is_grouped_and_carries_each_types_flags(employee_client, employee_user):
+    import re
+    _me(employee_user)
+    body = employee_client.get("/absence/request/").content.decode()
+    groups = (("when", "What and when"), ("partial", "Part of a day"), ("sick", "Sickness"),
+              ("family", "Family leave"))
+    for group, legend in groups:
+        assert re.search(rf'<fieldset class="field-group" data-group="{group}">\s*<legend>{legend}</legend>', body), group
+    positions = [body.index(f'data-group="{g}"') for g, _ in groups]
+    assert positions == sorted(positions)
+    for name, group in (("absence_type", "when"), ("end_half", "when"), ("hours", "partial"),
+                        ("category", "sick"), ("expected_return", "family")):
+        start = body.index(f'data-group="{group}"')
+        assert start < body.index(f'name="{name}"') < body.index("</fieldset>", start), name
+    assert body.count('class="field-row"') == 4           # days, halves, times, family dates
+    options = dict(re.findall(r'<option value="(\d+)"([^>]*)>', body))
+    al, sick, mat = (options[str(absence_type(c).pk)] for c in ("AL", "SICK", "MAT"))
+    assert 'data-uses-pot="1"' in al and 'data-health-sensitive="0"' in al and 'data-family="0"' in al
+    assert 'data-uses-pot="0"' in sick and 'data-health-sensitive="1"' in sick
+    assert 'data-family="1"' in mat
+    assert re.search(r'<script src="/static/absence/request\.js" defer></script>', body)
+    # no script, no hiding: every group is there to start with
+    assert not any("hidden" in tag for tag in re.findall(r'<fieldset class="field-group"[^>]*>', body))
+
+
+def test_the_part_day_group_is_left_out_for_a_sessions_allowance(employee_client, employee_user):
+    from tests.factories import make_contract, make_contract_type, make_employment, make_pattern, make_policy
+    emp = make_employment(employee=make_employee(user=employee_user), start=date(2026, 4, 1))
+    ct = make_contract_type("GP", unit="sessions", full_time=Decimal("8"))
+    make_contract(emp, ct, amount=Decimal("8"))
+    make_policy(ct)
+    make_pattern(emp, {d: (Decimal("1"), Decimal("1")) for d in range(4)})
+    body = employee_client.get("/absence/request/").content.decode()
+    assert 'data-group="partial"' not in body and 'data-group="sick"' in body

@@ -296,6 +296,31 @@ form > .field-error { margin: 0 0 var(--sp-4); }
 .field-invalid input:not([type="checkbox"]):not([type="radio"]),
 .field-invalid select,
 .field-invalid textarea { border-color: var(--danger); }
+/* A group of fields under its own legend: the request form's "What and
+   when", "Part of a day", "Sickness", "Family leave". A fieldset reset to
+   no box; the legend reads as a small heading. A group hidden by script
+   (the hidden attribute) stays hidden: nothing here sets display. */
+.field-group {
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--sp-5);
+  min-width: 0;
+}
+.field-group > legend {
+  padding: 0;
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+/* Fields that belong together side by side (first and last day, the two
+   halves, from/until/hours), wrapping one under another on a phone. */
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--sp-4);
+}
+.field-row > .field { flex: 0 1 14rem; min-width: 0; }
 .form-actions {
   display: flex;
   align-items: center;

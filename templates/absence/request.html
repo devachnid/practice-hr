@@ -1,5 +1,6 @@
-{% extends "base.html" %}{% load absence_extras %}
+{% extends "base.html" %}{% load static absence_extras %}
 {% block title %}{% if for_employee %}Record leave for {{ for_employee.name }}{% else %}Request leave{% endif %}{% endblock %}
+{% block scripts %}<script src="{% static 'absence/request.js' %}" defer></script>{% endblock %}
 {% block content %}
 <div class="stack">
 {% if for_employee %}
@@ -40,7 +41,33 @@
   {% endif %}
   <section class="card">
     <h2>{% if preview %}Or change it{% elif for_employee %}The absence{% else %}Your request{% endif %}</h2>
-    <form method="post">{% csrf_token %}{{ form.as_div }}
+    {% comment %}Grouped by what each part is for. Every group shows without
+    script; absence/request.js hides (and disables) the ones the chosen type
+    does not use, from the flags on the type's <option>.{% endcomment %}
+    <form method="post" class="request-form">{% csrf_token %}
+      {% for e in form.non_field_errors %}<p class="field-error" role="alert">{{ e }}</p>{% endfor %}
+      {% for h in form.hidden_fields %}{{ h }}{% endfor %}
+      <fieldset class="field-group" data-group="when">
+        <legend>What and when</legend>
+        {{ form.absence_type.as_field_group }}
+        <div class="field-row">{{ form.start_date.as_field_group }}{{ form.end_date.as_field_group }}</div>
+        <div class="field-row">{{ form.start_half.as_field_group }}{{ form.end_half.as_field_group }}</div>
+      </fieldset>
+      {% if partial_allowed %}
+      <fieldset class="field-group" data-group="partial">
+        <legend>Part of a day</legend>
+        {{ form.partial.as_field_group }}
+        <div class="field-row">{{ form.start_time.as_field_group }}{{ form.end_time.as_field_group }}{{ form.hours.as_field_group }}</div>
+      </fieldset>
+      {% endif %}
+      <fieldset class="field-group" data-group="sick">
+        <legend>Sickness</legend>
+        {{ form.category.as_field_group }}
+      </fieldset>
+      <fieldset class="field-group" data-group="family">
+        <legend>Family leave</legend>
+        <div class="field-row">{{ form.expected_start.as_field_group }}{{ form.expected_return.as_field_group }}</div>
+      </fieldset>
       <div class="form-actions"><button type="submit" class="btn{% if not preview %} btn-primary{% endif %}">Check cost and balance</button></div>
     </form>
   </section>

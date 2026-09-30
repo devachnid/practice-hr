@@ -81,6 +81,7 @@ def _request_page(request, employment, today, submit, for_employee=None):
             form.add_error(None, e.messages)
     return render(request, "absence/request.html", {
         "form": form, "preview": preview, "unit": contracts.unit(employment, today), "for_employee": for_employee,
+        "partial_allowed": "partial" in form.fields,
         "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))})
 
 
