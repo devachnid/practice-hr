@@ -31,12 +31,15 @@ def _my_employment(request, today):
 def _may_cancel(user, absence, today):
     """The employee cancels a request any time and an approved absence until
     it starts; an HR admin cancels anyone else's live absence at any time,
-    but their own by the employee's rule. Nobody cancels an automatic
-    bank-holiday row: the nightly would only make it again."""
-    if absence.auto_bank_holiday or absence.status not in bookings.LIVE:
+    but their own by the employee's rule. An automatic bank-holiday row is
+    cancelled only by an HR admin, never their own: with no reason given it
+    stands, and the nightly does not make it again (bank_holidays)."""
+    if absence.status not in bookings.LIVE:
         return False
     if absence.employment.employee.user_id != user.pk:
         return access.can_view_restricted(user)
+    if absence.auto_bank_holiday:
+        return False
     return absence.status == S.REQUESTED or absence.start_date > today
 
 

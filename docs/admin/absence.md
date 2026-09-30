@@ -344,7 +344,10 @@ for 2026 to 2030. Add each later year's dates before that year starts: a
 year with none charges nothing and gives the bank-holiday pot no
 entitlement. The nightly's log warns when the last one entered is about a
 year away; add the next year's from gov.uk here, under Absence › Bank
-holidays. Only `EW` entries count. `/admin/absence/closedday/`
+holidays. Only `EW` entries count. An HR admin's cancellation of an
+automatic bank-holiday row stands: the nightly will not re-create it, and
+to charge the day again HR [records it](#recording-leave-for-someone-else).
+`/admin/absence/closedday/`
 holds practice closures that are not bank holidays. **Closed days are never
 charged.** Bank holidays are charged only by the automation above: an
 ordinary booking skips them, so a Monday-to-Friday week off across a bank
@@ -426,9 +429,11 @@ absence **until it starts**; after that only an HR admin can, at any time.
 An HR admin's own absences follow the employee's rule: another HR admin
 cancels one that has started.
 Cancelling an approved pot-backed absence puts its cost back with a
-cancellation line. **Automatic bank-holiday rows can never be cancelled** (the
-nightly would only recreate them; change the policy or the pattern
-instead). The approver is emailed.
+cancellation line. **Only an HR admin cancels an automatic bank-holiday
+row**, and only someone else's: not the person's own, not a manager (to
+change every such row, change the policy or the pattern instead; see
+[Bank holidays and closed days](#bank-holidays-and-closed-days)). The
+approver is emailed.
 
 ## TOIL
 
