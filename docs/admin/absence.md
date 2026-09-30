@@ -491,6 +491,9 @@ cancelled or edited: an HR admin corrects the pot with an adjustment
 balance form is for corrections only**, not for recording TOIL earned: use
 Record TOIL so the claim, its day and its reason are kept.
 
+*Absence › TOIL claims* in the admin lists every claim, decided ones
+included, read-only: decisions are made on the decide page.
+
 The **TOIL card** on *My absences* shows the person's TOIL remaining now,
 earned this leave year, their claims waiting (with Cancel) and anything
 expiring in the next 60 days. Waiting claims are chased like

@@ -3,7 +3,8 @@ and their ledger are read-only, and their two actions (recalculate on the
 list, "Adjust balance" on a pot's page) go through the ledger service. Absences are read-only but for a family-leave absence's
 three dates, which an HR admin sets through bookings.set_family_dates, and
 "Cancel absence" and "Charge again" on an absence's page, through
-bookings.cancel and bank_holidays.charge_again."""
+bookings.cancel and bank_holidays.charge_again. TOIL claims are listed
+read-only: they are decided on the decide page."""
 
 from django import forms
 from django.contrib import admin, messages
@@ -18,7 +19,7 @@ from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWi
 
 from absence import admin_forms
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
-                            Policy, PolicyTier, Pot)
+                            Policy, PolicyTier, Pot, ToilClaim)
 from absence.services import bank_holidays, bookings, ledger, notify, year_end
 from people.models import ContractType
 from people.services import access, audit
@@ -375,6 +376,28 @@ class AbsenceAdmin(ModelAdmin):
         if getattr(request, "_absence_not_saved", False):
             return HttpResponseRedirect(request.path)
         return super().response_change(request, obj)
+
+
+@admin.register(ToilClaim)
+class ToilClaimAdmin(ModelAdmin):
+    """Every TOIL claim, decided ones included: listed and viewed, never
+    added to, changed or deleted (they are decided by absence.services.toil,
+    from the decide page). No change permission makes the page a view page."""
+    list_display = ("employment", "day", "units", "status", "requested_by", "decided_by", "decided_at")
+    list_filter = ("status", "day")
+    list_select_related = ("employment__employee", "requested_by", "decided_by")
+    search_fields = ("employment__employee__first_name", "employment__employee__last_name")
+    date_hierarchy = "day"
+    readonly_fields = tuple(f.name for f in ToilClaim._meta.fields if f.name != "id")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EmailFailure)

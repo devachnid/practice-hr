@@ -551,3 +551,37 @@ def test_the_absence_type_admin_sets_accrues_and_the_earned_expiry(admin_client,
     resp = admin_client.post(f"/admin/absence/absencetype/{toil.pk}/change/", {**data, "accrues": "on"})
     assert resp.status_code == 200 and "Only for a type that does not accrue" in resp.content.decode()
     assert AbsenceType.objects.get(pk=toil.pk).accrues is False
+
+
+# --- TOIL claims: listed and viewed, never changed ------------------------------------------
+
+def _decided_claim(hr_admin):
+    from datetime import timedelta
+    from decimal import Decimal
+
+    from absence.services import toil
+    from tests.factories import current_leave_year, hours_employee, make_employee
+    start = current_leave_year()[0]
+    emp = hours_employee(start=start, employee=make_employee(first="Sam", last="Okafor"))
+    return toil.claim(hr_admin, emp, start + timedelta(days=5), Decimal("2"), "Late clinic")
+
+
+def test_the_toil_claim_changelist_lists_a_decided_claim_and_searches_by_name(admin_client, hr_admin, db):
+    claim = _decided_claim(hr_admin)
+    assert claim.status == "approved"
+    body = admin_client.get("/admin/absence/toilclaim/").content.decode()
+    assert "Sam Okafor" in body and "Approved" in body
+    assert "Sam Okafor" in admin_client.get("/admin/absence/toilclaim/?q=okafor").content.decode()
+    assert "Sam Okafor" not in admin_client.get("/admin/absence/toilclaim/?q=nobody").content.decode()
+
+
+def test_toil_claims_are_read_only_in_admin(admin_client, hr_admin, db):
+    claim = _decided_claim(hr_admin)
+    url = f"/admin/absence/toilclaim/{claim.pk}/change/"
+    assert admin_client.get("/admin/absence/toilclaim/add/").status_code == 403
+    page = admin_client.get(url)
+    assert page.status_code == 200 and b"Late clinic" in page.content and b'name="_save"' not in page.content
+    assert admin_client.post(url, {"reason": "changed"}).status_code == 403
+    assert admin_client.post(f"/admin/absence/toilclaim/{claim.pk}/delete/", {"post": "yes"}).status_code == 403
+    claim.refresh_from_db()
+    assert claim.reason == "Late clinic"
