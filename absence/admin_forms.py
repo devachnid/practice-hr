@@ -18,7 +18,7 @@ from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
 from unfold.widgets import UnfoldAdminDecimalFieldWidget
 
-from absence.models import Policy, PolicyTier
+from absence.models import Policy, PolicyTier, Pot
 from absence.services import accrual, leave_year
 from people.models import ContractType
 
@@ -102,6 +102,9 @@ def _hours_chosen(mode_, contract_type, absence_type):
             and not (absence_type is not None and absence_type.code == "BH"))
 
 
+YEAR_FIELDS = ("leave_year_basis", "year_start_month", "year_start_day")
+YEAR_LOCKED = ("This type has leave pots on the current year. End this policy and add a new one from the "
+               "new year's first day instead (see the admin guide).")
 NOT_FOR_SESSIONS = "Days are for hours contracts: enter a sessions contract's entitlement in weeks."
 
 
@@ -138,6 +141,7 @@ class PolicyForm(_Stores, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        self._check_year_unchanged()
         if self.mode in (WEEKS, BANK_HOLIDAY):
             return data
         absence_type = data.get("absence_type")
@@ -150,6 +154,21 @@ class PolicyForm(_Stores, forms.ModelForm):
         elif self.mode == EITHER:
             self._clean_weeks(data)
         return data
+
+    def _check_year_unchanged(self):
+        """A pot keeps the leave year it was opened with, and a day counts only
+        towards the pot of the year its policy puts it in (accrual): moving a
+        policy's year while its type has pots would leave those pots earning
+        nothing and open overlapping ones. Such a policy is ended and a new one
+        added from the new year's first day instead (docs: moving a type in use
+        to a January year). A policy whose type has no pots of its absence type
+        is edited freely. Checked against the saved contract and absence type,
+        before anything is saved, so a refused save writes nothing."""
+        if self.instance.pk is None or not set(YEAR_FIELDS) & set(self.changed_data):
+            return
+        if Pot.objects.filter(absence_type_id=self.instance.absence_type_id,
+                              employment__contracts__contract_type_id=self.instance.contract_type_id).exists():
+            raise ValidationError(YEAR_LOCKED)
 
     def _clean_days(self, data):
         if "days_per_year" not in self.errors:

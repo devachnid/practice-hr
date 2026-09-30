@@ -5,6 +5,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.utils.html import escape
 
 from absence.models import Policy, PolicyTier
 from tests.factories import absence_type, make_contract_type, make_policy
@@ -236,3 +237,62 @@ def test_the_changelist_shows_the_bank_holiday_line_for_a_bank_holiday_policy(ad
     policy = _bank_holiday_policy()
     page = admin_client.get("/admin/absence/policy/").content.decode()
     assert admin_forms.bank_holiday_summary(policy, timezone.localdate()) in page
+
+
+YEAR_LOCKED = "This type has leave pots on the current year. End this policy and add a new one from the " \
+              "new year's first day instead (see the admin guide)."
+
+
+@pytest.mark.parametrize("fields", [{"year_start_month": "4"}, {"year_start_day": "15"},
+                                    {"leave_year_basis": "anniversary"}])
+def test_a_policy_in_use_cannot_change_its_leave_year(admin_client, db, fields):
+    from django.contrib.admin.models import LogEntry
+
+    from absence.models import LedgerEntry
+    from absence.services import pots
+    from people.models import AuditEntry
+    from tests.factories import hours_employee
+    policy = _hours_policy()                                          # a 1 January year
+    pot = pots.for_day(hours_employee(start=date(2026, 1, 1)), absence_type("AL"), date(2026, 6, 1))
+    entries = pot.entries.count()
+    resp = _save(admin_client, policy, fields={"days_per_year": "21", **fields})
+    assert resp.status_code == 200 and escape(YEAR_LOCKED) in resp.content.decode()
+    policy.refresh_from_db()
+    assert (policy.leave_year_basis, policy.year_start_month, policy.year_start_day,
+            policy.weeks_per_year) == ("fixed", 1, 1, D("4.40"))
+    assert not LogEntry.objects.exists()
+    assert not AuditEntry.objects.filter(model="absence.policy").exists()
+    assert pot.entries.count() == entries
+    assert not pot.entries.filter(kind=LedgerEntry.Kind.REVISION).exists()
+
+
+def test_a_policy_in_use_can_change_anything_else(admin_client, db):
+    from absence.services import pots
+    from tests.factories import hours_employee
+    policy = _hours_policy()
+    pots.for_day(hours_employee(start=date(2026, 1, 1)), absence_type("AL"), date(2026, 6, 1))
+    resp = _save(admin_client, policy, fields={"days_per_year": "21", "accrual": "monthly"})
+    assert "1 pot(s) revised" in resp.content.decode()
+    policy.refresh_from_db()
+    assert (policy.weeks_per_year, policy.accrual) == (D("4.20"), "monthly")
+
+
+def test_a_policy_without_pots_can_change_its_leave_year(admin_client, db):
+    policy = _hours_policy()
+    resp = _save(admin_client, policy, fields={"year_start_month": "4", "year_start_day": "15"})
+    assert "0 pot(s) revised" in resp.content.decode()
+    policy.refresh_from_db()
+    assert (policy.year_start_month, policy.year_start_day) == (4, 15)
+
+
+def test_a_bank_holiday_policy_in_use_cannot_change_its_leave_year_either(admin_client, db):
+    from absence.models import Pot
+    from tests.factories import hours_employee
+    policy = _bank_holiday_policy()
+    emp = hours_employee(start=date(2026, 1, 1))
+    Pot.objects.create(employment=emp, absence_type=absence_type("BH"), year_start=date(2026, 1, 1),
+                       year_end=date(2026, 12, 31), unit="hours")
+    resp = _save(admin_client, policy, fields={"year_start_month": "4"})
+    assert escape(YEAR_LOCKED) in resp.content.decode()
+    policy.refresh_from_db()
+    assert policy.year_start_month == 1

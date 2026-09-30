@@ -195,12 +195,14 @@ use the accrual basis.
 **Fixed date:** the year starts on **Year start month / day** (default 1
 April). **Anniversary of start:** the year starts on the anniversary of the
 *employment's start date* (not the continuous service date). Decide it
-once: pots already open keep the dates they were opened with, and a day
-counts only towards the pot of the leave year its policy puts it in, so
-changing the basis or the start on a policy in use moves every day to the
-new years' pots and leaves the open ones earning nothing at their next
-recalculation. To change the year of a type in use, follow the next
-section instead. A leave request that runs across the end of the leave
+once: pots keep the dates they were opened with, and a day counts only
+towards the pot of the leave year its policy puts it in. So once anyone on
+the contract type has a pot of that absence type, the basis and the year
+start of its policy **cannot be changed**: saving is refused with "This
+type has leave pots on the current year. End this policy and add a new one
+from the new year's first day instead (see the admin guide)", and nothing
+is saved. Follow the next section instead. A policy whose type has no pots
+yet can be changed freely. A leave request that runs across the end of the leave
 year is refused ("book the two leave years separately").
 
 #### Moving a type in use to a January year
