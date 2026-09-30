@@ -60,7 +60,7 @@ def bank_holiday_summary(policy, today):
     if policy.leave_year_basis == Policy.Basis.ANNIVERSARY:
         return f"The bank holidays in each person's leave year (from their start date), {tail}"
     start, end = leave_year.bounds(policy, None, today)
-    n = accrual.in_year(start, end).count()
+    n = accrual.bank_holidays_between(start, end).count()
     return f"{n} bank holiday{'' if n == 1 else 's'} in {_year_label(start, end)}, {tail}"
 
 
@@ -270,7 +270,7 @@ class PolicyTierFormSet(BaseInlineFormSet):
         for form in self.forms:
             if getattr(form, "mode", WEEKS) in (WEEKS, BANK_HOLIDAY) or not form.is_valid() or not form.cleaned_data:
                 continue
-            if self.can_delete and self._should_delete_form(form) or form.cleaned_data.get("days") is None:
+            if (self.can_delete and self._should_delete_form(form)) or form.cleaned_data.get("days") is None:
                 continue
             rows.append((form.cleaned_data["after_years"], form.cleaned_data["days"]))
         rows.sort()

@@ -49,7 +49,7 @@ class PolicyTierInline(TabularInline):
                 admin_forms.EITHER: ["after_years", "days", "extra_weeks"],
                 }.get(admin_forms.mode(obj), ["after_years", "extra_weeks"])
 
-    @admin.display(description="Stored as")
+    @admin.display(description="In weeks")
     def stored_extra_weeks(self, obj):
         return f"+{admin_forms.plain(obj.extra_weeks)} weeks" if obj.pk else ""
 
@@ -82,7 +82,7 @@ class PolicyAdmin(ModelAdmin):
 
     # admin_forms.mode(policy) → which of the weeks fields become what on the page
     _SWAPS = {
-        admin_forms.DAYS: {"weeks_per_year": ("days_per_year", "stored_weeks"),
+        admin_forms.DAYS: {"weeks_per_year": (("days_per_year", "stored_weeks"),),     # one row: side by side
                            "carry_over_max_weeks": ("carry_over_days",)},
         admin_forms.EITHER: {"weeks_per_year": ("days_per_year", "weeks_per_year"),
                              "carry_over_max_weeks": ("carry_over_days", "carry_over_max_weeks")},
@@ -104,7 +104,7 @@ class PolicyAdmin(ModelAdmin):
         # tiers add weeks, and the bank-holiday pot has none
         return [] if admin_forms.mode(obj) == admin_forms.BANK_HOLIDAY else super().get_inlines(request, obj)
 
-    @admin.display(description="Stored as")
+    @admin.display(description="In weeks")
     def stored_weeks(self, obj):
         return f"= {admin_forms.plain(obj.weeks_per_year)} weeks" if obj.pk else ""
 

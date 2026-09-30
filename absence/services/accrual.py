@@ -139,7 +139,7 @@ def entitlement(pot):
     return ZERO if step is None else rounding.round_to(total, step)
 
 
-def in_year(start, end):
+def bank_holidays_between(start, end):
     """The England and Wales bank holidays from `start` to `end`: the only
     ones the pot and the automatic absences count."""
     return BankHoliday.objects.filter(date__range=(start, end), nation="EW")
@@ -153,7 +153,7 @@ def bank_holiday_entitlement(pot):
     accrual basis do not apply. Every contracted day of the year is still
     checked for its unit and its policy, as entitlement does."""
     rows = _Rows(pot)
-    holidays = set(in_year(pot.year_start, pot.year_end).values_list("date", flat=True))
+    holidays = set(bank_holidays_between(pot.year_start, pot.year_end).values_list("date", flat=True))
     total = ZERO
     for day in _days(pot):
         if not rows.employment.is_active_on(day):
