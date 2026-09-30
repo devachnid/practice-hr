@@ -1,0 +1,22 @@
+{% comment %}One of the employee's absences on My absences. Expects r (a, over, can_cancel, kit) and unit.{% endcomment %}
+{% load absence_extras %}
+<tr>
+  <th scope="row">{{ r.a.absence_type.name }}</th>
+  <td>{{ r.a|when }}
+    {% if r.a.kit_days.all %}<br><small>Keeping-in-touch days: {% for k in r.a.kit_days.all %}{{ k.date|date:"j M Y" }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
+  </td>
+  <td><span class="badge {{ r.a.status|status_tone }}">{{ r.a.get_status_display }}</span>{% if r.over %}<br><span class="warn">This is more than your balance</span>{% endif %}</td>
+  <td>{{ r.a.cost_units|units:unit }}</td>
+  <td class="row-actions">
+    {% if r.can_cancel %}
+      <form method="post" action="{% url 'absence:cancel' r.a.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form>
+    {% endif %}
+    {% if r.kit %}
+      <form method="post" action="{% url 'absence:kit_day' r.a.pk %}" class="kit-form">{% csrf_token %}
+        <label for="kit-{{ r.a.pk }}">Keeping-in-touch day</label>
+        <input type="date" name="date" id="kit-{{ r.a.pk }}" class="inline-input" min="{{ r.a.start_date|date:'Y-m-d' }}" max="{{ r.a.end_date|date:'Y-m-d' }}" required>
+        <button type="submit" class="btn btn-quiet">Add</button>
+      </form>
+    {% endif %}
+  </td>
+</tr>

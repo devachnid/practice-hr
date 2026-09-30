@@ -7,38 +7,51 @@
   <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
 {% else %}
   {% if employment %}{% include "absence/_balances.html" %}{% endif %}
+  {% if coming or earlier or bank %}
   <section class="card">
-    <h2>Absences</h2>
+    <h2>Coming up</h2>
+    {% if coming %}
     <div class="table-scroll">
-    <table class="list">
-      <thead><tr><th>Type</th><th>When</th><th>Status</th><th>Cost</th><th></th></tr></thead>
-      <tbody>
-      {% for r in rows %}
-        <tr>
-          <td>{{ r.label }}</td>
-          <td>{{ r.a|when }}
-            {% if r.a.kit_days.all %}<br><small>Keeping-in-touch days: {% for k in r.a.kit_days.all %}{{ k.date|date:"j M Y" }}{% if not forloop.last %}, {% endif %}{% endfor %}</small>{% endif %}
-          </td>
-          <td>{{ r.a.get_status_display }}{% if r.over %}<br><span class="warn">This is more than your balance</span>{% endif %}</td>
-          <td>{{ r.a.cost_units|units:unit }}</td>
-          <td>
-            {% if r.can_cancel %}
-              <form method="post" action="{% url 'absence:cancel' r.a.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form>
-            {% endif %}
-            {% if r.kit %}
-              <form method="post" action="{% url 'absence:kit_day' r.a.pk %}" class="inline-input">{% csrf_token %}
-                <label for="kit-{{ r.a.pk }}">Keeping-in-touch day</label>
-                <input type="date" name="date" id="kit-{{ r.a.pk }}" min="{{ r.a.start_date|date:'Y-m-d' }}" max="{{ r.a.end_date|date:'Y-m-d' }}" required>
-                <button type="submit" class="btn btn-quiet">Add</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% empty %}<tr><td colspan="5">No absences yet.</td></tr>{% endfor %}
-      </tbody>
+    <table class="list absences">
+      <thead><tr><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col">Cost</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>{% for r in coming %}{% include "absence/_absence_row.html" %}{% endfor %}</tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">Nothing booked or waiting.</p>
+    {% endif %}
+  </section>
+  {% if earlier %}
+  <section class="card">
+    <h2>Earlier</h2>
+    <p class="muted">{% if year_start %}Since {{ year_start|date:"j M Y" }}, the start of this leave year, newest first.{% else %}Newest first.{% endif %}</p>
+    <div class="table-scroll">
+    <table class="list absences">
+      <thead><tr><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col">Cost</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody>{% for r in earlier %}{% include "absence/_absence_row.html" %}{% endfor %}</tbody>
     </table>
     </div>
   </section>
+  {% endif %}
+  {% if bank %}
+  <details class="card bank-holidays">
+    <summary><span class="summary-title">Bank holidays, charged automatically</span>
+      <span class="summary-count">{{ bank|length }} day{{ bank|length|pluralize }}{% if year_end %} this leave year{% endif %}, {{ bank_total|units:unit }}</span></summary>
+    <div class="table-scroll">
+    <table class="list">
+      <thead><tr><th scope="col">Date</th><th scope="col">Bank holiday</th><th scope="col">Cost</th></tr></thead>
+      <tbody>
+      {% for r in bank %}
+        <tr><th scope="row">{{ r.a.start_date|date:"D j M Y" }}</th><td>{{ r.name }}</td><td>{{ r.a.cost_units|units:unit }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
+  {% else %}
+  <section class="card"><p class="empty">No absences yet.</p></section>
+  {% endif %}
 {% endif %}
 {% if record_for or record_any %}
   <section class="card">

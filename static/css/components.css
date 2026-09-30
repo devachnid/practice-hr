@@ -558,6 +558,14 @@ form > .field-error { margin: 0 0 var(--sp-4); }
 .badge.APPROVED   { background: transparent; box-shadow: inset 0 0 0 1px var(--warning); color: var(--warning); }
 .badge.ADVERTISED { background: var(--warning-soft); color: var(--warning); }
 .badge.BOOKED     { background: var(--ok-soft);      color: var(--ok); }
+/* Status tones (an absence's status on My absences; absence_extras
+   status_tone): waiting is the warning tone, approved the ok tone, declined
+   and cancelled step back to muted. A status is not a control, so no
+   pointer. */
+.badge-warning { background: var(--warning-soft); color: var(--warning); }
+.badge-ok      { background: var(--ok-soft);      color: var(--ok); }
+.badge-muted   { background: var(--sunken);       color: var(--muted); }
+.badge-warning, .badge-ok, .badge-muted { cursor: default; }
 
 /* ---------------------------------------------------------- feedback --- */
 

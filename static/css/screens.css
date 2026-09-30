@@ -420,9 +420,68 @@ body.page-grid {
   letter-spacing: .06em;
   color: var(--muted);
 }
+.list tbody tr:last-child th,
 .list tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* -------------------------------------------------------- my absences --- */
+
+/* The Cancel button and the keeping-in-touch form in a row's last cell. */
+.list td.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.row-actions form { display: inline-flex; }
+.kit-form {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  white-space: normal;
+}
+.kit-form label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.kit-form .inline-input { flex: 0 1 11rem; }
+
+/* The automatic bank-holiday rows, folded away under their count and
+   total. The summary reads as the card's heading, with the figures after. */
+/* The two absence tables share their column widths, so Coming up and
+   Earlier line up one above the other. */
+.absences { table-layout: fixed; }
+.absences th:nth-child(1) { width: 20%; }
+.absences th:nth-child(2) { width: 30%; }
+.absences th:nth-child(3) { width: 16%; }
+.absences th:nth-child(4) { width: 14%; }
+.absences th:nth-child(5) { width: 20%; }
+
+/* display: flex drops the browser's disclosure triangle, so the summary
+   draws its own, turned down when open. */
+.bank-holidays > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  list-style: none;
+}
+.bank-holidays > summary::-webkit-details-marker { display: none; }
+.bank-holidays .summary-title::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  transition: transform .15s;
+}
+.bank-holidays[open] .summary-title::before { transform: rotate(90deg); }
+.summary-title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.02em;
+}
+.summary-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
+.bank-holidays[open] > summary { margin-bottom: var(--sp-3); }
 
 /* ----------------------------------------------------------- reports --- */
 
@@ -664,4 +723,30 @@ body.page-grid {
   body .main { padding-left: var(--sp-4); padding-right: var(--sp-4); }
 
   .day-roster td { width: auto; }
+
+  /* My absences on a phone: each row a small block rather than five
+     squeezed columns: type and status on the first line, dates and cost on
+     the second, the actions under them. The column heads stay for screen
+     readers only. */
+  .absences, .absences tbody { display: block; }
+  .absences thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .absences tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sp-1) var(--sp-3);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .absences tr:last-child { border-bottom: 0; }
+  .absences th, .absences td,
+  .absences th:nth-child(n) { display: block; padding: 0; border: 0; width: auto; }
+  .absences td:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .absences td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+  .absences td:nth-child(4) { grid-column: 2; grid-row: 2; text-align: right; }
+  .absences td.row-actions { grid-column: 1 / -1; text-align: left; }
+  .absences td:nth-child(5):empty { display: none; }
+  .absences .kit-form { justify-content: flex-start; }
 }

@@ -24,3 +24,13 @@ def when(absence):
         return first + (" (morning)" if absence.end_half == "AM" else "")
     last = date_filter(absence.end_date, "j M Y") + (" (morning)" if absence.end_half == "AM" else "")
     return f"{first} – {last}"
+
+
+STATUS_TONES = {"requested": "badge-warning", "approved": "badge-ok",
+                "declined": "badge-muted", "cancelled": "badge-muted"}
+
+
+@register.filter
+def status_tone(status):
+    """The .badge modifier for an absence's status (components.css)."""
+    return STATUS_TONES.get(status, "badge-muted")

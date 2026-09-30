@@ -3,6 +3,8 @@ cancel, and keeping-in-touch days; and an absence recorded for someone by
 their approver or an HR admin (request_for). Every write goes through
 absence.services.bookings; a GET opens no pot (pots.lookup, never for_day)."""
 
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -11,8 +13,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from absence.forms import KitDayForm, RequestForm
-from absence.models import Absence
-from absence.services import balances, bookings, notify, pots
+from absence.models import Absence, AbsenceType, BankHoliday
+from absence.services import balances, bookings, leave_year, notify, policies, pots
 from accounts.mail import email_is_configured
 from people.models import Employee
 from people.services import access, contracts, employments
@@ -133,16 +135,43 @@ def request_for(request, pk):
     return _request_page(request, employment, today, submit, for_employee=employee)
 
 
+def _leave_year(employment, today):
+    """(first day, last day) of the annual-leave year containing today, or
+    (None, None) when there is no current employment or no policy to say:
+    then My absences shows every earlier absence rather than guess. Reads
+    only."""
+    if employment is None:
+        return None, None
+    try:
+        policy = policies.policy_for(employment, AbsenceType.objects.get(code="AL"), today)
+    except (AbsenceType.DoesNotExist, ValidationError):
+        return None, None
+    return leave_year.bounds(policy, employment, today)
+
+
 @login_required
 def mine(request):
+    """The employee's absences in three parts: coming up (requested or
+    approved, not yet over, soonest first), earlier this leave year (newest
+    first, declined and cancelled ones too), and this leave year's automatic
+    bank-holiday rows, folded away under their count and total."""
     today = timezone.localdate()
     employee, employment = _my_employment(request, today)
-    rows = []
+    coming, earlier, bank = [], [], []
+    year_start, year_end = _leave_year(employment, today)
     if employee is not None:
         summaries = {}
         qs = (Absence.objects.filter(employment__employee=employee)
               .select_related("absence_type", "employment__employee").prefetch_related("kit_days"))
         for a in qs:
+            in_view = year_start is None or a.end_date >= year_start
+            if a.auto_bank_holiday:
+                if a.status == S.APPROVED and in_view and (year_end is None or a.start_date <= year_end):
+                    bank.append({"a": a})
+                continue
+            upcoming = a.status in bookings.LIVE and a.end_date >= today
+            if not (upcoming or in_view):
+                continue
             over = False
             if a.absence_type.uses_pot and a.status == S.REQUESTED and a.cost_units:
                 try:
@@ -153,15 +182,23 @@ def mine(request):
                     if pot.pk not in summaries:
                         summaries[pot.pk] = balances.summary(pot, today)
                     over = summaries[pot.pk]["remaining"] - a.cost_units < 0
-            rows.append({
+            (coming if upcoming else earlier).append({
                 "a": a, "over": over, "can_cancel": _may_cancel(request.user, a, today),
-                "label": "Bank holiday (automatic)" if a.auto_bank_holiday else a.absence_type.name,
                 "kit": a.absence_type.is_family and a.status in bookings.LIVE,
             })
+    coming.sort(key=lambda r: (r["a"].start_date, r["a"].pk))
+    earlier.sort(key=lambda r: (r["a"].start_date, r["a"].pk), reverse=True)
+    bank.sort(key=lambda r: r["a"].start_date)
+    names = dict(BankHoliday.objects.filter(nation="EW", date__in=[r["a"].start_date for r in bank])
+                 .values_list("date", "name"))
+    for r in bank:
+        r["name"] = names.get(r["a"].start_date, "Bank holiday")
     record_for = [e.employee for e in (access.direct_reports(employee, today) if employee else [])
                   if access.may_record_for(request.user, e, today)]
     return render(request, "absence/mine.html", {
-        "employee": employee, "employment": employment, "rows": rows,
+        "employee": employee, "employment": employment, "coming": coming, "earlier": earlier,
+        "bank": bank, "bank_total": sum((r["a"].cost_units or 0 for r in bank), Decimal("0")),
+        "year_start": year_start, "year_end": year_end,
         "record_for": record_for, "record_any": access.can_view_restricted(request.user),
         "unit": contracts.unit(employment, today) if employment else "",
         "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))
