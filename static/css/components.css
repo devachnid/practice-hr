@@ -259,6 +259,43 @@ fieldset.field {
   font-size: var(--fs-xs);
   font-weight: 700;
 }
+/* The site's form renderer (config/forms.py, templates/django/forms/)
+   writes help and errors as <p>; inside a .field the flex gap is the only
+   spacing they need, so the UA's paragraph margins go. Scoped to .field so
+   the free-standing .field-help / .field-error lines elsewhere (the login
+   card, the account page) keep theirs. */
+.field > .field-help,
+.field .field-error { margin: 0; }
+.field-errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+/* What was wrong with the form as a whole, above its first field. */
+form > .field-error { margin: 0 0 var(--sp-4); }
+/* No field runs the full width of a desktop card: a 1200px text box is
+   hard to read back and says nothing about what goes in it. Dates, times,
+   numbers and short text (a postcode) are shorter still. */
+.field { max-width: 36rem; }
+.field.field-short { max-width: 14rem; }
+/* A checkbox field: the box inside its label, in front of the text. The
+   text-input rule above already leaves the box the browser's own. */
+.field-check label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  align-self: flex-start;
+}
+.field-check input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+}
+/* A field the server refused: the control's edge in --danger as well as
+   the message under it. Same specificity as the base rule and later, so it
+   wins; the :focus rule above is more specific and still shows focus. */
+.field-invalid input:not([type="checkbox"]):not([type="radio"]),
+.field-invalid select,
+.field-invalid textarea { border-color: var(--danger); }
 .form-actions {
   display: flex;
   align-items: center;

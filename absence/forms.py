@@ -82,4 +82,4 @@ class KitDayForm(forms.Form):
 
 
 class PayrollPeriodForm(forms.Form):
-    period = forms.RegexField(regex=r"^\d{4}-\d{2}$", label="Month (YYYY-MM)")
+    period = forms.RegexField(regex=r"^\d{4}-\d{2}$", max_length=7, label="Month (YYYY-MM)")

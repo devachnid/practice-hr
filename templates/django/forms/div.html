@@ -1,0 +1,6 @@
+{% comment %}The site's form layout (config/forms.py): what is wrong with the
+form as a whole first, then the hidden fields, then each field through
+field.html.{% endcomment %}{% for error in errors %}<p class="field-error" role="alert">{{ error }}</p>
+{% endfor %}{% for field in hidden_fields %}{{ field }}{% endfor %}
+{% for field, errors in fields %}{{ field.as_field_group }}
+{% endfor %}
