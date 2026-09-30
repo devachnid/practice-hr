@@ -45,7 +45,7 @@ pot is closed.
   type starting in its year is still waiting for a decision, the pot is not
   closed: it is listed under `failed` ("… 1 request(s) waiting — decide them
   first") and closed the first night after the last one is approved,
-  declined or cancelled. Decide requests that span 31 March promptly.
+  declined or cancelled. Decide requests that span the end of a leave year promptly.
 - **A closed pot takes no more lines.** Approving, cancelling or re-costing an
   absence whose pot has closed, a new request in a closed year, and
   *Recalculate entitlement* on a closed pot are all refused with a message

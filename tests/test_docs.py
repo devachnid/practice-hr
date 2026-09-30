@@ -67,8 +67,16 @@ def test_the_link_checker_catches_a_broken_anchor(tmp_path):
 def test_absence_guide_names_every_policy_field():
     text = (DOCS / "absence.md").read_text()
     for field in ("weeks_per_year", "carry_over_max_weeks", "carry_over_expires_after_days", "rounding",
-                  "bank_holiday_handling", "toil_expires_after_days", "leave_year_basis"):
+                  "bank_holiday_handling", "toil_expires_after_days", "leave_year_basis", "accrual",
+                  "days_per_year", "carry_over_days"):
         assert field in text, field
+
+
+def test_absence_guide_covers_the_standard_contract():
+    text = " ".join((DOCS / "absence.md").read_text().split())
+    for phrase in ("part month counts as a full month", "starters and leavers", "one working day",
+                   "TUPE", "its own policy", "Full-time days per year"):
+        assert phrase in text, phrase
 
 
 def test_the_environment_settings_are_documented_in_the_readme():
