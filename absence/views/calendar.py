@@ -35,9 +35,13 @@ def calendar_view(request):
     if request.GET.get("team", "").isdigit():
         chosen = next((t for t in teams if t.pk == int(request.GET["team"])), None)
     weeks = calendar.month(first.year, first.month, chosen, detail=access.can_view_restricted(request.user))
+    days = [d for week in weeks for d in week if d["in_month"]]
     team_part = f"&team={chosen.pk}" if chosen else ""
     return render(request, "absence/calendar.html", {
         "weeks": weeks, "first": first, "today": today, "teams": teams, "team": chosen,
+        # the phone's list: only the days with someone off, and bank holidays
+        "listed": [d for d in days if d["off"] or d["bank_holiday"]],
+        "anyone_off": any(d["off"] for d in days),
         "prev_url": f"?month={_shift(first, -1):%Y-%m}{team_part}",
         "next_url": f"?month={_shift(first, 1):%Y-%m}{team_part}",
         "month_value": f"{first:%Y-%m}"})

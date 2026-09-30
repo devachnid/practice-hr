@@ -5,6 +5,7 @@
 <div class="page-head"><h1>Approvals</h1></div>
 <section class="card">
   <h2>Waiting for a decision</h2>
+  {% if rows %}
   <div class="table-scroll">
   <table class="list">
     <thead><tr><th>Who</th><th>Type</th><th>When</th><th>Asked</th><th></th></tr></thead>
@@ -17,10 +18,13 @@
         <td>{{ a.requested_at|date:"j M Y" }}</td>
         <td><a href="{% url 'absence:decide' a.pk %}" class="btn">Decide</a></td>
       </tr>
-    {% empty %}<tr><td colspan="5">Nothing is waiting for you.</td></tr>{% endfor %}
+    {% endfor %}
     </tbody>
   </table>
   </div>
+  {% else %}
+  <p class="empty">No requests waiting.</p>
+  {% endif %}
 </section>
 </div>
 {% endblock %}

@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.forms",               # the widget templates, for the renderer below
     "axes",
     "oauth2_provider",
     "accounts",
@@ -108,6 +109,9 @@ TEMPLATES = [
         },
     },
 ]
+
+# One renderer for every form: templates/django/forms/ (config/forms.py).
+FORM_RENDERER = "config.forms.FormRenderer"
 
 WSGI_APPLICATION = "config.wsgi.application"
 

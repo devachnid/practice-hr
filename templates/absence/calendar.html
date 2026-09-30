@@ -1,10 +1,15 @@
-{% extends "base.html" %}
-{% block title %}Calendar{% endblock %}
+{% extends "base.html" %}{% load absence_extras %}
+{% block title %}Calendar: {{ first|date:"F Y" }}{% endblock %}
 {% block content %}
 <div class="stack">
-<div class="page-head"><h1>Calendar: {{ first|date:"F Y" }}</h1><span>{% if team %}{{ team }}{% else %}Whole practice{% endif %}</span></div>
-<section class="card">
-  <form method="get" class="toolbar">
+<div class="page-head"><h1>Calendar</h1></div>
+<div class="toolbar cal-toolbar">
+  <nav class="cal-step" aria-label="Month">
+    <a href="{{ prev_url }}" class="btn btn-quiet" rel="prev">‹ Previous</a>
+    <h2 class="cal-title">{{ first|date:"F Y" }}</h2>
+    <a href="{{ next_url }}" class="btn btn-quiet" rel="next">Next ›</a>
+  </nav>
+  <form method="get" class="cal-team">
     <input type="hidden" name="month" value="{{ month_value }}">
     <label for="team">Team</label>
     <select name="team" id="team" class="inline-input">
@@ -12,28 +17,42 @@
       {% for t in teams %}<option value="{{ t.pk }}"{% if team and t.pk == team.pk %} selected{% endif %}>{{ t }}</option>{% endfor %}
     </select>
     <button type="submit" class="btn">Show</button>
-    <a href="{{ prev_url }}" class="btn btn-quiet">Previous month</a>
-    <a href="{{ next_url }}" class="btn btn-quiet">Next month</a>
   </form>
-</section>
-<section class="card">
-  <h2>Who is off</h2>
-  <div class="table-scroll">
-  <table class="list">
-    <thead><tr><th>Day</th><th>Off</th></tr></thead>
-    {% for week in weeks %}
+</div>
+<section class="card cal-card">
+  {% comment %}Two views of the same month: the grid above 640px, the list of
+  days with someone off (and bank holidays) below it. screens.css shows one.{% endcomment %}
+  <div class="cal-grid-wrap">
+  <table class="cal-grid">
+    <caption class="visually-hidden">Who is off, {{ first|date:"F Y" }}{% if team %}, {{ team }}{% endif %}</caption>
+    <thead><tr><th scope="col">Mon</th><th scope="col">Tue</th><th scope="col">Wed</th><th scope="col">Thu</th><th scope="col">Fri</th><th scope="col" class="is-weekend">Sat</th><th scope="col" class="is-weekend">Sun</th></tr></thead>
     <tbody>
-      <tr><th scope="rowgroup" colspan="2">Week of {{ week.0.day|date:"j M" }}</th></tr>
+    {% for week in weeks %}
+      <tr>
       {% for d in week %}{% if d.in_month %}
-      <tr{% if d.day == today %} aria-current="date"{% endif %}>
-        <th scope="row">{{ d.day|date:"D j" }}{% if d.day == today %} (today){% endif %}</th>
-        <td>{% for o in d.off %}{{ o.employee.name }} ({{ o.label }}{% if o.partial_hours %}, {{ o.partial_hours|floatformat:"-2" }} hours{% elif o.halves|length == 1 %}, {{ o.halves.0 }} only{% endif %}){% if not forloop.last %}, {% endif %}{% empty %}<span class="muted">Nobody</span>{% endfor %}</td>
-      </tr>
+        <td class="cal-day{% if d.weekend %} is-weekend{% endif %}{% if d.bank_holiday %} is-holiday{% endif %}{% if d.day == today %} is-today{% endif %}"{% if d.day == today %} aria-current="date"{% endif %} data-date="{{ d.day|date:'Y-m-d' }}">
+          <div class="cal-day-head"><span class="cal-num"><span class="visually-hidden">{{ d.day|date:"l" }} </span>{{ d.day|date:"j" }}</span>{% if d.present is not None and not d.weekend and not d.bank_holiday %}<span class="cal-present">{{ d.present }} of {{ d.headcount }}</span>{% endif %}</div>
+          {% if d.bank_holiday %}<p class="cal-holiday">{{ d.bank_holiday }}</p>{% endif %}
+          {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}"><span aria-hidden="true">{{ o|off_chip }}</span><span class="visually-hidden">{{ o|off_title }}</span></span>{% endfor %}</div>{% endif %}
+        </td>
+      {% else %}
+        <td class="cal-out"></td>
       {% endif %}{% endfor %}
-    </tbody>
+      </tr>
     {% endfor %}
+    </tbody>
   </table>
   </div>
+  <ol class="cal-list">
+    {% for d in listed %}
+    <li class="cal-list-day{% if d.day == today %} is-today{% endif %}"{% if d.day == today %} aria-current="date"{% endif %} data-date="{{ d.day|date:'Y-m-d' }}">
+      <div class="cal-day-head"><h3 class="cal-list-date">{{ d.day|date:"D j M" }}</h3>{% if d.present is not None and not d.weekend and not d.bank_holiday %}<span class="cal-present">{{ d.present }} of {{ d.headcount }} present</span>{% endif %}</div>
+      {% if d.bank_holiday %}<p class="cal-holiday">{{ d.bank_holiday }}</p>{% endif %}
+      {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}"><span aria-hidden="true">{{ o|off_chip }}</span><span class="visually-hidden">{{ o|off_title }}</span></span>{% endfor %}</div>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if not anyone_off %}<p class="empty">Nobody off this month.</p>{% endif %}
 </section>
 </div>
 {% endblock %}

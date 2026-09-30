@@ -3,6 +3,9 @@ cancel, and keeping-in-touch days; and an absence recorded for someone by
 their approver or an HR admin (request_for). Every write goes through
 absence.services.bookings; a GET opens no pot (pots.lookup, never for_day)."""
 
+from datetime import timedelta
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -11,8 +14,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from absence.forms import KitDayForm, RequestForm
-from absence.models import Absence
-from absence.services import balances, bookings, notify, pots
+from absence.models import Absence, AbsenceType, BankHoliday
+from absence.services import balances, bookings, leave_year, notify, policies, pots
 from accounts.mail import email_is_configured
 from people.models import Employee
 from people.services import access, contracts, employments
@@ -81,6 +84,7 @@ def _request_page(request, employment, today, submit, for_employee=None):
             form.add_error(None, e.messages)
     return render(request, "absence/request.html", {
         "form": form, "preview": preview, "unit": contracts.unit(employment, today), "for_employee": for_employee,
+        "partial_allowed": "partial" in form.fields,
         "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))})
 
 
@@ -132,16 +136,67 @@ def request_for(request, pk):
     return _request_page(request, employment, today, submit, for_employee=employee)
 
 
+def _leave_year(employment, day):
+    """(first day, last day) of the annual-leave year containing `day`, or
+    (None, None) when there is no current employment or no policy to say:
+    then My absences shows every earlier absence rather than guess. Reads
+    only."""
+    if employment is None:
+        return None, None
+    try:
+        policy = policies.policy_for(employment, AbsenceType.objects.get(code="AL"), day)
+    except (AbsenceType.DoesNotExist, ValidationError):
+        return None, None
+    return leave_year.bounds(policy, employment, day)
+
+
+def _bank_groups(employment, rows, year_start, year_end):
+    """The automatic bank-holiday rows by leave year: this one, then the
+    next (the nightly charges both), each with its dates, rows and total.
+    Without a known leave year, one group of everything."""
+    names = dict(BankHoliday.objects.filter(nation="EW", date__in=[r["a"].start_date for r in rows])
+                 .values_list("date", "name"))
+    for r in rows:
+        r["name"] = names.get(r["a"].start_date, "Bank holiday")
+    rows.sort(key=lambda r: r["a"].start_date)
+    if year_end is None:
+        spans = [("this", None, None, rows)]
+    else:
+        next_start, next_end = _leave_year(employment, year_end + timedelta(days=1))
+        next_start = next_start or year_end + timedelta(days=1)
+        spans = [("this", year_start, year_end, [r for r in rows if r["a"].start_date <= year_end]),
+                 ("next", next_start, next_end,
+                  [r for r in rows if r["a"].start_date > year_end
+                   and (next_end is None or r["a"].start_date <= next_end)])]
+    return [{"which": which, "start": start, "end": end, "rows": group,
+             "total": sum((r["a"].cost_units or 0 for r in group), Decimal("0"))}
+            for which, start, end, group in spans if group or which == "this"]
+
+
 @login_required
 def mine(request):
+    """The employee's absences in three parts: coming up (requested or
+    approved, not yet over, soonest first), earlier this leave year (newest
+    first, declined and cancelled ones too), and the automatic bank-holiday
+    rows of this leave year and the next, folded away under their counts
+    and totals."""
     today = timezone.localdate()
     employee, employment = _my_employment(request, today)
-    rows = []
+    coming, earlier, bank = [], [], []
+    year_start, year_end = _leave_year(employment, today)
     if employee is not None:
         summaries = {}
         qs = (Absence.objects.filter(employment__employee=employee)
               .select_related("absence_type", "employment__employee").prefetch_related("kit_days"))
         for a in qs:
+            in_view = year_start is None or a.end_date >= year_start
+            if a.auto_bank_holiday:
+                if a.status == S.APPROVED and in_view:
+                    bank.append({"a": a})
+                continue
+            upcoming = a.status in bookings.LIVE and a.end_date >= today
+            if not (upcoming or in_view):
+                continue
             over = False
             if a.absence_type.uses_pot and a.status == S.REQUESTED and a.cost_units:
                 try:
@@ -152,15 +207,20 @@ def mine(request):
                     if pot.pk not in summaries:
                         summaries[pot.pk] = balances.summary(pot, today)
                     over = summaries[pot.pk]["remaining"] - a.cost_units < 0
-            rows.append({
+            (coming if upcoming else earlier).append({
                 "a": a, "over": over, "can_cancel": _may_cancel(request.user, a, today),
-                "label": "Bank holiday (automatic)" if a.auto_bank_holiday else a.absence_type.name,
                 "kit": a.absence_type.is_family and a.status in bookings.LIVE,
             })
+    coming.sort(key=lambda r: (r["a"].start_date, r["a"].pk))
+    earlier.sort(key=lambda r: (r["a"].start_date, r["a"].pk), reverse=True)
+    bank_groups = _bank_groups(employment, bank, year_start, year_end) if bank else []
     record_for = [e.employee for e in (access.direct_reports(employee, today) if employee else [])
                   if access.may_record_for(request.user, e, today)]
     return render(request, "absence/mine.html", {
-        "employee": employee, "employment": employment, "rows": rows,
+        "employee": employee, "employment": employment, "coming": coming, "earlier": earlier,
+        "bank": bank, "bank_this": bank_groups[0] if bank_groups else None,
+        "bank_next": bank_groups[1] if len(bank_groups) > 1 else None, "bank_groups": bank_groups,
+        "year_start": year_start, "year_end": year_end,
         "record_for": record_for, "record_any": access.can_view_restricted(request.user),
         "unit": contracts.unit(employment, today) if employment else "",
         "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))

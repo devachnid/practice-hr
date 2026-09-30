@@ -9,7 +9,7 @@ from datetime import timedelta
 
 from django.db.models import Q
 
-from absence.models import Absence
+from absence.models import Absence, BankHoliday
 from absence.services import costing
 from people.models import Position
 
@@ -109,10 +109,22 @@ def warning_if_approved(absence, team):
 
 
 def month(year, month_, team=None, detail=False):
-    """The month as weeks of seven days: day, in_month, off (only in the month)."""
+    """The month as weeks of seven days, Monday first. Each day: day,
+    in_month, weekend, bank_holiday (its name, or ""), off (only in the
+    month), and for a team present/headcount (None otherwise, and outside
+    the month)."""
     grid = cal.Calendar(firstweekday=0).monthdatescalendar(year, month_)
     absences, spells = _load(grid[0][0], grid[-1][-1], team)
+    holidays = dict(BankHoliday.objects.filter(nation="EW", date__range=(grid[0][0], grid[-1][-1]))
+                    .values_list("date", "name"))
     cache = {}
-    return [[{"day": d, "in_month": d.month == month_,
-              "off": _public(_off(d, absences, spells, cache, detail)) if d.month == month_ else []}
-             for d in week] for week in grid]
+
+    def cell(d):
+        in_month = d.month == month_
+        p, n = _present(d, absences, spells, cache) if team is not None and in_month else (None, None)
+        return {"day": d, "in_month": in_month, "weekend": d.weekday() >= 5,
+                "bank_holiday": holidays.get(d, "") if in_month else "",
+                "off": _public(_off(d, absences, spells, cache, detail)) if in_month else [],
+                "present": p, "headcount": n}
+
+    return [[cell(d) for d in week] for week in grid]

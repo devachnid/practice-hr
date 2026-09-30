@@ -1,0 +1,15 @@
+{% comment %}One field in the design system's markup (components.css), for
+form.as_div and field.as_field_group alike: label (no colon), control, help,
+then each error as an alert. A checkbox sits inside its label; radios and
+checkbox lists are a fieldset with their options in a row. Dates, times,
+numbers and short text are .field-short, so they do not stretch.{% endcomment %}{% if field.is_checkbox %}<div class="field field-check{% if field.errors %} field-invalid{% endif %}">
+<label{% if field.id_for_label %} for="{{ field.id_for_label }}"{% endif %}>{{ field }} {{ field.label }}</label>
+{% elif field.is_choice_row %}<fieldset class="field{% if field.errors %} field-invalid{% endif %}"{% if field.aria_describedby %} aria-describedby="{{ field.aria_describedby }}"{% endif %}>
+{% if field.label %}<legend>{{ field.label }}</legend>{% endif %}
+<div class="radio-row">{% for option in field %}<label{% if option.id_for_label %} for="{{ option.id_for_label }}"{% endif %}>{{ option.tag }} {{ option.choice_label }}</label>{% endfor %}</div>
+{% else %}<div class="field{% if field.errors %} field-invalid{% endif %}{% if field.is_short %} field-short{% endif %}">
+{% if field.label %}<label{% if field.id_for_label %} for="{{ field.id_for_label }}"{% endif %}>{{ field.label }}</label>{% endif %}
+{{ field }}
+{% endif %}{% if field.help_text %}<p class="field-help"{% if field.auto_id %} id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</p>
+{% endif %}{% if field.errors %}<div class="field-errors"{% if field.auto_id %} id="{{ field.auto_id }}_error"{% endif %}>{% for error in field.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}</div>
+{% endif %}{% if field.is_choice_row %}</fieldset>{% else %}</div>{% endif %}

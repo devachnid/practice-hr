@@ -91,9 +91,11 @@ def test_missing_policy_shows_a_message_not_a_500(employee_client, employee_user
 
 
 def test_negative_balance_warns_on_page(employee_client, employee_user):
+    from tests.factories import current_leave_year
     emp = _me(employee_user, amount=Decimal("7.5"))
-    pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))
-    r = employee_client.post("/absence/request/", _confirmed("AL", "2026-06-01", "2026-06-30"))
+    start = current_leave_year()[0] + timedelta(days=61)                 # inside the leave year My absences shows
+    pots.for_day(emp, absence_type("AL"), start)
+    r = employee_client.post("/absence/request/", _confirmed("AL", start, start + timedelta(days=29)))
     assert r.status_code == 302
     r = employee_client.get("/absence/mine/")
     assert "more than your balance" in r.content.decode().lower()
@@ -194,13 +196,16 @@ def test_cannot_cancel_someone_elses(employee_client, employee_user, hr_admin):
 
 def test_automatic_bank_holiday_rows_are_listed_and_never_cancelled(employee_client, employee_user,
                                                                      admin_client):
+    from tests.factories import current_leave_year
     emp = _me(employee_user)
+    day = current_leave_year()[0] + timedelta(days=14)                 # in the leave year the page shows
     auto = Absence.objects.create(employment=emp, absence_type=absence_type("BH"),
-                                  start_date=timezone.localdate() + timedelta(days=14),
-                                  end_date=timezone.localdate() + timedelta(days=14),
+                                  start_date=day, end_date=day,
                                   status=Absence.Status.APPROVED, auto_bank_holiday=True)
     body = employee_client.get("/absence/mine/").content.decode()
-    assert "Bank holiday (automatic)" in body and f"/absence/{auto.pk}/cancel/" not in body
+    folded = body.split('<details class="card bank-holidays">')[1].split("</details>")[0]
+    assert "1 day this leave year," in folded and f"{auto.start_date:%-d %b %Y}" in folded
+    assert f"/absence/{auto.pk}/cancel/" not in body
     assert employee_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
     assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
     assert Absence.objects.get(pk=auto.pk).status == "approved"
@@ -385,3 +390,125 @@ def test_an_hr_admin_cancels_their_own_absence_by_the_employee_rule(admin_client
     other = _me(employee_user)
     theirs = bookings.approve(hr_admin, bookings.request(employee_user, other, absence_type("AL"), date(2026, 4, 7)))
     assert admin_client.post(f"/absence/{theirs.pk}/cancel/").status_code == 302
+
+
+def test_request_form_is_grouped_and_carries_each_types_flags(employee_client, employee_user):
+    import re
+    _me(employee_user)
+    body = employee_client.get("/absence/request/").content.decode()
+    groups = (("when", "What and when"), ("partial", "Part of a day"), ("sick", "Sickness"),
+              ("family", "Family leave"))
+    for group, legend in groups:
+        assert re.search(rf'<fieldset class="field-group" data-group="{group}">\s*<legend>{legend}</legend>', body), group
+    positions = [body.index(f'data-group="{g}"') for g, _ in groups]
+    assert positions == sorted(positions)
+    for name, group in (("absence_type", "when"), ("end_half", "when"), ("hours", "partial"),
+                        ("category", "sick"), ("expected_return", "family")):
+        start = body.index(f'data-group="{group}"')
+        assert start < body.index(f'name="{name}"') < body.index("</fieldset>", start), name
+    assert body.count('class="field-row"') == 4           # days, halves, times, family dates
+    options = dict(re.findall(r'<option value="(\d+)"([^>]*)>', body))
+    al, sick, mat = (options[str(absence_type(c).pk)] for c in ("AL", "SICK", "MAT"))
+    assert 'data-health-sensitive="0"' in al and 'data-family="0"' in al
+    assert 'data-health-sensitive="1"' in sick and 'data-family="0"' in sick
+    assert "data-uses-pot" not in body                   # a part day is for any type, on an hours allowance
+    assert 'data-family="1"' in mat
+    assert re.search(r'<script src="/static/absence/request\.js" defer></script>', body)
+    # no script, no hiding: every group is there to start with
+    assert not any("hidden" in tag for tag in re.findall(r'<fieldset class="field-group"[^>]*>', body))
+
+
+def test_the_part_day_group_is_left_out_for_a_sessions_allowance(employee_client, employee_user):
+    from tests.factories import make_contract, make_contract_type, make_employment, make_pattern, make_policy
+    emp = make_employment(employee=make_employee(user=employee_user), start=date(2026, 4, 1))
+    ct = make_contract_type("GP", unit="sessions", full_time=Decimal("8"))
+    make_contract(emp, ct, amount=Decimal("8"))
+    make_policy(ct)
+    make_pattern(emp, {d: (Decimal("1"), Decimal("1")) for d in range(4)})
+    body = employee_client.get("/absence/request/").content.decode()
+    assert 'data-group="partial"' not in body and 'data-group="sick"' in body
+
+
+def _weekday(d, step=1):
+    while d.weekday() > 4:
+        d += timedelta(days=step)
+    return d
+
+
+def test_my_absences_come_in_three_parts(employee_client, employee_user, hr_admin):
+    from absence.models import BankHoliday
+    from tests.factories import current_leave_year
+    emp = _me(employee_user, start=date(2025, 1, 6))
+    today = timezone.localdate()
+    year_start = current_leave_year()[0]
+    al = absence_type("AL")
+    later = bookings.request(employee_user, emp, al, _weekday(today + timedelta(days=21)))
+    bookings.approve(hr_admin, later)
+    sooner = bookings.request(employee_user, emp, al, _weekday(today + timedelta(days=14)))
+    declined = bookings.request(employee_user, emp, al, _weekday(today + timedelta(days=28)))
+    bookings.decline(hr_admin, declined)
+    last_year = bookings.request(employee_user, emp, al, _weekday(year_start - timedelta(days=10), -1))
+    bookings.approve(hr_admin, last_year)
+    taken = set(BankHoliday.objects.values_list("date", flat=True))
+    holiday = _weekday(year_start + timedelta(days=14))
+    while holiday in taken:                                             # a day with no seeded bank holiday
+        holiday = _weekday(holiday + timedelta(days=1))
+    BankHoliday.objects.create(date=holiday, name="Test Day")
+    next_year = _weekday(current_leave_year()[1] + timedelta(days=14))
+    for day in (holiday, _weekday(holiday + timedelta(days=7)), next_year):
+        Absence.objects.create(employment=emp, absence_type=absence_type("BH"), start_date=day, end_date=day,
+                               cost_units=Decimal("7.5"), status=Absence.Status.APPROVED, auto_bank_holiday=True)
+    body = employee_client.get("/absence/mine/").content.decode()
+    coming = body.split("<h2>Coming up</h2>")[1].split("</section>")[0]
+    earlier = body.split("<h2>Earlier</h2>")[1].split("</section>")[0]
+    folded = body.split('<details class="card bank-holidays">')[1].split("</details>")[0]
+    assert body.index("Balances this leave year") < body.index("<h2>Coming up</h2>") < body.index("<h2>Earlier</h2>")
+    # coming up: soonest first, each with its status badge and, where allowed, a Cancel button
+    assert coming.index(f"/absence/{sooner.pk}/cancel/") < coming.index(f"/absence/{later.pk}/cancel/")
+    assert '<span class="badge badge-warning">Requested</span>' in coming
+    assert '<span class="badge badge-ok">Approved</span>' in coming
+    assert '<button type="submit" class="btn btn-quiet">Cancel</button>' in coming
+    # earlier: the declined one, with its status; nothing from before this leave year
+    assert '<span class="badge badge-muted">Declined</span>' in earlier
+    assert f"{declined.start_date:%-d %b %Y}" in earlier
+    assert f"{last_year.start_date:%-d %b %Y}" not in body
+    # bank holidays: folded, count and total in the summary, by date, named
+    summary = folded.split("</summary>")[0]
+    assert "Bank holidays, charged automatically" in summary
+    assert ("2 days this leave year, 15 hours, and 1 day (7.50 hours) already charged to next leave year"
+            in summary)
+    this_year = folded.split('data-year="this"')[1].split("</table>")[0]
+    next_table = folded.split('data-year="next"')[1].split("</table>")[0]
+    assert "Test Day" in this_year and f"{holiday:%-d %b %Y}" in this_year
+    assert f"{next_year:%-d %b %Y}" in next_table and f"{next_year:%-d %b %Y}" not in this_year
+    assert folded.index("This leave year") < folded.index("Next leave year")
+    assert "Bank holiday" not in coming and "Bank holiday" not in earlier
+
+
+def test_only_next_years_bank_holidays_still_show(employee_client, employee_user):
+    from tests.factories import current_leave_year
+    emp = _me(employee_user)
+    day = _weekday(current_leave_year()[1] + timedelta(days=14))
+    Absence.objects.create(employment=emp, absence_type=absence_type("BH"), start_date=day, end_date=day,
+                           cost_units=Decimal("7.5"), status=Absence.Status.APPROVED, auto_bank_holiday=True)
+    body = employee_client.get("/absence/mine/").content.decode()
+    summary = body.split('<details class="card bank-holidays">')[1].split("</summary>")[0]
+    assert "None this leave year; 1 day (7.50 hours) already charged to next leave year" in summary
+    assert 'data-year="this"' not in body and f"{day:%-d %b %Y}" in body
+
+
+def test_my_absences_empty_state(employee_client, employee_user):
+    _me(employee_user)
+    body = employee_client.get("/absence/mine/").content.decode()
+    assert '<p class="empty">No absences yet.</p>' in body and "<h2>Coming up</h2>" not in body
+
+
+def test_a_part_day_is_accepted_for_a_potless_type(employee_client, employee_user):
+    from datetime import time
+    _me(employee_user)
+    day = _weekday(timezone.localdate() + timedelta(days=14))
+    r = employee_client.post("/absence/request/", _confirmed("DEP", day, partial="on", start_time="09:00",
+                                                             end_time="10:30", hours="1.5"))
+    assert r.status_code == 302
+    a = Absence.objects.get()
+    assert a.absence_type.code == "DEP" and a.hours == Decimal("1.5") and a.start_time == time(9)

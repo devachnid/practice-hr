@@ -14,6 +14,18 @@ class PersonalDetailsForm(forms.ModelForm):
     class Meta:
         model = Employee
         fields = ["personal_email", "phone", "address_line1", "address_line2", "town", "postcode"]
+        labels = {"address_line1": "Address line 1", "address_line2": "Address line 2"}
+        # The person's own details, so the browser may offer what it knows.
+        # Set here rather than site-wide: the admin's forms are about
+        # someone else, where the HR admin's own saved email would be wrong.
+        widgets = {
+            "personal_email": forms.EmailInput(attrs={"autocomplete": "email"}),
+            "phone": forms.TextInput(attrs={"autocomplete": "tel", "inputmode": "tel"}),
+            "address_line1": forms.TextInput(attrs={"autocomplete": "address-line1"}),
+            "address_line2": forms.TextInput(attrs={"autocomplete": "address-line2"}),
+            "town": forms.TextInput(attrs={"autocomplete": "address-level2"}),
+            "postcode": forms.TextInput(attrs={"autocomplete": "postal-code"}),
+        }
 
 
 @login_required

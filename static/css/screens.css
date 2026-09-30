@@ -420,9 +420,154 @@ body.page-grid {
   letter-spacing: .06em;
   color: var(--muted);
 }
+.list tbody tr:last-child th,
 .list tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* -------------------------------------------------------- my absences --- */
+
+/* The Cancel button and the keeping-in-touch form in a row's last cell. */
+.list td.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+.row-actions form { display: inline-flex; }
+.kit-form {
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  white-space: normal;
+}
+.kit-form label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.kit-form .inline-input { flex: 0 1 11rem; }
+
+/* The automatic bank-holiday rows, folded away under their count and
+   total. The summary reads as the card's heading, with the figures after. */
+/* The two absence tables share their column widths, so Coming up and
+   Earlier line up one above the other. */
+.absences { table-layout: fixed; }
+.absences th:nth-child(1) { width: 20%; }
+.absences th:nth-child(2) { width: 30%; }
+.absences th:nth-child(3) { width: 16%; }
+.absences th:nth-child(4) { width: 14%; }
+.absences th:nth-child(5) { width: 20%; }
+
+/* display: flex drops the browser's disclosure triangle, so the summary
+   draws its own, turned down when open. */
+.bank-holidays > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  list-style: none;
+}
+.bank-holidays > summary::-webkit-details-marker { display: none; }
+.bank-holidays .summary-title::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: var(--sp-2);
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  transition: transform .15s;
+}
+.bank-holidays[open] .summary-title::before { transform: rotate(90deg); }
+.summary-title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: -.02em;
+}
+.summary-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
+.bank-holidays[open] > summary { margin-bottom: var(--sp-3); }
+/* This leave year's and next year's rows, each under its own heading. */
+.bank-year { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-md); }
+.bank-holidays[open] > summary + .bank-year { margin-top: 0; }
+/* The two years' tables share their column widths, so they line up. */
+.bank-holidays table { table-layout: fixed; }
+.bank-holidays th:nth-child(1) { width: 35%; }
+.bank-holidays th:nth-child(2) { width: 45%; }
+
+/* The request form sits a little below its card's heading, so its first
+   group's legend does not read as a subtitle of the card. */
+.request-form { margin-top: var(--sp-4); }
+
+/* ----------------------------------------------------------- calendar --- */
+
+/* Previous / month / Next on the left, the team choice on the right,
+   wrapping under one another on a narrow window. */
+.cal-toolbar { justify-content: space-between; margin-bottom: 0; }
+.cal-step { display: flex; align-items: center; gap: var(--sp-2); }
+.cal-title { min-width: 11rem; text-align: center; }
+.cal-team { display: flex; align-items: center; gap: var(--sp-2); }
+.cal-team label { font-weight: 700; font-size: var(--fs-sm); color: var(--ink); }
+.cal-team .inline-input { flex: 0 1 14rem; }
+
+/* The month as a seven-column grid, one cell per day. Weekends and bank
+   holidays sit on --sunken (the practice is closed); today is outlined in
+   the accent, inset because collapsed borders leave nowhere for an outline. */
+.cal-grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.cal-grid thead th {
+  padding: var(--sp-2);
+  text-align: left;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.cal-grid td {
+  height: 6.5rem;
+  padding: var(--sp-2);
+  vertical-align: top;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.cal-grid td.is-weekend,
+.cal-grid td.is-holiday { background: var(--sunken); }
+.cal-grid td.cal-out { background: var(--ground); }
+.cal-grid td.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.cal-num { font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.is-today .cal-num { color: var(--accent); }
+.cal-present { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.cal-holiday {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+.cal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-1);
+}
+/* One person off: the chip's colours from tokens, so they follow the theme. */
+.cal-chip {
+  --chip-bg: var(--accent-soft);
+  --chip-fg: var(--ink);
+  padding: 2px var(--sp-2);
+  text-align: left;
+  font-weight: 600;
+}
+
+/* The phone's list of only the days with someone off; hidden above 640px,
+   where the grid shows the same month. */
+.cal-list { display: none; }
 
 /* ----------------------------------------------------------- reports --- */
 
@@ -664,4 +809,49 @@ body.page-grid {
   body .main { padding-left: var(--sp-4); padding-right: var(--sp-4); }
 
   .day-roster td { width: auto; }
+
+  /* My absences on a phone: each row a small block rather than five
+     squeezed columns: type and status on the first line, dates and cost on
+     the second, the actions under them. The column heads stay for screen
+     readers only. */
+  .absences, .absences tbody { display: block; }
+  .absences thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .absences tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sp-1) var(--sp-3);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .absences tr:last-child { border-bottom: 0; }
+  .absences th, .absences td,
+  .absences th:nth-child(n) { display: block; padding: 0; border: 0; width: auto; }
+  .absences td:nth-child(2) { grid-column: 1; grid-row: 2; }
+  .absences td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+  .absences td:nth-child(4) { grid-column: 2; grid-row: 2; text-align: right; }
+  .absences td.row-actions { grid-column: 1 / -1; text-align: left; }
+  .absences td:nth-child(5):empty { display: none; }
+  .absences .kit-form { justify-content: flex-start; }
+
+  /* The calendar on a phone: the list, not the grid. */
+  .cal-grid-wrap { display: none; }
+  .cal-list {
+    display: block;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .cal-list-day {
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .cal-list-day:first-child { padding-top: 0; }
+  .cal-list-day:last-child { border-bottom: 0; padding-bottom: 0; }
+  .cal-list-date { font-size: var(--fs-md); }
+  .cal-list-day.is-today .cal-list-date { color: var(--accent); }
+  .cal-list .cal-chips { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); }
+  .cal-list .cal-chip { display: inline-block; max-width: 100%; }
 }

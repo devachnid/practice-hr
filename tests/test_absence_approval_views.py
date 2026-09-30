@@ -42,6 +42,12 @@ def test_queue_lists_routed_requests_only(employee_user, employee_client):
     assert r.status_code == 200
     assert "Sam Patel" in body and "1 Jun 2026 – 3 Jun 2026" in body and _decide(a) in body
     assert employee_client.get(reverse("absence:queue")).status_code == 403
+    assert f'<a href="{_decide(a)}" class="btn">Decide</a>' in body
+
+
+def test_an_empty_queue_says_so(admin_client):
+    body = admin_client.get(reverse("absence:queue")).content.decode()
+    assert '<p class="empty">No requests waiting.</p>' in body and "<table" not in body.split("<main")[1]
 
 
 def test_queue_leaves_out_requests_routed_elsewhere_and_decided_ones(employee_user, admin_client):

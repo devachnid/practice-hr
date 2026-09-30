@@ -16,13 +16,35 @@ def _time(**kw):
     return forms.TimeField(widget=forms.TimeInput(attrs={"type": "time"}, format="%H:%M"), **kw)
 
 
+class TypeSelect(forms.Select):
+    """The type <select>. Each option carries its type's flags, which
+    absence/static/absence/request.js reads to show only the groups of the
+    form the chosen type uses: sickness (health_sensitive) and family leave
+    (is_family). Part of a day depends on the employment, not the type."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        option = super().create_option(name, value, label, selected, index, subindex, attrs)
+        t = getattr(value, "instance", None)
+        if t is not None:
+            option["attrs"].update({
+                "data-health-sensitive": "1" if t.health_sensitive else "0",
+                "data-family": "1" if t.is_family else "0",
+            })
+        return option
+
+
 class RequestForm(forms.Form):
     """A request, checked against the requester's employment. The part-day
     fields are left out for anyone whose allowance is not in hours; the
-    category and the family dates are shown to everyone and used only by
-    the types they belong to (no script, so nothing is hidden)."""
+    category and the family dates are there for everyone and used only by
+    the types they belong to: clean() blanks them for any other type. A part
+    day, where the allowance is in hours, is open to every type. The page
+    groups the fields; its script hides and disables the sickness and family
+    groups for a type that does not use them, so their values are kept but
+    not sent. Without script every group shows, and what the server accepts
+    is the same."""
     absence_type = forms.ModelChoiceField(
-        queryset=AbsenceType.objects.filter(active=True).exclude(code="BH"), label="Type")
+        queryset=AbsenceType.objects.filter(active=True).exclude(code="BH"), label="Type", widget=TypeSelect)
     start_date = _date(label="First day")
     end_date = _date(required=False, label="Last day", help_text="Leave empty for a single day.")
     start_half = forms.ChoiceField(choices=HALF_START, required=False, label="On the first day")
@@ -82,4 +104,4 @@ class KitDayForm(forms.Form):
 
 
 class PayrollPeriodForm(forms.Form):
-    period = forms.RegexField(regex=r"^\d{4}-\d{2}$", label="Month (YYYY-MM)")
+    period = forms.RegexField(regex=r"^\d{4}-\d{2}$", max_length=7, label="Month (YYYY-MM)")

@@ -4,13 +4,13 @@
   <th scope="row">{{ type.name }}</th>
   <td>{{ label }}{% if pot %}<br><span class="muted">{{ pot.year_start|date:"j M Y" }} – {{ pot.year_end|date:"j M Y" }}</span>{% endif %}</td>
   {% if summary %}
-    <td><a href="{{ links.entitlement }}">{{ summary.entitlement|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.carried_in }}">{{ summary.carried_in|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.taken }}">{{ summary.taken|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.booked }}">{{ summary.booked|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.pending }}">{{ summary.pending|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.expired }}">{{ summary.expired|floatformat:"-2" }}</a></td>
-    <td><a href="{{ links.adjustments }}">{{ summary.adjustments|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.entitlement }}" class="figure-link">{{ summary.entitlement|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.carried_in }}" class="figure-link">{{ summary.carried_in|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.taken }}" class="figure-link">{{ summary.taken|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.booked }}" class="figure-link">{{ summary.booked|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.pending }}" class="figure-link">{{ summary.pending|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.expired }}" class="figure-link">{{ summary.expired|floatformat:"-2" }}</a></td>
+    <td><a href="{{ links.adjustments }}" class="figure-link">{{ summary.adjustments|floatformat:"-2" }}</a></td>
     <td{% if summary.remaining < 0 %} class="neg"{% endif %}><strong>{{ summary.remaining|units:pot.unit }}</strong></td>
     <td><a href="{% url 'absence:ledger' pot.pk %}">Ledger</a></td>
   {% else %}
