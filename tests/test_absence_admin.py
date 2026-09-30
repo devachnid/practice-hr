@@ -174,7 +174,7 @@ def test_adding_a_policy_in_admin_audits_it_and_syncs_nothing_it_cannot_reach(ad
     data = {"contract_type": ct.pk, "absence_type": absence_type("BH").pk, "effective_from": "2020-01-01",
             "effective_to": "", "weeks_per_year": "0", "leave_year_basis": "fixed", "year_start_month": 4,
             "year_start_day": 1, "carry_over_max_weeks": "", "carry_over_expires_after_days": "",
-            "rounding": "0.25", "bank_holiday_handling": "pot", "toil_expires_after_days": "",
+            "rounding": "0.25", "bank_holiday_handling": "pot", "toil_expires_after_days": "", "accrual": "daily",
             "tiers-TOTAL_FORMS": 0, "tiers-INITIAL_FORMS": 0, "tiers-MIN_NUM_FORMS": 0,
             "tiers-MAX_NUM_FORMS": 1000}
     resp = admin_client.post("/admin/absence/policy/add/", data, follow=True)

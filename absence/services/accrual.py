@@ -1,5 +1,16 @@
-"""The entitlement of a pot, as a day-by-day integral over its leave year.
-Pure: reads people rows and policies, writes nothing.
+"""The entitlement of a pot, month by month over its leave year: under a
+daily policy the day-by-day integral of (weeks + tier) × weekly amount ÷
+days in the year; under a monthly one (Policy.accrual) a twelfth of the
+year's figure for each calendar month the person is employed with a
+contract, a part month counting in full. Pure: reads people rows and
+policies, writes nothing.
+
+The months are calendar months clipped to the leave year, so a year that
+starts on the 1st has twelve and one that starts mid-month has thirteen
+(its first and last are part months, each a whole twelfth). A month's
+basis, figure and weekly amount are those of its last active day, so a
+contract change, a tier reached or a policy switching basis part way
+through a month counts for that whole month.
 
 The rows are read once per pot (the employment's contracts, the policies
 and tiers for their contract types, the year's bank holidays) and every day
@@ -15,12 +26,25 @@ from absence.models import BankHoliday, Policy
 from absence.services import policies, rounding
 from people.models import Contract
 
+ZERO = Decimal("0")
+
 
 def _days(pot):
     d = pot.year_start
     while d <= pot.year_end:
         yield d
         d += timedelta(days=1)
+
+
+def _months(pot):
+    """The pot's days, grouped by calendar month (clipped to the year)."""
+    out, month = [], None
+    for day in _days(pot):
+        if (day.year, day.month) != month:
+            month = (day.year, day.month)
+            out.append([])
+        out[-1].append(day)
+    return out
 
 
 class _Rows:
@@ -65,29 +89,39 @@ def _rates(pot, rows, weeks_for_day):
     employment = rows.employment
     days_in_year = (pot.year_end - pot.year_start).days + 1
     out = []
-    for day in _days(pot):
-        if not employment.is_active_on(day):
-            out.append((day, Decimal("0")))
-            continue
-        active = rows.active(day)
-        weekly = rows.weekly(active)
-        if not weekly:
-            out.append((day, Decimal("0")))
-            continue
-        rows.check_unit(active, day)
-        policy = rows.policy(active, day)
-        if weeks_for_day is not None:
-            weeks = weeks_for_day(policy, day)
-        else:
-            weeks = policy.weeks_per_year + policies.tier_extra_weeks(policy, employment, day)
-        out.append((day, weeks * weekly / days_in_year))
+    for month in _months(pot):
+        rates, last = [], None
+        for day in month:
+            if not employment.is_active_on(day):
+                rates.append((day, ZERO))
+                continue
+            active = rows.active(day)
+            weekly = rows.weekly(active)
+            if not weekly:
+                rates.append((day, ZERO))
+                continue
+            rows.check_unit(active, day)
+            policy = rows.policy(active, day)
+            if weeks_for_day is not None:
+                weeks = weeks_for_day(policy, day)
+            else:
+                weeks = policy.weeks_per_year + policies.tier_extra_weeks(policy, employment, day)
+            rates.append((day, weeks * weekly / days_in_year))
+            last = (day, policy, weeks * weekly)
+        if weeks_for_day is None and last is not None and last[1].accrual == Policy.Accrual.MONTHLY:
+            sampled, _, yearly = last
+            rates = [(day, yearly / 12 if day == sampled else ZERO) for day, _ in rates]
+        out.extend(rates)
     return out
 
 
 def daily_rates(pot, weeks_for_day=None):
-    """[(day, unrounded units accrued that day)]. weeks_for_day(policy, day)
-    overrides the weeks figure; bank_holiday_entitlement uses that. Raises
-    ValidationError when a day's contract is in another unit than the pot."""
+    """[(day, unrounded units accrued that day)]. Under a monthly policy a
+    month's twelfth falls on its last active day and its other days are 0.
+    weeks_for_day(policy, day) overrides the weeks figure, day by day
+    whatever the basis; bank_holiday_entitlement uses that. Raises
+    ValidationError when a day's contract is in another unit than the pot,
+    or no policy covers a day the person is contracted."""
     return _rates(pot, _Rows(pot), weeks_for_day)
 
 

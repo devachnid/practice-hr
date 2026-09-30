@@ -174,3 +174,12 @@ def test_policy_changelist_shows_days_for_hours(admin_client, db):
                 effective_from=date(2020, 1, 1))
     page = admin_client.get("/admin/absence/policy/").content.decode()
     assert "22 days (4.4 weeks)" in page and "6 weeks" in page
+
+
+def test_the_accrual_basis_is_chosen_on_the_policy_page(admin_client, db):
+    policy = _hours_policy()
+    assert policy.accrual == Policy.Accrual.DAILY                 # the default: day by day, as before
+    assert 'name="accrual"' in admin_client.get(_change(policy)).content.decode()
+    _save(admin_client, policy, fields={"accrual": "monthly"})
+    policy.refresh_from_db()
+    assert policy.accrual == Policy.Accrual.MONTHLY

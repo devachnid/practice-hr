@@ -125,3 +125,100 @@ def test_adding_a_contract_in_another_unit_is_refused_while_the_pot_is_open(db, 
         contracts.add(hr_admin, emp, reception, D("37.5"), start + timedelta(days=183))
     assert "sessions" in str(e.value)
     assert emp.contracts.count() == 1
+
+
+# Monthly twelfths (Policy.accrual = monthly): the practice's standard contract.
+# 22 days = 4.4 weeks; full time 37.5 hours, so a year is 4.4 × 37.5 = 165.00 and a
+# month's twelfth 13.75. The leave year is 1 January to 31 December 2026.
+
+def _monthly_policy(ct=None, **kw):
+    kw.setdefault("weeks_per_year", D("4.4"))
+    return make_policy(ct or make_contract_type(), year_start_month=1, accrual="monthly", **kw)
+
+
+def _cal(emp, day=date(2026, 6, 1)):
+    return pots.for_day(emp, absence_type("AL"), day)
+
+
+@pytest.mark.parametrize("amount,expected", [
+    (D("37.5"), D("165.00")),      # 12 × 165/12
+    (D("18.75"), D("82.50")),      # part-timer: 12 × 4.4 × 18.75/12
+])
+def test_monthly_full_year(db, amount, expected):
+    _monthly_policy()
+    assert accrual.entitlement(_cal(hours_employee(start=date(2025, 1, 1), amount=amount))) == expected
+
+
+def test_monthly_starter_counts_their_first_part_month_in_full(db):
+    _monthly_policy()
+    emp = hours_employee(start=date(2026, 3, 15))
+    # March (from the 15th) to December: 10 months × 13.75 = 137.50
+    assert accrual.entitlement(_cal(emp, date(2026, 3, 15))) == D("137.50")
+
+
+def test_monthly_leaver_counts_their_last_part_month_in_full(db):
+    _monthly_policy()
+    emp = hours_employee(start=date(2025, 1, 1), end_date=date(2026, 9, 3), leaving_reason="resigned")
+    # January to September (to the 3rd): 9 months × 13.75 = 123.75
+    assert accrual.entitlement(_cal(emp)) == D("123.75")
+
+
+def test_monthly_hours_change_is_sampled_on_the_last_active_day_of_the_month(db):
+    ct = make_contract_type()
+    _monthly_policy(ct)
+    emp = make_employment(start=date(2025, 1, 1))
+    make_contract(emp, ct, amount=D("37.5"), to_date=date(2026, 6, 19))
+    make_contract(emp, ct, amount=D("18.75"), start=date(2026, 6, 20))
+    make_pattern(emp)
+    # January-May at 37.5: 5/12 × 165 = 68.75; June (sampled on 30 June, 18.75) to December:
+    # 7/12 × 82.5 = 48.125; 116.875 is exactly half way between steps and rounds half up to
+    # 117.00 (the brief's 116.75 would be rounding down)
+    assert accrual.entitlement(_cal(emp)) == D("117.00")
+
+
+def test_monthly_tier_step_counts_from_the_month_it_is_reached(db):
+    ct = make_contract_type()
+    policy = _monthly_policy(ct)
+    PolicyTier.objects.create(policy=policy, after_years=1, extra_weeks=D("0.2"))    # 23 days after 1 year
+    emp = hours_employee(start=date(2025, 5, 10))
+    # one year's service on 10 May 2026, so May (sampled on 31 May) is at 4.6 weeks:
+    # January-April 4 × 4.4 × 37.5/12 = 55.00, May-December 8 × 4.6 × 37.5/12 = 115.00
+    assert accrual.entitlement(_cal(emp)) == D("170.00")
+
+
+def test_monthly_daily_rates_put_each_twelfth_on_the_months_last_active_day(db):
+    _monthly_policy()
+    emp = hours_employee(start=date(2026, 3, 15), end_date=date(2026, 9, 3), leaving_reason="resigned")
+    rates = [(day, rate) for day, rate in accrual.daily_rates(_cal(emp, date(2026, 3, 15))) if rate]
+    assert [day for day, _ in rates] == [date(2026, m, 30 if m in (4, 6) else 31) for m in range(3, 9)] \
+        + [date(2026, 9, 3)]
+    assert {rate for _, rate in rates} == {D("13.75")}
+    assert accrual.entitlement(_cal(emp, date(2026, 3, 15))) == D("96.25")       # 7 × 13.75
+
+
+def test_monthly_with_a_mid_month_year_start_counts_calendar_months_clipped_to_the_year(db):
+    # 15 April to 14 April spans thirteen calendar months (15-30 Apr ... 1-14 Apr), each a
+    # twelfth: someone there all year gets 13 × 13.75 = 178.75 (documented; use the 1st)
+    make_policy(make_contract_type(), weeks_per_year=D("4.4"), year_start_month=4, year_start_day=15,
+                accrual="monthly")
+    emp = hours_employee(start=date(2025, 1, 1))
+    assert accrual.entitlement(_cal(emp)) == D("178.75")
+
+
+def test_a_year_switching_from_daily_to_monthly_takes_each_month_by_its_policy(db):
+    ct = make_contract_type()
+    make_policy(ct, weeks_per_year=D("4.4"), year_start_month=1, effective_to=date(2026, 6, 30))
+    _monthly_policy(ct, effective_from=date(2026, 7, 1))
+    emp = hours_employee(start=date(2025, 1, 1))
+    # January-June daily: 165 × 181/365 = 81.82; July-December 6 × 13.75 = 82.50; 164.32 → 164.25
+    assert accrual.entitlement(_cal(emp)) == D("164.25")
+
+
+def test_monthly_still_names_a_missing_policy(db):
+    ct = make_contract_type()
+    _monthly_policy(ct, effective_to=date(2026, 8, 31))
+    emp = hours_employee(start=date(2025, 1, 1))
+    pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1), sync=False)
+    with pytest.raises(ValidationError) as e:
+        accrual.entitlement(pot)
+    assert "No Annual leave policy for Reception on 01 Sep 2026" in str(e.value)
