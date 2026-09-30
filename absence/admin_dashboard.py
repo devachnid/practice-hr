@@ -21,6 +21,8 @@ def _row(r):
 
 def dashboard(request, context):
     context["waiting"] = [_row(r) for r in chase.waiting(timezone.localdate())]
+    context["waiting_claims"] = sum(1 for w in context["waiting"] if "claim" in w)
+    context["waiting_requests"] = len(context["waiting"]) - context["waiting_claims"]
     context["chase_after"] = settings.CHASE_AFTER_WORKING_DAYS
     context["email_configured"] = email_is_configured()
     context["email_failures"] = list(EmailFailure.objects.all()[:10])

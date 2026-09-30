@@ -46,8 +46,9 @@ pot is closed.
   closed: it is listed under `failed` ("… 1 request(s) waiting — decide them
   first") and closed the first night after the last one is approved,
   declined or cancelled. Decide requests that span the end of a leave year promptly.
-  A [TOIL claim](absence.md#toil) waiting for a day in a TOIL pot's year holds
-  that pot's close the same way.
+  A [TOIL claim](absence.md#toil) waiting does **not** hold the close:
+  approved afterwards, it goes on the new year's pot, still dated the day
+  worked.
 - **A closed pot takes no more lines.** Approving, cancelling or re-costing an
   absence whose pot has closed, a new request in a closed year, and
   *Recalculate entitlement* on a closed pot are all refused with a message

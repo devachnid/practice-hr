@@ -27,7 +27,8 @@ def _claim_page(request, employment, today, submit, for_employee=None):
     `submit(day, units, reason)`, which saves it and returns the response.
     Shared by your own claim and one recorded for someone."""
     unit = contracts.unit(employment, today) or "hours"
-    form = ToilClaimForm(request.POST or None, unit=unit, today=today,
+    window = AbsenceType.objects.get(code="TOIL").earned_expires_after_days
+    form = ToilClaimForm(request.POST or None, unit=unit, today=today, window=window,
                          whose="your" if for_employee is None else "their")
     if request.method == "POST" and form.is_valid():
         d = form.cleaned_data
@@ -37,7 +38,7 @@ def _claim_page(request, employment, today, submit, for_employee=None):
             form.add_error(None, e.messages)
     return render(request, "absence/toil_claim.html", {
         "form": form, "for_employee": for_employee, "toil": toil.position(employment, today),
-        "expires_after": AbsenceType.objects.get(code="TOIL").earned_expires_after_days})
+        "expires_after": window})
 
 
 @login_required

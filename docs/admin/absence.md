@@ -430,10 +430,14 @@ and rounding.
 
 1. **Claim.** *My absences › TOIL › Claim TOIL* (`/absence/toil/claim/`):
    the day worked, how much, and what for. The day is today or earlier,
-   never later, and the person must have been employed with a contract that
-   day. Hours staff claim in **quarter hours** (0.25, 1.75…), sessions staff
-   in **half sessions**; there is no cap. A day in a leave year that has
-   already been closed is refused.
+   never later, and no further back than the type's *Earned expires after
+   days* (365 as seeded): older TOIL would already have expired, so it is
+   refused. The person must have been employed with a contract that day.
+   Hours staff claim in **quarter hours** (0.25, 1.75…), sessions staff in
+   **half sessions**; there is no cap. A claim for a day in a leave year
+   that has already ended (2 January for 30 December, say) is fine: it is
+   added to the current year's pot, still dated the day worked, just as the
+   year end carries unused TOIL forward, so it expires on the same day.
 2. **Approve.** The claim goes to the same person a leave request would
    ([routing](#deciding-a-request): the line manager, or the HR admins when
    there is none, never the claimant), who is emailed a link to the decide

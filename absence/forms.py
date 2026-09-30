@@ -116,10 +116,12 @@ class ToilClaimForm(forms.Form):
     reason = forms.CharField(max_length=200, label="What for",
                              help_text="The clinic or cover, say. Your approver sees it, and it is noted on the ledger.")
 
-    def __init__(self, *args, unit="hours", today=None, whose="your", **kw):
+    def __init__(self, *args, unit="hours", today=None, whose="your", window=None, **kw):
         super().__init__(*args, **kw)
         if today is not None:
             self.fields["day"].widget.attrs["max"] = today.isoformat()
+        self.fields["day"].help_text = ("Today or earlier" + (f", up to {window} days ago: older TOIL would "
+                                                              f"already have expired." if window else "."))
         sessions = unit == "sessions"
         step = "0.5" if sessions else "0.25"
         self.fields["units"].widget.attrs.update(step=step, min=step)

@@ -6,7 +6,7 @@ the name again), adding the absence workflow's card above the app list.{% endcom
   <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
     <h2 class="text-lg font-semibold mb-2">Leave requests and TOIL claims waiting</h2>
     {% if waiting %}
-      <p class="mb-4">{{ waiting|length }} request{{ waiting|length|pluralize }} waiting more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
+      <p class="mb-4">{% if waiting_requests %}{{ waiting_requests }} leave request{{ waiting_requests|pluralize }}{% if waiting_claims %} and {% endif %}{% endif %}{% if waiting_claims %}{{ waiting_claims }} TOIL claim{{ waiting_claims|pluralize }}{% endif %} waiting more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
       <ul class="flex flex-col gap-2">
       {% for w in waiting %}{% with a=w.a c=w.claim %}
         <li><a href="{{ w.url }}" class="underline">{% if c %}{{ c.employment.employee.name }}, TOIL claim, {{ c.units|units:w.unit }} worked on {{ c.day|date:"j M Y" }}{% else %}{{ a.employment.employee.name }}, {{ a.absence_type.name }}, {{ a|when }}{% endif %}</a>

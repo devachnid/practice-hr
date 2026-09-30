@@ -1,8 +1,10 @@
 """TOIL claims (absence.services.toil): earned by a claim the person's
 approver decides, as leave is. Dates are offsets from today, so nothing here
 expires with the calendar."""
-from datetime import timedelta
+from contextlib import contextmanager
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from unittest import mock
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -67,9 +69,10 @@ def test_a_claim_for_today_is_allowed_and_for_tomorrow_refused(employee_user):
 
 
 def test_a_claim_needs_employment_and_a_contract_on_the_day(employee_user, hr_admin):
-    emp, _ = _people(employee_user)
+    _people(employee_user)
+    newby = hours_employee(start=_today() - timedelta(days=30), employee=make_employee(first="Newby"))
     with pytest.raises(ValidationError, match="not employed"):
-        _claim(employee_user, emp, day=emp.start_date - timedelta(days=1))
+        toil.claim(hr_admin, newby, newby.start_date - timedelta(days=1), D("1"), "Late clinic")
     bare = make_employment(employee=make_employee(first="Nocon"), start=_today() - timedelta(days=30))
     with pytest.raises(ValidationError, match="no contract"):
         toil.claim(hr_admin, bare, _worked(), D("1"), "Late clinic")
@@ -113,15 +116,16 @@ def test_a_claim_says_why(employee_user, reason):
         _claim(employee_user, emp, reason=reason)
 
 
-def test_a_claim_for_a_day_in_a_closed_leave_year_is_refused(employee_user, hr_admin):
+def test_a_claim_older_than_the_expiry_window_is_refused(employee_user):
     emp, _ = _people(employee_user)
-    last_year_day = current_leave_year()[0] - timedelta(days=10)
-    year_end.close(pots.for_day(emp, absence_type("TOIL"), last_year_day))
-    with pytest.raises(ValidationError, match="is closed"):
-        _claim(employee_user, emp, day=last_year_day)
-    with pytest.raises(ValidationError, match="is closed"):
-        toil.claim(hr_admin, emp, last_year_day, D("1"), "Late clinic")
-    assert not ToilClaim.objects.exists()
+    assert _claim(employee_user, emp, day=_today() - timedelta(days=365)).status == S.REQUESTED
+    with pytest.raises(ValidationError, match="more than 365 days ago, so it would already have expired"):
+        _claim(employee_user, emp, day=_today() - timedelta(days=366))
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=30)
+    with pytest.raises(ValidationError, match="more than 30 days ago"):
+        _claim(employee_user, emp, day=_today() - timedelta(days=31))
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=None)   # never expires: no limit
+    assert _claim(employee_user, emp, day=_today() - timedelta(days=366)).status == S.REQUESTED
 
 
 def test_earn_refuses_a_closed_pot(employee_user, hr_admin):
@@ -242,11 +246,10 @@ def test_claimed_toil_expires_365_days_after_the_day_worked_via_the_nightly(empl
 def test_the_payroll_toil_sheet_lists_claimed_toil(employee_user):
     emp, boss_user = _people(employee_user)
     toil.approve(boss_user, _claim(employee_user, emp, units="2", reason="Late clinic"))
-    worked = _worked()
-    wb = payroll.build(worked.replace(day=1), worked)
-    rows = [list(r) for r in wb["TOIL"].iter_rows(values_only=True)][1:]
-    assert [(r[0], r[1].date() if hasattr(r[1], "date") else r[1], r[2], r[3], r[4]) for r in rows] == [
-        ("Sam Patel", worked, 2.0, "TOIL earned", "TOIL claim: Late clinic")]
+    worked, today = _worked(), _today()
+    wb = payroll.build(min(worked, today).replace(day=1), today)
+    rows = [[v.date() if hasattr(v, "date") else v for v in r] for r in wb["TOIL"].iter_rows(values_only=True)][1:]
+    assert rows == [["Sam Patel", today, 2.0, "TOIL earned", "TOIL claim: Late clinic", worked, today]]
 
 
 def _old_claim(employee_user, emp, working_days_ago=6):
@@ -310,17 +313,74 @@ def test_claim_emails_never_raise(employee_user):
     assert AbsenceType.objects.get(code="TOIL")                     # nothing else disturbed
 
 
-def test_the_year_end_waits_for_a_claim_in_the_closing_year(employee_user):
-    """As for a leave request: once the pot closed, the claim's approval
-    could no longer be written, so the close waits for the decision."""
-    emp, boss_user = _people(employee_user)
-    start, end = current_leave_year()
-    toil.approve(boss_user, _claim(employee_user, emp, day=start))             # the pot, with 2.5 in it
-    pot = pots.lookup(emp, absence_type("TOIL"), start)
-    late = _claim(employee_user, emp, day=start + timedelta(days=1))
-    with pytest.raises(ValidationError, match="1 request"):
-        year_end.close(pot)
-    assert not year_end.is_closed(pot)
-    toil.approve(boss_user, late)
-    year_end.close(pot)
-    assert year_end.is_closed(pot)
+# --- a claim for a day in a leave year that has ended (a January year: 2 Jan for 30 Dec) ------
+
+@contextmanager
+def _on(day):
+    """timezone.now() (so localdate(), created_at, requested_at) at noon on `day`."""
+    moment = timezone.make_aware(datetime.combine(day, time(12)))
+    with mock.patch("django.utils.timezone.now", return_value=moment):
+        yield
+
+
+def _january_people(employee_user):
+    """Sam and Boss on an hours contract whose annual leave (so TOIL) runs from 1 January."""
+    from absence.models import Policy
+    boss_user = User.objects.create_user(email="boss@example.org", password="pw")
+    boss = make_employee(first="Boss", last="Jones", user=boss_user)
+    make_employment(employee=boss, start=date(2025, 1, 1))
+    emp = hours_employee(start=date(2025, 1, 1), employee=make_employee(user=employee_user))
+    positions.add(None, emp, "Receptionist", make_team(), boss, date(2025, 1, 1))
+    Policy.objects.update(year_start_month=1)
+    return emp, boss_user
+
+
+def test_a_claim_for_a_closed_year_lands_on_the_current_pot_dated_the_day_worked(employee_user):
+    emp, boss_user = _january_people(employee_user)
+    with _on(date(2026, 12, 2)):
+        old = toil.claim(boss_user, emp, date(2026, 12, 1), D("1"), "Flu clinic").earned.pot
+    with _on(date(2027, 1, 2)):
+        year_end.run(date(2027, 1, 2))                               # the 2026 pot closes overnight
+        assert year_end.is_closed(old)
+        c = toil.claim(employee_user, emp, date(2026, 12, 30), D("3"), "Covered the late surgery")
+        toil.approve(boss_user, c)
+    line = ToilClaim.objects.get(pk=c.pk).earned
+    assert (line.date, line.units, line.pot.year_start) == (date(2026, 12, 30), D("3"), date(2027, 1, 1))
+    assert ledger.balance(line.pot) == D("4") and ledger.balance(old) == D("0")
+    ours = LedgerEntry.objects.filter(kind=K.EXPIRY, note=year_end._toil_marker(line))
+    year_end.expire_toil(line.pot, date(2027, 12, 30))                  # 365 days after 30 Dec: still usable
+    assert not ours.exists()
+    year_end.expire_toil(line.pot, date(2027, 12, 31))
+    assert [e.units for e in ours] == [D("-3")]
+
+
+def test_a_claim_for_an_ended_year_with_no_pot_opens_none_for_it(employee_user):
+    emp, boss_user = _january_people(employee_user)
+    with _on(date(2027, 1, 2)):
+        c = toil.approve(boss_user, toil.claim(employee_user, emp, date(2026, 12, 30), D("2"), "Late clinic"))
+    assert ToilClaim.objects.get(pk=c.pk).earned.pot.year_start == date(2027, 1, 1)
+    assert not pots.lookup(emp, absence_type("TOIL"), date(2026, 12, 30))
+
+
+def test_claimed_toil_is_on_payroll_in_the_month_it_was_approved(employee_user):
+    emp, boss_user = _january_people(employee_user)
+    with _on(date(2026, 12, 20)):
+        waiting = toil.claim(employee_user, emp, date(2026, 12, 18), D("1.5"), "Late clinic")
+    with _on(date(2027, 1, 2)):
+        year_end.run(date(2027, 1, 2))
+        c = toil.claim(employee_user, emp, date(2026, 12, 30), D("3"), "Covered the late surgery")
+        toil.approve(boss_user, c)
+        toil.approve(boss_user, waiting)                  # its own year's pot has not opened: the current one
+
+    def rows(first, last):
+        return [list(r) for r in payroll.build(first, last)["TOIL"].iter_rows(values_only=True)]
+
+    head, *jan = rows(date(2027, 1, 1), date(2027, 1, 31))
+    assert head == ["Name", "Date", "Units", "Kind", "Note", "Day worked", "Approved"]
+    as_dates = [[v.date() if hasattr(v, "date") else v for v in r] for r in jan]
+    assert sorted(as_dates, key=lambda r: r[5]) == [
+        ["Sam Patel", date(2027, 1, 2), 1.5, "TOIL earned", "TOIL claim: Late clinic", date(2026, 12, 18),
+         date(2027, 1, 2)],
+        ["Sam Patel", date(2027, 1, 2), 3.0, "TOIL earned", "TOIL claim: Covered the late surgery",
+         date(2026, 12, 30), date(2027, 1, 2)]]
+    assert rows(date(2026, 12, 1), date(2026, 12, 31))[1:] == []           # worked in December, approved in January

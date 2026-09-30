@@ -283,3 +283,20 @@ def test_the_admin_dashboard_lists_a_claim_waiting_too_long(employee_user, admin
     ToilClaim.objects.filter(pk=c.pk).update(requested_at=timezone.now() - timedelta(days=14))
     body = admin_client.get("/admin/").content.decode()
     assert f'href="/absence/toil/{c.pk}/decide/"' in body and "TOIL claim" in body
+
+
+def test_the_claim_page_says_how_far_back_a_claim_may_go(employee_client, employee_user):
+    _people(employee_user)
+    body = employee_client.get("/absence/toil/claim/").content.decode()
+    assert "Today or earlier, up to 365 days ago" in body
+    r = employee_client.post("/absence/toil/claim/", _form(day=_today() - timedelta(days=366)))
+    assert "more than 365 days ago, so it would already have expired" in r.content.decode()
+    assert not ToilClaim.objects.exists()
+
+
+def test_the_dashboard_counts_requests_and_claims_apart(employee_user, admin_client):
+    emp, _, _ = _people(employee_user)
+    c = _claim(employee_user, emp)
+    ToilClaim.objects.filter(pk=c.pk).update(requested_at=timezone.now() - timedelta(days=14))
+    body = admin_client.get("/admin/").content.decode()
+    assert "1 TOIL claim waiting more than" in body and "request" not in body.split("TOIL claim waiting")[0][-40:]

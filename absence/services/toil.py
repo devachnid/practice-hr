@@ -12,6 +12,13 @@ earned_expires_after_days runs from then; declining and cancelling write
 nothing. An approved claim is never undone here: HR corrects the pot with
 an adjustment (ledger.adjust).
 
+A claim for a day whose leave year has already ended (2 January for 30
+December, in a January year) is still accepted, up to the type's expiry
+window: its line goes on the pot open today, still dated the day worked,
+as year_end._close_toil carries a lot into the next year, so its deadline
+is unchanged (_pot_day). Only a claim that would already have expired is
+refused.
+
 Every writer is atomic and, like bookings, re-reads the claim under a lock
 (_lock) before its status guard, and copies the fresh row back onto the
 caller's instance (_copy_back). Emails are the caller's, after the
@@ -39,16 +46,18 @@ def _toil():
 
 
 @transaction.atomic
-def earn(actor, employment, units, day, note):
-    """Credit `units` of TOIL earned on `day` to the TOIL pot for that day,
-    opening it if needed (it borrows the annual-leave policy's leave year:
-    TOIL has no policy). Raises ValidationError for non-positive units, when
-    there is no contract or annual-leave policy on the day, or when the
-    pot's year has been closed (year_end.check_open)."""
+def earn(actor, employment, units, day, note, into=None):
+    """Credit `units` of TOIL earned on `day`, as a TOIL-earned line dated
+    `day`, to the TOIL pot for that day, or for the day `into` when given
+    (approve's claim for a year that has ended goes on today's pot), opening
+    it if needed (it borrows the annual-leave policy's leave year: TOIL has
+    no policy). Raises ValidationError for non-positive units, when there is
+    no contract or annual-leave policy on the pot's day, or when the pot's
+    year has been closed (year_end.check_open)."""
     units = Decimal(units).quantize(Decimal("0.01"))
     if units <= 0:
         raise ValidationError("TOIL earned must be more than zero.")
-    pot = pots.for_day(employment, _toil(), day, actor=actor)
+    pot = pots.for_day(employment, _toil(), into or day, actor=actor)
     Pot.objects.select_for_update().get(pk=pot.pk)     # the year end holds the same lock while it closes
     year_end.check_open(pot)
     row = ledger.write(pot, LedgerEntry.Kind.TOIL_EARNED, units, actor, note=note, date=day)
@@ -67,6 +76,9 @@ def check(employment, day, units, reason, today=None):
     today = today or timezone.localdate()
     if day > today:
         raise ValidationError("A claim is for time already worked: the day cannot be after today.")
+    days = _toil().earned_expires_after_days
+    if days is not None and day < today - timedelta(days=days):
+        raise ValidationError(f"That is more than {days} days ago, so it would already have expired.")
     if not employment.is_active_on(day):
         raise ValidationError(f"{employment.employee} was not employed on {day:%d %b %Y}.")
     unit = contracts.unit(employment, day)
@@ -80,10 +92,19 @@ def check(employment, day, units, reason, today=None):
     reason = (reason or "").strip()
     if not reason:
         raise ValidationError("Say what the time was worked for.")
-    pot = pots.lookup(employment, _toil(), day)
-    if pot is not None:
-        year_end.check_open(pot)
     return units.quantize(Decimal("0.01")), reason
+
+
+def _pot_day(employment, day, today):
+    """The day whose TOIL pot a claim for `day` is written to: `day` itself,
+    unless its leave year has ended (or its pot has been closed) by
+    `today`; then `today`, so the line lands on the pot open now instead of
+    a closed or stranded one."""
+    _, end = pots.bounds(employment, _toil(), day)
+    if end < today:
+        return today
+    pot = pots.lookup(employment, _toil(), day)
+    return today if pot is not None and year_end.is_closed(pot) else day
 
 
 def _own(actor, claim):
@@ -107,8 +128,8 @@ def claim(actor, employment, day, units, reason, requested_by=None):
     """A claim for `units` of time worked on `day`, `reason` saying what for.
     Refused (ValidationError) for a day after today, a day the person was
     not employed or had no contract, units that are not more than zero or
-    not a whole number of steps (step()), no reason, or a day whose TOIL
-    leave year has closed. Waits for the approver, unless `actor` is that
+    not a whole number of steps (step()), no reason, or a day more than the
+    type's earned_expires_after_days ago. Waits for the approver, unless `actor` is that
     approver or an HR admin (decides_at_once): then it is approved in the
     same transaction."""
     units, reason = check(employment, day, units, reason)
@@ -141,10 +162,14 @@ def _decidable(actor, claim):
 @transaction.atomic
 def approve(actor, claim, comment=""):
     """Approve a waiting claim: one TOIL-earned line through earn(), dated
-    the day worked and noted with the reason, linked as `earned`."""
+    the day worked and noted with the reason, linked as `earned`; on the
+    pot open today when the day's leave year has ended (_pot_day)."""
     caller, claim = claim, _lock(claim)
     _decidable(actor, claim)
-    claim.earned = earn(actor, claim.employment, claim.units, claim.day, note=f"TOIL claim: {claim.reason}")
+    today = timezone.localdate()
+    into = _pot_day(claim.employment, claim.day, today)
+    claim.earned = earn(actor, claim.employment, claim.units, claim.day, note=f"TOIL claim: {claim.reason}",
+                        into=None if into == claim.day else into)
     claim.status = S.APPROVED
     claim.decided_at = timezone.now()
     claim.decided_by = actor
@@ -195,8 +220,9 @@ def cancel(actor, claim):
 
 def position(employment, today):
     """What a person's TOIL stands at, for My absences and the decide page:
-    remaining now, earned this leave year (claims and other TOIL-earned
-    lines dated in it, not the lines carried in from last year), the lots
+    remaining now, earned this leave year (the TOIL-earned lines on this
+    year's pot, a late claim for last year's day included, but not the
+    lots carried in from last year: year_end.CARRIED_FROM), the lots
     with something left expiring in the next EXPIRING_WITHIN_DAYS days
     (year_end._toil_lots), and the claims waiting. Reads only: with no pot
     open yet everything is 0."""
@@ -213,8 +239,9 @@ def position(employment, today):
     if pot is None:
         return out
     out["remaining"] = ledger.balance(pot)
-    out["earned"] = pot.entries.filter(kind=LedgerEntry.Kind.TOIL_EARNED, date__gte=pot.year_start).aggregate(
-        t=Sum("units"))["t"] or Decimal("0")
+    out["earned"] = (pot.entries.filter(kind=LedgerEntry.Kind.TOIL_EARNED)
+                     .exclude(note__startswith=year_end.CARRIED_FROM).aggregate(t=Sum("units"))["t"]
+                     or Decimal("0"))
     horizon = today + timedelta(days=EXPIRING_WITHIN_DAYS)
     for lot in year_end._toil_lots(pot):
         left = lot["left"] - lot["used"]
