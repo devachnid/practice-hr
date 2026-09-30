@@ -81,7 +81,7 @@ def test_absence_guide_covers_the_standard_contract():
 
 def test_the_environment_settings_are_documented_in_the_readme():
     text = (ROOT / "README.md").read_text()
-    for name in ("SITE_URL", "HR_API_TOKENS", "CHASE_AFTER_WORKING_DAYS", "MEDIA_ROOT", "RETENTION_DAYS_PERSONAL",
+    for name in ("SITE_URL", "HR_API_TOKENS", "API_RATE_LIMIT_PER_MINUTE", "CHASE_AFTER_WORKING_DAYS", "MEDIA_ROOT", "RETENTION_DAYS_PERSONAL",
                  "RETENTION_DAYS_AUDIT"):
         assert name in text, name
     assert "MEDIA_ROOT=/var/lib/practice-hr/media" in text

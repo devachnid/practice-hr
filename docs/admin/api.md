@@ -29,6 +29,20 @@ A missing or wrong token is `401 {"error": "unauthorised"}` with
 `Cache-Control: no-store` (it is people's names and when they are away).
 Dates are ISO (`YYYY-MM-DD`).
 
+## The rate limit
+
+Each client address may make **`API_RATE_LIMIT_PER_MINUTE`** requests in a
+minute (default **120**; **`0`** turns the limit off), set in
+`/etc/practice-hr.env` like the tokens. Every request counts, including one
+with a missing or wrong token, and it is counted before the token is checked,
+so a client guessing tokens is slowed as much as any other. The address is the
+client's own, as seen through the Cloudflare tunnel. Over the limit, the
+response is `429 {"error": "too many requests"}` with `Retry-After: <seconds>`
+(the time left in that minute) and `Cache-Control: no-store`, and the service
+logs one warning for that address per minute. The count is kept in each
+gunicorn worker's memory, so the effective limit is the setting times the
+number of workers; it exists to slow a guessing client, not to meter a good one.
+
 ## Matching people: `id`, not `email`
 
 The rota should match people by the **`id`** field, which is the employee
