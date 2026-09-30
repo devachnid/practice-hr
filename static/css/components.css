@@ -254,6 +254,12 @@ fieldset.field {
   color: var(--muted);
   font-size: var(--fs-xs);
 }
+/* Password validators hand over their help as a list. */
+.field-help ul {
+  margin: var(--sp-1) 0 0;
+  padding-left: 1.1em;
+}
+.field-help li { margin: 0; }
 .field-error {
   color: var(--danger);
   font-size: var(--fs-xs);

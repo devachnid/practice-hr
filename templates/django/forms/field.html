@@ -10,6 +10,6 @@ numbers and short text are .field-short, so they do not stretch.{% endcomment %}
 {% else %}<div class="field{% if field.errors %} field-invalid{% endif %}{% if field.is_short %} field-short{% endif %}">
 {% if field.label %}<label{% if field.id_for_label %} for="{{ field.id_for_label }}"{% endif %}>{{ field.label }}</label>{% endif %}
 {{ field }}
-{% endif %}{% if field.help_text %}<p class="field-help"{% if field.auto_id %} id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</p>
+{% endif %}{% if field.help_text %}<div class="field-help"{% if field.auto_id %} id="{{ field.auto_id }}_helptext"{% endif %}>{{ field.help_text|safe }}</div>
 {% endif %}{% if field.errors %}<div class="field-errors"{% if field.auto_id %} id="{{ field.auto_id }}_error"{% endif %}>{% for error in field.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}</div>
 {% endif %}{% if field.is_choice_row %}</fieldset>{% else %}</div>{% endif %}
