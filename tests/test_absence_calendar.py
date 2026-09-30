@@ -1,8 +1,10 @@
+import re
 from datetime import date
 
 from django.contrib.auth import get_user_model
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from absence.models import Absence
 from absence.services import bank_holidays, bookings, calendar
@@ -165,10 +167,12 @@ def test_view_filters_by_team_and_links_months(db, admin_client, hr_admin):
     for e in (a, b):
         bookings.approve(hr_admin, bookings.request(hr_admin, e, absence_type("AL"), date(2026, 6, 1)))
     body = admin_client.get(f"/absence/calendar/?month=2026-06&team={nursing.pk}").content.decode()
-    assert "P0 Patel" in body and body.count("P0 Patel") == 1
+    grid = body.split('<table class="cal-grid">')[1].split("</table>")[0]
+    assert "P0 Patel" in grid and grid.count('title="P0 Patel') == 1
     assert "month=2026-05" in body and "month=2026-07" in body
     both = admin_client.get("/absence/calendar/?month=2026-06").content.decode()
-    assert both.count("P0 Patel") == 2
+    grid = both.split('<table class="cal-grid">')[1].split("</table>")[0]
+    assert grid.count('title="P0 Patel') == 2
 
 
 def test_calendar_shows_labels_only_to_colleagues_and_type_detail_to_hr(db, hr_admin, employee_client, admin_client):
@@ -228,3 +232,105 @@ def test_decide_page_shows_labels_only_never_a_category(db, hr_admin):
     assert "P0 Patel (Sick)" in body and "2 of 3 present" in body
     for hidden in ("mental", "Mental health", "Sickness"):
         assert hidden not in body
+
+
+# --- the month grid (desktop) and the day list (phone) ---
+
+def _may(client, team=None):
+    url = "/absence/calendar/?month=2026-05" + (f"&team={team.pk}" if team else "")
+    body = client.get(url).content.decode()
+    grid = body.split('<table class="cal-grid">')[1].split("</table>")[0]
+    listed = body.split('<ol class="cal-list">')[1].split("</ol>")[0]
+    return body, grid, listed
+
+
+def _cell(grid, day):
+    return grid.split(f'data-date="{day:%Y-%m-%d}"')[1].split("</td>")[0]
+
+
+def test_month_marks_weekends_bank_holidays_and_a_teams_presence(db, hr_admin):
+    team = make_team()
+    a, b = _team_of(2, team)
+    bookings.approve(hr_admin, bookings.request(hr_admin, a, absence_type("AL"), date(2026, 5, 12)))
+    days = {d["day"]: d for w in calendar.month(2026, 5, team) for d in w}
+    assert days[date(2026, 5, 4)]["bank_holiday"] == "Early May bank holiday"
+    assert days[date(2026, 5, 5)]["bank_holiday"] == ""
+    assert days[date(2026, 5, 9)]["weekend"] and not days[date(2026, 5, 8)]["weekend"]
+    assert (days[date(2026, 5, 12)]["present"], days[date(2026, 5, 12)]["headcount"]) == (1, 2)
+    assert days[date(2026, 4, 30)]["present"] is None                  # outside the month
+    whole = {d["day"]: d for w in calendar.month(2026, 5) for d in w}
+    assert whole[date(2026, 5, 12)]["present"] is None
+
+
+def test_the_grid_has_seven_columns_and_blanks_before_the_first(db, admin_client):
+    body, grid, _ = _may(admin_client)
+    heads = re.findall(r'<th scope="col"[^>]*>(\w+)</th>', grid.split("</thead>")[0])
+    assert heads == ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    rows = grid.split("<tbody>")[1].split("<tr")[1:]
+    assert all(row.count("<td") == 7 for row in rows)
+    first_week = rows[0]
+    assert first_week.count('class="cal-out"') == 4                   # 1 May 2026 is a Friday
+    assert first_week.index('class="cal-out"') < first_week.index('data-date="2026-05-01"')
+    assert 'data-date="2026-04-30"' not in grid
+    assert "Whole practice</span>" not in body                        # no second caption in the page head
+
+
+def test_a_chip_sits_in_its_days_cell_with_first_name_and_initial(db, admin_client, hr_admin):
+    team = make_team()
+    (a,) = _team_of(1, team)
+    bookings.approve(hr_admin, bookings.request(hr_admin, a, absence_type("AL"), date(2026, 5, 12),
+                                                date(2026, 5, 13), end_half="AM"))
+    _, grid, _ = _may(admin_client)
+    assert 'class="chip cal-chip"' in _cell(grid, date(2026, 5, 12))
+    assert "P0 P · Leave · Annual leave</span>" in _cell(grid, date(2026, 5, 12))    # HR sees the type
+    assert "P0 P · Leave · Annual leave · AM</span>" in _cell(grid, date(2026, 5, 13))
+    assert 'title="P0 Patel' in _cell(grid, date(2026, 5, 12))
+    assert "chip" not in _cell(grid, date(2026, 5, 11)) and "chip" not in _cell(grid, date(2026, 5, 14))
+
+
+def test_part_day_hours_show_on_the_chip(db, admin_client, hr_admin):
+    from datetime import time
+    (a,) = _team_of(1, make_team())
+    bookings.approve(hr_admin, bookings.request(hr_admin, a, absence_type("AL"), date(2026, 5, 12),
+                                                start_time=time(9), end_time=time(11, 30), hours=2.5))
+    _, grid, _ = _may(admin_client)
+    assert "P0 P · Leave · Annual leave · 2.5h</span>" in _cell(grid, date(2026, 5, 12))
+
+
+def test_bank_holidays_are_labelled_and_today_is_marked(db, admin_client):
+    _, grid, _ = _may(admin_client)
+    assert "Early May bank holiday" in _cell(grid, date(2026, 5, 4))
+    assert "is-holiday" in grid.split('data-date="2026-05-04"')[0].rsplit("<td", 1)[1]
+    today = timezone.localdate()
+    body = admin_client.get("/absence/calendar/").content.decode()
+    cell = body.split(f'data-date="{today:%Y-%m-%d}"')[0].rsplit("<td", 1)[1]
+    assert "is-today" in cell and 'aria-current="date"' in cell
+
+
+def test_a_team_shows_n_of_m_on_working_weekdays_only(db, admin_client, hr_admin):
+    team = make_team()
+    a, b = _team_of(2, team)
+    bookings.approve(hr_admin, bookings.request(hr_admin, a, absence_type("AL"), date(2026, 5, 12)))
+    _, grid, _ = _may(admin_client, team)
+    assert '<span class="cal-present">1 of 2</span>' in _cell(grid, date(2026, 5, 12))
+    assert '<span class="cal-present">2 of 2</span>' in _cell(grid, date(2026, 5, 11))
+    assert "cal-present" not in _cell(grid, date(2026, 5, 9))          # Saturday
+    assert "cal-present" not in _cell(grid, date(2026, 5, 4))          # a bank holiday: closed
+    _, whole, _ = _may(admin_client)
+    assert "cal-present" not in whole
+
+
+def test_the_phone_list_holds_only_days_with_someone_off_or_a_bank_holiday(db, admin_client, hr_admin):
+    (a,) = _team_of(1, make_team())
+    bookings.approve(hr_admin, bookings.request(hr_admin, a, absence_type("AL"), date(2026, 5, 12),
+                                                date(2026, 5, 13)))
+    body, _, listed = _may(admin_client)
+    assert re.findall(r'data-date="([\d-]+)"', listed) == ["2026-05-04", "2026-05-12", "2026-05-13", "2026-05-25"]
+    assert listed.count('class="chip cal-chip"') == 2 and "Spring bank holiday" in listed
+    assert "Nobody off this month." not in body
+
+
+def test_nobody_off_says_so(db, admin_client):
+    body, _, listed = _may(admin_client)
+    assert '<p class="empty">Nobody off this month.</p>' in body
+    assert "cal-chip" not in listed

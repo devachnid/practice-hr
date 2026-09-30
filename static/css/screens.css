@@ -483,6 +483,81 @@ body.page-grid {
 .summary-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
 .bank-holidays[open] > summary { margin-bottom: var(--sp-3); }
 
+/* ----------------------------------------------------------- calendar --- */
+
+/* Previous / month / Next on the left, the team choice on the right,
+   wrapping under one another on a narrow window. */
+.cal-toolbar { justify-content: space-between; margin-bottom: 0; }
+.cal-step { display: flex; align-items: center; gap: var(--sp-2); }
+.cal-title { min-width: 11rem; text-align: center; }
+.cal-team { display: flex; align-items: center; gap: var(--sp-2); }
+.cal-team label { font-weight: 700; font-size: var(--fs-sm); color: var(--ink); }
+.cal-team .inline-input { flex: 0 1 14rem; }
+
+/* The month as a seven-column grid, one cell per day. Weekends and bank
+   holidays sit on --sunken (the practice is closed); today is outlined in
+   the accent, inset because collapsed borders leave nowhere for an outline. */
+.cal-grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.cal-grid thead th {
+  padding: var(--sp-2);
+  text-align: left;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.cal-grid td {
+  height: 6.5rem;
+  padding: var(--sp-2);
+  vertical-align: top;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.cal-grid td.is-weekend,
+.cal-grid td.is-holiday { background: var(--sunken); }
+.cal-grid td.cal-out { background: var(--ground); }
+.cal-grid td.is-today { box-shadow: inset 0 0 0 2px var(--accent); }
+.cal-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.cal-num { font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.is-today .cal-num { color: var(--accent); }
+.cal-present { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
+.cal-holiday {
+  margin: var(--sp-1) 0 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+.cal-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--sp-1);
+}
+/* One person off: the chip's colours from tokens, so they follow the theme. */
+.cal-chip {
+  --chip-bg: var(--accent-soft);
+  --chip-fg: var(--ink);
+  padding: 2px var(--sp-2);
+  text-align: left;
+  font-weight: 600;
+}
+
+/* The phone's list of only the days with someone off; hidden above 640px,
+   where the grid shows the same month. */
+.cal-list { display: none; }
+
 /* ----------------------------------------------------------- reports --- */
 
 /* Cross-links between the four report pages. Sits inside .page-head next to
@@ -749,4 +824,23 @@ body.page-grid {
   .absences td.row-actions { grid-column: 1 / -1; text-align: left; }
   .absences td:nth-child(5):empty { display: none; }
   .absences .kit-form { justify-content: flex-start; }
+
+  /* The calendar on a phone: the list, not the grid. */
+  .cal-grid-wrap { display: none; }
+  .cal-list {
+    display: block;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .cal-list-day {
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .cal-list-day:first-child { padding-top: 0; }
+  .cal-list-day:last-child { border-bottom: 0; padding-bottom: 0; }
+  .cal-list-date { font-size: var(--fs-md); }
+  .cal-list-day.is-today .cal-list-date { color: var(--accent); }
+  .cal-list .cal-chips { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); }
+  .cal-list .cal-chip { display: inline-block; max-width: 100%; }
 }
