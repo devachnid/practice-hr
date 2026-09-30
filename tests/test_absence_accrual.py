@@ -196,13 +196,40 @@ def test_monthly_daily_rates_put_each_twelfth_on_the_months_last_active_day(db):
     assert accrual.entitlement(_cal(emp, date(2026, 3, 15))) == D("96.25")       # 7 × 13.75
 
 
-def test_monthly_with_a_mid_month_year_start_counts_calendar_months_clipped_to_the_year(db):
-    # 15 April to 14 April spans thirteen calendar months (15-30 Apr ... 1-14 Apr), each a
-    # twelfth: someone there all year gets 13 × 13.75 = 178.75 (documented; use the 1st)
-    make_policy(make_contract_type(), weeks_per_year=D("4.4"), year_start_month=4, year_start_day=15,
+def test_monthly_anniversary_year_has_twelve_months_from_its_start(db):
+    # an anniversary year from 15 March runs in twelve months from its start: 15 Mar-14 Apr,
+    # ..., 15 Feb-14 Mar; there all year: 12 × 13.75 = 165.00, each twelfth on a window's last day
+    make_policy(make_contract_type(), weeks_per_year=D("4.4"), leave_year_basis="anniversary", accrual="monthly")
+    emp = hours_employee(start=date(2025, 3, 15))
+    pot = _cal(emp)
+    assert (pot.year_start, pot.year_end) == (date(2026, 3, 15), date(2027, 3, 14))
+    assert accrual.entitlement(pot) == D("165.00")
+    assert [day for day, rate in accrual.daily_rates(pot) if rate] == \
+        [date(2026 + (m > 12), (m - 1) % 12 + 1, 14) for m in range(4, 16)]
+
+
+def test_monthly_fixed_mid_month_year_starter_counts_from_their_window(db):
+    # a 15 March year; starting 20 April falls in the second window (15 Apr-14 May), so
+    # 11 of the 12: 11 × 13.75 = 151.25
+    make_policy(make_contract_type(), weeks_per_year=D("4.4"), year_start_month=3, year_start_day=15,
+                accrual="monthly")
+    emp = hours_employee(start=date(2026, 4, 20))
+    assert accrual.entitlement(_cal(emp, date(2026, 4, 20))) == D("151.25")
+
+
+def test_monthly_windows_from_the_31st_clip_to_the_end_of_short_months(db):
+    # a year from 31 January: windows start 31 Jan, 28 Feb, 31 Mar, 30 Apr, ... (the same day of
+    # the month, clipped), so each ends the day before the next starts; twelve, 165.00 in all
+    make_policy(make_contract_type(), weeks_per_year=D("4.4"), year_start_month=1, year_start_day=31,
                 accrual="monthly")
     emp = hours_employee(start=date(2025, 1, 1))
-    assert accrual.entitlement(_cal(emp)) == D("178.75")
+    pot = _cal(emp)
+    assert (pot.year_start, pot.year_end) == (date(2026, 1, 31), date(2027, 1, 30))
+    ends = [date(2026, 2, 27), date(2026, 3, 30), date(2026, 4, 29), date(2026, 5, 30), date(2026, 6, 29),
+            date(2026, 7, 30), date(2026, 8, 30), date(2026, 9, 29), date(2026, 10, 30), date(2026, 11, 29),
+            date(2026, 12, 30), date(2027, 1, 30)]
+    assert [day for day, rate in accrual.daily_rates(pot) if rate] == ends
+    assert accrual.entitlement(pot) == D("165.00")
 
 
 def test_a_year_switching_from_daily_to_monthly_takes_each_month_by_its_policy(db):

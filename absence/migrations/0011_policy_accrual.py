@@ -16,7 +16,7 @@ class Migration(migrations.Migration):
             field=models.CharField(
                 choices=[("daily", "Daily"), ("monthly", "Monthly twelfths")],
                 default="daily",
-                help_text="Daily: earned day by day across the leave year. Monthly twelfths: a twelfth of the year's entitlement for each calendar month employed, a part month counting in full.",
+                help_text="Daily: earned day by day across the leave year. Monthly twelfths: a twelfth of the year's entitlement for each month of the leave year employed, a part month counting in full.",
                 max_length=7,
             ),
         ),

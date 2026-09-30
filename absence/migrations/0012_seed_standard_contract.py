@@ -8,14 +8,15 @@ in monthly twelfths, a part month counting in full; plus the bank holidays
 as a pot, one working day each, pro rata.
 
 Only a row that still holds exactly what 0004 (or 0007) seeded is changed,
-so a policy an HR admin has edited stays as they left it; a bank-holiday
+so a policy an HR admin has edited stays as they left it, and only on a
+contract type whose staff have no annual-leave or bank-holiday pot yet: a
+pot keeps the dates it was opened with, so moving the year under open
+April pots would let the nightly open January pots overlapping them (the
+docs say how to move a live type by hand). A bank-holiday
 policy moves only once its annual-leave policy starts on 1 January, so the
 two pots keep sharing a year. Run again, it finds nothing seeded and
 changes nothing. The sessions (GP) seeds are untouched. Reverse is a
 no-op.
-
-A pot already open keeps the dates it was opened with (docs: leave year
-basis), so this belongs before pots are in use on these types.
 """
 
 import datetime
@@ -46,13 +47,16 @@ def seed(apps, schema_editor):
     AbsenceType = apps.get_model("absence", "AbsenceType")
     Policy = apps.get_model("absence", "Policy")
     PolicyTier = apps.get_model("absence", "PolicyTier")
+    Pot = apps.get_model("absence", "Pot")
     annual_leave = AbsenceType.objects.filter(code="AL").first()
     bank_holiday = AbsenceType.objects.filter(code="BH").first()
     if annual_leave is None:
         return
     for name in HOURS_TYPES:
         ctype = ContractType.objects.filter(name=name, unit="hours").first()
-        if ctype is None:
+        if ctype is None or Pot.objects.filter(
+                absence_type__in=[t for t in (annual_leave, bank_holiday) if t is not None],
+                employment__contracts__contract_type=ctype).exists():
             continue
         al = Policy.objects.filter(contract_type=ctype, absence_type=annual_leave, effective_from=SEEDED_FROM).first()
         if al is None:

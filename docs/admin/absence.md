@@ -135,8 +135,11 @@ Eight annual-leave policies are seeded, one per seeded contract type, from
   "closed".
 
 The hours types were first seeded like the sessions ones; the move to the
-standard contract changed only the policies still exactly as seeded, so one
-you had already edited was left as you left it.
+standard contract changed only the policies still exactly as seeded, and
+only for contract types whose staff had no annual-leave or bank-holiday
+pot yet. A policy you had already edited, or a type already in use, was
+left as it was: to move a type in use, see
+[Moving a type in use to a January year](#moving-a-type-in-use-to-a-january-year).
 
 ### Entitlement: full-time days or weeks (`days_per_year`, `weeks_per_year`)
 
@@ -169,31 +172,42 @@ or their hours or tier change part way through:
   the leave year for the days the person is employed with a contract, so a
   contract change changes the rate from that day.
 - **Monthly twelfths** (the hours seeds): a twelfth of the year's
-  entitlement for each calendar month of the leave year in which the person
+  entitlement for each month of the leave year (see below) in which the person
   is employed with a contract on any day. **A part month counts as a full
   month, for starters and leavers alike.** Someone starting on 15 March
   gets March to December, 10/12; someone leaving on 3 September gets
   January to September, 9/12. A month is worked out on its **last day
-  employed with a contract**: the hours, the policy and the tier in force that day count for
-  the whole month, so hours cut from 20 June count at the new hours for all
-  of June, and a tier reached on 10 May counts from May.
+  employed with a contract**: the hours, the policy and the tier in force
+  that day count for the whole month, so hours cut from 20 June count at
+  the new hours for all of June, and a tier reached on 10 May counts from
+  May.
 
-Months are calendar months cut to the leave year. A year that starts on the
-1st of a month has exactly twelve; one that starts mid-month (a fixed start
-of 15 April, or an anniversary year for someone who started mid-month) has
-thirteen, its first and last being part months that each count in full, so
-someone there all year gets 13/12. **Use monthly twelfths with a leave year
-that starts on the 1st.** The bank-holiday pot does not use the accrual
-basis.
+The twelve months are counted from the start of the leave year, on the same
+day of the month (the month's last day where it is shorter): a 1 January
+year has the calendar months, and a year from 15 March (fixed, or the
+anniversary of a 15 March start) has 15 March to 14 April, and so on to
+15 February to 14 March. Someone starting on 20 April in that year gets
+11/12. Every leave year has exactly twelve. The bank-holiday pot does not
+use the accrual basis.
 
 ### Leave year basis (`leave_year_basis`)
 
 **Fixed date:** the year starts on **Year start month / day** (default 1
 April). **Anniversary of start:** the year starts on the anniversary of the
-*employment's start date* (not the continuous service date). Decide it once: pots already open keep the dates they were opened with, so
-changing the basis on a policy in use can leave them out of step with the
-new boundaries. A leave request that runs across the end of the leave year is refused ("book
-the two leave years separately").
+*employment's start date* (not the continuous service date). Decide it
+once: pots already open keep the dates they were opened with, so changing
+the basis or the start on a policy in use can leave them out of step with
+the new boundaries. A leave request that runs across the end of the leave
+year is refused ("book the two leave years separately").
+
+#### Moving a type in use to a January year
+
+To move a contract type whose staff already have April pots, do not edit
+its year start: end its April policy on 31 December and add a January
+policy (year from 1 January) effective from 1 January, then let the nightly
+close the April pots when they end on 31 March, so their carry-in lands in
+the January pot. Do the same with its bank-holiday policy, so the
+bank-holiday pot follows the same year.
 
 ### Carry over max weeks (`carry_over_max_weeks`)
 

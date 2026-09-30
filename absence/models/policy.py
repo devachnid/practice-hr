@@ -46,7 +46,7 @@ class Policy(models.Model):
     accrual = models.CharField(
         max_length=7, choices=Accrual.choices, default=Accrual.DAILY,
         help_text="Daily: earned day by day across the leave year. Monthly twelfths: a twelfth of the year's "
-                  "entitlement for each calendar month employed, a part month counting in full.")
+                  "entitlement for each month of the leave year employed, a part month counting in full.")
 
     class Meta:
         verbose_name_plural = "policies"

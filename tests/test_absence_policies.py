@@ -147,6 +147,25 @@ def test_reseed_leaves_an_edited_policy_and_its_bank_holiday_policy_alone(db, ed
 
 
 @pytest.mark.seeded_policies
+def test_reseed_skips_a_contract_type_whose_staff_already_have_pots(db):
+    # real pots keep the April dates they were opened with: moving the type's year would let
+    # the nightly open January pots overlapping them
+    from absence.models import Pot
+    from people.models import ContractType
+    from tests.factories import make_contract, make_employment
+    _back_to_0004("HCA")
+    _back_to_0004("Reception")
+    emp = make_employment(start=date(2026, 4, 1))
+    make_contract(emp, ContractType.objects.get(name="HCA"))
+    Pot.objects.create(employment=emp, absence_type=absence_type("BH"), year_start=date(2026, 4, 1),
+                       year_end=date(2027, 3, 31), unit="hours")
+    before = _state("HCA")
+    _reseed()
+    assert _state("HCA") == before
+    assert _state("Reception") == STANDARD
+
+
+@pytest.mark.seeded_policies
 def test_reseed_leaves_a_policy_given_tiers_alone(db):
     from absence.models import Policy, PolicyTier
     _back_to_0004("Management")

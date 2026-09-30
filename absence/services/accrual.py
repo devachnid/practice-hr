@@ -1,13 +1,13 @@
 """The entitlement of a pot, month by month over its leave year: under a
 daily policy the day-by-day integral of (weeks + tier) × weekly amount ÷
 days in the year; under a monthly one (Policy.accrual) a twelfth of the
-year's figure for each calendar month the person is employed with a
-contract, a part month counting in full. Pure: reads people rows and
-policies, writes nothing.
+year's figure for each month of the leave year in which the person is
+employed with a contract, a part month counting in full. Pure: reads
+people rows and policies, writes nothing.
 
-The months are calendar months clipped to the leave year, so a year that
-starts on the 1st has twelve and one that starts mid-month has thirteen
-(its first and last are part months, each a whole twelfth). A month's
+The twelve months are counted from the leave year's start, on the same day
+of the month (clipped at a short month's end): a 1 January year gives the
+calendar months, a 15 March one 15 Mar-14 Apr … 15 Feb-14 Mar. A month's
 basis, figure and weekly amount are those of its last active day, so a
 contract change, a tier reached or a policy switching basis part way
 through a month counts for that whole month.
@@ -17,7 +17,8 @@ and tiers for their contract types, the year's bank holidays) and every day
 is computed in memory, so an entitlement is a handful of queries, not
 several per day."""
 
-from datetime import timedelta
+from calendar import monthrange
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -37,14 +38,21 @@ def _days(pot):
         d += timedelta(days=1)
 
 
+def _month_start(start, k):
+    """`start` plus k months, on the same day of the month or the month's last day."""
+    year, month = divmod(start.month - 1 + k, 12)
+    year, month = start.year + year, month + 1
+    return date(year, month, min(start.day, monthrange(year, month)[1]))
+
+
 def _months(pot):
-    """The pot's days, grouped by calendar month (clipped to the year)."""
-    out, month = [], None
-    for day in _days(pot):
-        if (day.year, day.month) != month:
-            month = (day.year, day.month)
-            out.append([])
-        out[-1].append(day)
+    """The pot's days in its twelve months from year_start (the last runs to
+    year_end): month k is [start + k months, start + k+1 months)."""
+    out, k = [], 0
+    while (first := _month_start(pot.year_start, k)) <= pot.year_end:
+        last = min(_month_start(pot.year_start, k + 1) - timedelta(days=1), pot.year_end)
+        out.append([first + timedelta(days=i) for i in range((last - first).days + 1)])
+        k += 1
     return out
 
 
