@@ -362,6 +362,50 @@ def test_a_claim_for_an_ended_year_with_no_pot_opens_none_for_it(employee_user):
     assert not pots.lookup(emp, absence_type("TOIL"), date(2026, 12, 30))
 
 
+def _leaver_claim(employee_user, left_days_before_year=20, worked_days_before_year=40):
+    """Sam left `left_days_before_year` days before this leave year began, and
+    claims, a month into this one, a day worked before he left (in the year
+    that has ended). Returns (employment, boss, claim, the last day, today)."""
+    emp, boss_user = _people(employee_user)
+    start = current_leave_year()[0]
+    last, today = start - timedelta(days=left_days_before_year), start + timedelta(days=30)
+    type(emp).objects.filter(pk=emp.pk).update(end_date=last, leaving_reason="resigned")
+    emp.refresh_from_db()
+    with _on(today):
+        c = toil.claim(employee_user, emp, start - timedelta(days=worked_days_before_year), D("2"), "Late clinic")
+    return emp, boss_user, c, last, today
+
+
+def test_a_leavers_late_claim_lands_on_the_pot_of_their_last_day(employee_user):
+    emp, boss_user, c, last, today = _leaver_claim(employee_user)
+    with _on(today):
+        toil.approve(boss_user, c)
+    line = ToilClaim.objects.get(pk=c.pk).earned
+    assert (line.date, line.units) == (c.day, D("2"))
+    assert line.pot.year_start == pots.bounds(emp, absence_type("TOIL"), last)[0]
+    assert not emp.pots.filter(year_start__gt=last).exists()
+
+
+def test_a_leavers_late_claim_for_a_closed_pot_is_refused_and_writes_nothing(employee_user):
+    emp, boss_user, c, last, today = _leaver_claim(employee_user)
+    year_end.close(pots.for_day(emp, absence_type("TOIL"), last))
+    with _on(today), pytest.raises(ValidationError, match="is closed"):
+        toil.approve(boss_user, c)
+    assert ToilClaim.objects.get(pk=c.pk).status == S.REQUESTED
+    assert not LedgerEntry.objects.filter(kind=K.TOIL_EARNED).exists()
+    assert not emp.pots.filter(year_start__gt=last).exists()
+
+
+def test_a_current_employees_late_claim_still_lands_on_the_pot_open_today(employee_user):
+    emp, boss_user = _people(employee_user)
+    start = current_leave_year()[0]
+    with _on(start + timedelta(days=30)):
+        c = toil.claim(employee_user, emp, start - timedelta(days=10), D("2"), "Late clinic")
+        toil.approve(boss_user, c)
+    line = ToilClaim.objects.get(pk=c.pk).earned
+    assert (line.date, line.pot.year_start) == (start - timedelta(days=10), start)
+
+
 def test_claimed_toil_is_on_payroll_in_the_month_it_was_approved(employee_user):
     emp, boss_user = _january_people(employee_user)
     with _on(date(2026, 12, 20)):

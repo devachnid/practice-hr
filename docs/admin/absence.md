@@ -457,7 +457,9 @@ and rounding.
    **half sessions**; there is no cap. A claim for a day in a leave year
    that has already ended (2 January for 30 December, say) is fine: it is
    added to the current year's pot, still dated the day worked, just as the
-   year end carries unused TOIL forward, so it expires on the same day.
+   year end carries unused TOIL forward, so it expires on the same day. A
+   leaver's late claim is added to the pot of their last day instead, and is
+   refused if that pot is already closed.
 2. **Approve.** The claim goes to the same person a leave request would
    ([routing](#deciding-a-request): the line manager, or the HR admins when
    there is none, never the claimant), who is emailed a link to the decide
