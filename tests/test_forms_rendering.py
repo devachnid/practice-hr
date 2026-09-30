@@ -44,7 +44,7 @@ def test_every_field_is_wrapped_labelled_without_a_colon_and_helped():
     assert html.count('class="field') >= 8
     name = _field_div(html, "name")
     assert '<label for="id_name">Name</label>' in name
-    assert '<p class="field-help" id="id_name_helptext">As on your contract.</p>' in name
+    assert '<div class="field-help" id="id_name_helptext">As on your contract.</div>' in name
     assert 'aria-describedby="id_name_helptext"' in name
     assert ":</label>" not in html
 
@@ -66,7 +66,7 @@ def test_a_checkbox_sits_inside_its_label():
     agree = _field_div(html, "agree")
     assert agree.startswith('<div class="field field-check">')
     assert re.search(r'<label for="id_agree"><input type="checkbox" name="agree"[^>]*> I agree</label>', agree)
-    assert '<p class="field-help" id="id_agree_helptext">Tick to agree.</p>' in agree
+    assert '<div class="field-help" id="id_agree_helptext">Tick to agree.</div>' in agree
 
 
 def test_dates_times_numbers_and_short_text_are_short():
@@ -99,3 +99,15 @@ def test_the_personal_details_page_uses_it_with_autocomplete(employee_client, em
     assert 'autocomplete="email"' in body and 'autocomplete="tel"' in body and 'inputmode="tel"' in body
     assert 'autocomplete="postal-code"' in body
     assert 'class="field field-short"' in body                       # the postcode
+
+
+def test_the_auth_pages_use_it_too(client, employee_client):
+    """Login, the password-link form and change-password render through the
+    renderer: .field wrappers, labels without a colon, no as_p paragraphs."""
+    for url, c in (("/accounts/login/", client), ("/accounts/password_reset/", client),
+                   ("/accounts/password_change/", employee_client)):
+        body = c.get(url).content.decode()
+        assert 'class="field' in body, url
+        assert "<p><label" not in body, url
+        assert "errorlist" not in body, url
+        assert "Email:</label>" not in body and "password:</label>" not in body, url
