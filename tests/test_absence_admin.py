@@ -67,20 +67,31 @@ def test_recalculate_reports_a_pot_with_no_policy_and_revises_the_rest(admin_cli
 
 
 def _policy_post(policy, **changes):
-    """The admin change form's POST for `policy`, its tiers as inline rows."""
+    """The admin change form's POST for `policy`, its tiers as inline rows.
+    An hours policy's form takes days, not weeks (absence.admin_forms): its
+    entitlement, carry-over cap and tiers are posted as full-time days, and
+    `tier_values` and `new_tiers` values are days for it, weeks otherwise."""
     from django.forms.models import model_to_dict
+    days = policy.contract_type.unit == "hours" and policy.absence_type.code != "BH"
     data = {k: ("" if v is None else v) for k, v in model_to_dict(policy).items() if k != "id"}
+    if days:
+        data["days_per_year"] = data.pop("weeks_per_year") * 5
+        carry = data.pop("carry_over_max_weeks")
+        data["carry_over_days"] = "" if carry == "" else carry * 5
     data.update(changes.pop("fields", {}))
     tiers = list(policy.tiers.all())
+    values = changes.pop("tier_values", None) or [
+        (policy.weeks_per_year + t.extra_weeks) * 5 if days else t.extra_weeks for t in tiers]
     new_tiers = changes.pop("new_tiers", [])
+    name = "days" if days else "extra_weeks"
     data.update({"tiers-TOTAL_FORMS": len(tiers) + len(new_tiers), "tiers-INITIAL_FORMS": len(tiers),
                  "tiers-MIN_NUM_FORMS": 0, "tiers-MAX_NUM_FORMS": 1000})
-    for i, t in enumerate(tiers):
+    for i, (t, value) in enumerate(zip(tiers, values)):
         data.update({f"tiers-{i}-id": t.pk, f"tiers-{i}-policy": policy.pk,
-                     f"tiers-{i}-after_years": t.after_years, f"tiers-{i}-extra_weeks": t.extra_weeks})
-    for i, (years, weeks) in enumerate(new_tiers, start=len(tiers)):
+                     f"tiers-{i}-after_years": t.after_years, f"tiers-{i}-{name}": value})
+    for i, (years, value) in enumerate(new_tiers, start=len(tiers)):
         data.update({f"tiers-{i}-policy": policy.pk, f"tiers-{i}-after_years": years,
-                     f"tiers-{i}-extra_weeks": weeks})
+                     f"tiers-{i}-{name}": value})
     return data
 
 
@@ -105,7 +116,8 @@ def test_policy_save_in_admin_revises_affected_pots_once_as_the_admin(admin_clie
     pc = pots.for_day(c, al, start)
     policy = a.contracts.first().contract_type.policies.get()
     resp = admin_client.post(f"/admin/absence/policy/{policy.pk}/change/",
-                             _policy_post(policy, fields={"weeks_per_year": "6"}, new_tiers=[(5, "1")]),
+                             _policy_post(policy, fields={"days_per_year": "30"},     # 6 weeks
+                                          new_tiers=[(5, "35")]),                 # +1 week
                              follow=True)
     assert resp.status_code == 200 and "2 pot(s) revised" in resp.content.decode()
     ra, rb = (p.entries.get(kind=LedgerEntry.Kind.REVISION) for p in (pa, pb))   # one each, not per row saved

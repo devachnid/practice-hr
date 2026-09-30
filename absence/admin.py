@@ -13,6 +13,7 @@ from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action
 from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWidget
 
+from absence import admin_forms
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
                             Policy, PolicyTier, Pot)
 from absence.services import bookings, ledger, year_end
@@ -34,8 +35,22 @@ class AbsenceTypeAdmin(ModelAdmin):
 
 
 class PolicyTierInline(TabularInline):
+    """An hours policy's tiers are entered as the new total full-time days
+    (admin_forms), with the extra weeks stored shown beside them."""
     model = PolicyTier
+    form = admin_forms.PolicyTierForm
+    formset = admin_forms.PolicyTierFormSet
     extra = 0
+    readonly_fields = ("stored_extra_weeks",)
+
+    def get_fields(self, request, obj=None):
+        return {admin_forms.DAYS: ["after_years", "days", "stored_extra_weeks"],
+                admin_forms.EITHER: ["after_years", "days", "extra_weeks"],
+                }.get(admin_forms.mode(obj), ["after_years", "extra_weeks"])
+
+    @admin.display(description="Stored as")
+    def stored_extra_weeks(self, obj):
+        return f"+{admin_forms.plain(obj.extra_weeks)} weeks" if obj.pk else ""
 
 
 def _policy_snapshot(pk):
@@ -56,10 +71,42 @@ class PolicyAdmin(ModelAdmin):
     longer be synced (say, the only policy now ends mid-year) is shown as an
     error; the edit itself stands and the nightly reports the pot until a
     policy covers it."""
-    list_display = ("contract_type", "absence_type", "effective_from", "effective_to", "weeks_per_year",
+    list_display = ("contract_type", "absence_type", "effective_from", "effective_to", "entitlement",
                     "leave_year_basis", "bank_holiday_handling")
     list_filter = ("contract_type", "absence_type")
+    list_select_related = ("contract_type", "absence_type")
+    form = admin_forms.PolicyForm
     inlines = [PolicyTierInline]
+    readonly_fields = ("stored_weeks",)
+
+    # admin_forms.mode(policy) → which of the weeks fields become what on the page
+    _SWAPS = {
+        admin_forms.DAYS: {"weeks_per_year": ("days_per_year", "stored_weeks"),
+                           "carry_over_max_weeks": ("carry_over_days",)},
+        admin_forms.EITHER: {"weeks_per_year": ("days_per_year", "weeks_per_year"),
+                             "carry_over_max_weeks": ("carry_over_days", "carry_over_max_weeks")},
+        admin_forms.WEEKS: {},
+    }
+    _OWN = {"days_per_year", "carry_over_days", "stored_weeks"}
+
+    def get_fields(self, request, obj=None):
+        swaps = self._SWAPS[admin_forms.mode(obj)]
+        out = []
+        for name in super().get_fields(request, obj):
+            if name not in self._OWN:
+                out.extend(swaps.get(name, (name,)))
+        return out
+
+    @admin.display(description="Stored as")
+    def stored_weeks(self, obj):
+        return f"= {admin_forms.plain(obj.weeks_per_year)} weeks" if obj.pk else ""
+
+    @admin.display(description="Entitlement")
+    def entitlement(self, obj):
+        weeks = admin_forms.plain(obj.weeks_per_year)
+        if admin_forms.mode(obj) == admin_forms.DAYS:
+            return f"{admin_forms.plain(admin_forms.as_days(obj.weeks_per_year))} days ({weeks} weeks)"
+        return f"{weeks} weeks"
 
     def save_model(self, request, obj, form, change):
         # read before the save: the audit's "before" and, if the form moved the
