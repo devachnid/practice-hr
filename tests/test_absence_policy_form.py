@@ -389,3 +389,22 @@ def test_a_type_with_no_pots_takes_any_new_leave_year(admin_client, db):
     resp = _add(admin_client, ct, jan1)
     assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
     assert ct.policies.exclude(pk=april.pk).get().year_start_month == 1
+
+
+def test_a_superseded_open_ended_april_policy_does_not_block_a_january_add(admin_client, db):
+    # the type moved to January a year ago without ending its 2020 April policy: the
+    # January one governs from then on, so a new January policy is compared with it
+    ct, april, jan1 = _april_type_in_use()
+    january = make_policy(ct, effective_from=jan1.replace(year=jan1.year - 1), year_start_month=1)
+    resp = _add(admin_client, ct, jan1, days_per_year="25")
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    assert set(ct.policies.exclude(pk__in=(april.pk, january.pk)).values_list("effective_from", flat=True)) == {jan1}
+
+
+def test_moving_the_only_policy_s_effective_from_is_not_refused_against_itself(admin_client, db):
+    ct, april, jan1 = _april_type_in_use()
+    # saved from 1 Jan 2020, so on 31 May 2020 the policy in force is this one itself
+    resp = _save(admin_client, april, fields={"effective_from": "2020-06-01"})
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    april.refresh_from_db()
+    assert april.effective_from == date(2020, 6, 1)

@@ -176,10 +176,11 @@ class PolicyForm(_Stores, forms.ModelForm):
 
         With pots, a saved policy's year is never changed (YEAR_LOCKED), and a
         policy added, or moved by its effective from, must keep the year of
-        any other policy of the pair in force that day, and of the one in
-        force the day before unless it starts on its own year's first day
-        (YEAR_ADD_LOCKED). An anniversary year has no first day, so a change
-        to or from one is refused. Checked before anything is saved, so a
+        the pair's other policy governing that day (the newest in force, as
+        policies.policy_for), and of the one governing the day before unless
+        it starts on its own year's first day (YEAR_ADD_LOCKED). An
+        anniversary year has no first day, so a change to or from one is
+        refused. Checked before anything is saved, so a
         refused save writes nothing: an edit against its saved contract and
         absence type, an add against the ones chosen."""
         data, saved = self.cleaned_data, self.instance
@@ -208,10 +209,15 @@ class PolicyForm(_Stores, forms.ModelForm):
         def in_force(on):
             return others.filter(Q(effective_to__isnull=True) | Q(effective_to__gte=on), effective_from__lte=on)
 
-        if any(_year(p.leave_year_basis, p.year_start_month, p.year_start_day) != mine for p in in_force(start)):
+        def governing(on):                     # as policies.policy_for: the newest in force
+            policy = in_force(on).order_by("-effective_from").first()
+            return policy, policy and _year(policy.leave_year_basis, policy.year_start_month, policy.year_start_day)
+
+        overlapped, year = governing(start)
+        if overlapped is not None and year != mine:
             raise ValidationError(YEAR_ADD_LOCKED)
-        before = in_force(start - timedelta(days=1)).order_by("-effective_from").first()
-        if before is None or _year(before.leave_year_basis, before.year_start_month, before.year_start_day) == mine:
+        before, year = governing(start - timedelta(days=1))
+        if before is None or year == mine:
             return
         first_day = basis == Policy.Basis.FIXED and (start.month, start.day) == (month, day)
         if before.leave_year_basis == Policy.Basis.ANNIVERSARY or not first_day:
