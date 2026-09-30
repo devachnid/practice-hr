@@ -52,6 +52,12 @@ def test_days_are_stored_as_weeks_and_tiers_as_extra_weeks(admin_client, db):
         (1, D("0.40")), (3, D("0.80")), (5, D("1.20"))]
 
 
+def test_the_standard_top_tier_27_days_is_one_extra_week(admin_client, db):
+    policy = _hours_policy()                                        # 22 days
+    _save(admin_client, policy, new_tiers=[(5, "27")])
+    assert policy.tiers.get(after_years=5).extra_weeks == D("1.00")   # (27 − 22) / 5
+
+
 def test_round_trip_saves_nothing_new(admin_client, db):
     policy = _hours_policy(carry_over_max_weeks=D("1"))
     resp = _save(admin_client, policy)

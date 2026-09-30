@@ -315,3 +315,62 @@ def test_bank_holiday_pot_april_year_leaver(db):
     emp = hours_employee(start=date(2026, 4, 1), end_date=date(2026, 11, 30), leaving_reason="resigned")
     make_policy(emp.contracts.first().contract_type, "BH", bank_holiday_handling="pot")
     assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp)) == D("37.50")
+
+
+def test_monthly_29_february_anniversary_year_has_twelve_months(db):
+    # an anniversary of 29 Feb falls on 28 Feb in a common year: the year 28 Feb 2031 to
+    # 28 Feb 2032 (366 days) still has exactly twelve months, 12 × 13.75 = 165.00
+    make_policy(make_contract_type(), weeks_per_year=D("4.4"), leave_year_basis="anniversary", accrual="monthly")
+    emp = hours_employee(start=date(2028, 2, 29))
+    pot = pots.for_day(emp, absence_type("AL"), date(2031, 6, 1))
+    assert (pot.year_start, pot.year_end) == (date(2031, 2, 28), date(2032, 2, 28))
+    assert len([rate for _, rate in accrual.daily_rates(pot) if rate]) == 12
+    assert accrual.entitlement(pot) == D("165.00")
+
+
+# Moving a contract type in use from an April to a January year (docs: "Moving a type in
+# use to a January year"): the April policy ends on 31 December 2026 and a January one
+# starts on 1 January 2027. A day counts towards a pot only when that day's policy puts it
+# in the pot's own leave year, so January to March 2027 count once, in the 2027 pots.
+
+def _moved_to_january():
+    ct = make_contract_type()
+    make_policy(ct, effective_to=date(2026, 12, 31), bank_holiday_handling="pot")      # 5.6 weeks from 1 April
+    make_policy(ct, "BH", weeks_per_year=D("0"), effective_to=date(2026, 12, 31), bank_holiday_handling="pot")
+    _monthly_policy(ct, effective_from=date(2027, 1, 1), bank_holiday_handling="pot")  # 4.4 weeks from 1 January
+    make_policy(ct, "BH", weeks_per_year=D("0"), year_start_month=1, effective_from=date(2027, 1, 1),
+                bank_holiday_handling="pot")
+    return hours_employee(start=date(2025, 4, 1))
+
+
+def test_moving_to_a_january_year_counts_january_to_march_once(db):
+    emp = _moved_to_january()
+    april_al = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1), sync=False)
+    april_bh = pots.for_day(emp, absence_type("BH"), date(2026, 6, 1), sync=False)
+    assert (april_al.year_start, april_al.year_end) == (date(2026, 4, 1), date(2027, 3, 31))
+    # 1 April to 31 December 2026 at 5.6 weeks: 210 × 275/365 = 158.22 → 158.25; January to
+    # March 2027 belong to the January policy's 2027 year, so add nothing here
+    assert accrual.entitlement(april_al) == D("158.25")
+    assert all(rate == 0 for day, rate in accrual.daily_rates(april_al) if day >= date(2027, 1, 1))
+    # 3 and 6 Apr, 4 and 25 May, 31 Aug, 25 and 28 Dec 2026: 7 × 7.5 = 52.50 (1 Jan, 26 and
+    # 29 Mar 2027 are the 2027 pot's)
+    assert accrual.bank_holiday_entitlement(april_bh) == D("52.50")
+    jan_al = pots.for_day(emp, absence_type("AL"), date(2027, 6, 1), sync=False)
+    jan_bh = pots.for_day(emp, absence_type("BH"), date(2027, 6, 1), sync=False)
+    assert (jan_al.year_start, jan_al.year_end) == (date(2027, 1, 1), date(2027, 12, 31))
+    assert accrual.entitlement(jan_al) == D("165.00")                   # 12 × 13.75
+    assert accrual.bank_holiday_entitlement(jan_bh) == D("60.00")      # 2027's eight × 7.5
+
+
+def test_a_type_that_keeps_its_year_counts_every_day_as_before(db):
+    # no change of year: the new test excludes nothing (5.6 weeks all year, a new policy
+    # from 1 January at 6 weeks in the same April year)
+    ct = make_contract_type()
+    make_policy(ct, effective_to=date(2026, 12, 31))
+    make_policy(ct, weeks_per_year=D("6"), effective_from=date(2027, 1, 1))
+    make_policy(ct, "BH", weeks_per_year=D("0"), bank_holiday_handling="pot")
+    emp = hours_employee(start=date(2025, 4, 1))
+    al = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1), sync=False)
+    # 37.5 × (5.6 × 275 + 6 × 90) / 365 = 213.70 → 213.75
+    assert accrual.entitlement(al) == D("213.75")
+    assert accrual.bank_holiday_entitlement(pots.for_day(emp, absence_type("BH"), date(2026, 6, 1))) == D("75.00")

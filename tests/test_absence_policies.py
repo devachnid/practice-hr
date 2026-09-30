@@ -166,6 +166,17 @@ def test_reseed_skips_a_contract_type_whose_staff_already_have_pots(db):
 
 
 @pytest.mark.seeded_policies
+def test_reseed_moves_neither_policy_when_the_bank_holiday_one_was_edited(db):
+    from absence.models import Policy
+    _back_to_0004("Administration")
+    Policy.objects.filter(contract_type__name="Administration", absence_type__code="BH").update(
+        rounding=Decimal("0.5"))
+    before = _state("Administration")
+    _reseed()
+    assert _state("Administration") == before              # both stay in the April year
+
+
+@pytest.mark.seeded_policies
 def test_reseed_leaves_a_policy_given_tiers_alone(db):
     from absence.models import Policy, PolicyTier
     _back_to_0004("Management")

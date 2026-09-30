@@ -195,9 +195,12 @@ use the accrual basis.
 **Fixed date:** the year starts on **Year start month / day** (default 1
 April). **Anniversary of start:** the year starts on the anniversary of the
 *employment's start date* (not the continuous service date). Decide it
-once: pots already open keep the dates they were opened with, so changing
-the basis or the start on a policy in use can leave them out of step with
-the new boundaries. A leave request that runs across the end of the leave
+once: pots already open keep the dates they were opened with, and a day
+counts only towards the pot of the leave year its policy puts it in, so
+changing the basis or the start on a policy in use moves every day to the
+new years' pots and leaves the open ones earning nothing at their next
+recalculation. To change the year of a type in use, follow the next
+section instead. A leave request that runs across the end of the leave
 year is refused ("book the two leave years separately").
 
 #### Moving a type in use to a January year
@@ -208,6 +211,14 @@ policy (year from 1 January) effective from 1 January, then let the nightly
 close the April pots when they end on 31 March, so their carry-in lands in
 the January pot. Do the same with its bank-holiday policy, so the
 bank-holiday pot follows the same year.
+
+Each day then counts once. The April pots earn 1 April to 31 December
+under the old policy; January to March belong to the January policy's
+year, so they count in the new pots and not in the April ones too. For
+37.5 hours moving from 5.6 weeks to 22 days: the 2026/27 pot is 158.25
+(210 × 275/365) and the 2027 pot 165.00; the 2026/27 bank-holiday pot has
+the seven holidays of April to December 2026 (52.50) and 2027's has all
+eight (60.00).
 
 ### Carry over max weeks (`carry_over_max_weeks`)
 
@@ -249,7 +260,12 @@ leave policy:
   on 15 March 2026 gets the seven still to come, 52.5 hours. It is rounded
   to the bank-holiday policy's step and does not use the accrual basis.
   Each bank holiday that falls on a day they work is charged to it
-  automatically at that day's pattern.
+  automatically at that day's pattern. The pot and the charges need not
+  match: someone on 18.75 hours over Monday to Wednesday has a 30.00 pot
+  but is charged 6.25 for each holiday on a working day, and five of
+  2026's fall on a Monday (31.25), so the balance can end slightly
+  negative (carried in full) or, for other patterns, in surplus (which
+  expires); that is the contract's pro-rata rule.
 - **Included in annual leave:** each is charged to the Annual leave pot
   instead.
 

@@ -12,10 +12,10 @@ so a policy an HR admin has edited stays as they left it, and only on a
 contract type whose staff have no annual-leave or bank-holiday pot yet: a
 pot keeps the dates it was opened with, so moving the year under open
 April pots would let the nightly open January pots overlapping them (the
-docs say how to move a live type by hand). A bank-holiday
-policy moves only once its annual-leave policy starts on 1 January, so the
-two pots keep sharing a year. Run again, it finds nothing seeded and
-changes nothing. The sessions (GP) seeds are untouched. Reverse is a
+docs say how to move a live type by hand). A type's annual-leave and
+bank-holiday policies move together or not at all (both still as seeded),
+so the two pots keep sharing a year. Run again, it finds nothing seeded
+and changes nothing. The sessions (GP) seeds are untouched. Reverse is a
 no-op.
 """
 
@@ -59,18 +59,18 @@ def seed(apps, schema_editor):
                 employment__contracts__contract_type=ctype).exists():
             continue
         al = Policy.objects.filter(contract_type=ctype, absence_type=annual_leave, effective_from=SEEDED_FROM).first()
-        if al is None:
+        bh = (Policy.objects.filter(contract_type=ctype, absence_type=bank_holiday, effective_from=SEEDED_FROM).first()
+              if bank_holiday is not None else None)
+        if al is None or not _as_seeded(al, AS_SEEDED):
             continue
-        if _as_seeded(al, AS_SEEDED):
-            for field, value in STANDARD.items():
-                setattr(al, field, value)
-            al.save()
-            PolicyTier.objects.bulk_create(PolicyTier(policy=al, after_years=years, extra_weeks=extra)
-                                           for years, extra in TIERS)
-        if bank_holiday is None or (al.leave_year_basis, al.year_start_month, al.year_start_day) != ("fixed", 1, 1):
-            continue
-        bh = Policy.objects.filter(contract_type=ctype, absence_type=bank_holiday, effective_from=SEEDED_FROM).first()
-        if bh is not None and _as_seeded(bh, BANK_HOLIDAY_AS_SEEDED):
+        if bh is not None and not _as_seeded(bh, BANK_HOLIDAY_AS_SEEDED):
+            continue                         # its pot would be left in the April year
+        for field, value in STANDARD.items():
+            setattr(al, field, value)
+        al.save()
+        PolicyTier.objects.bulk_create(PolicyTier(policy=al, after_years=years, extra_weeks=extra)
+                                       for years, extra in TIERS)
+        if bh is not None:
             bh.year_start_month, bh.year_start_day = 1, 1
             bh.save()
 

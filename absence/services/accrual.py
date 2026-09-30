@@ -12,6 +12,12 @@ basis, figure and weekly amount are those of its last active day, so a
 contract change, a tier reached or a policy switching basis part way
 through a month counts for that whole month.
 
+A day counts towards a pot only when the policy in force that day puts it
+in the pot's own leave year (leave_year.bounds). Ordinarily every day of
+the year does; when a type moves from an April to a January year (the
+April policy ending on 31 December, a January one from 1 January), January
+to March count in the new year's pots and not in the April pots as well.
+
 The rows are read once per pot (the employment's contracts, the policies
 and tiers for their contract types, the year's bank holidays) and every day
 is computed in memory, so an entitlement is a handful of queries, not
@@ -24,7 +30,7 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 
 from absence.models import BankHoliday, Policy
-from absence.services import policies, rounding
+from absence.services import leave_year, policies, rounding
 from people.models import Contract
 
 ZERO = Decimal("0")
@@ -46,13 +52,16 @@ def _month_start(start, k):
 
 
 def _months(pot):
-    """The pot's days in its twelve months from year_start (the last runs to
-    year_end): month k is [start + k months, start + k+1 months)."""
-    out, k = [], 0
-    while (first := _month_start(pot.year_start, k)) <= pot.year_end:
-        last = min(_month_start(pot.year_start, k + 1) - timedelta(days=1), pot.year_end)
+    """The pot's days in its twelve months from year_start: month k is
+    [start + k months, start + k+1 months), the twelfth running to year_end.
+    Exactly twelve, even where a clipped start (a 29 February anniversary
+    kept on 28 February) would fit a thirteenth before year_end."""
+    out = []
+    for k in range(12):
+        first = _month_start(pot.year_start, k)
+        last = pot.year_end if k == 11 else min(_month_start(pot.year_start, k + 1) - timedelta(days=1),
+                                                pot.year_end)
         out.append([first + timedelta(days=i) for i in range((last - first).days + 1)])
-        k += 1
     return out
 
 
@@ -86,6 +95,25 @@ class _Rows:
         raise ValidationError(f"No {self.pot.absence_type} policy for {ct} on {day:%d %b %Y}. "
                               f"Add one under Absence › Policies.")
 
+    def counted(self, day):
+        """(active contracts, weekly amount, policy) for a day that counts
+        towards this pot, else None: the person employed with a contracted
+        amount, and the day's policy putting the day in the pot's own leave
+        year. A day a later policy moves into another year (a type moved
+        from an April to a January year) belongs to that year's pot, not to
+        this one too. Raises for a day in another unit or with no policy."""
+        if not self.employment.is_active_on(day):
+            return None
+        active = self.active(day)
+        weekly = self.weekly(active)
+        if not weekly:
+            return None
+        self.check_unit(active, day)
+        policy = self.policy(active, day)
+        if leave_year.bounds(policy, self.employment, day)[0] != self.pot.year_start:
+            return None
+        return active, weekly, policy
+
     def check_unit(self, active, day):
         unit = active[0].contract_type.unit
         if unit != self.pot.unit:
@@ -101,16 +129,11 @@ def _rates(pot, rows):
     for month in _months(pot):
         rates, last = [], None
         for day in month:
-            if not employment.is_active_on(day):
+            found = rows.counted(day)
+            if found is None:
                 rates.append((day, ZERO))
                 continue
-            active = rows.active(day)
-            weekly = rows.weekly(active)
-            if not weekly:
-                rates.append((day, ZERO))
-                continue
-            rows.check_unit(active, day)
-            policy = rows.policy(active, day)
+            _, weekly, policy = found
             weeks = policy.weeks_per_year + policies.tier_extra_weeks(policy, employment, day)
             rates.append((day, weeks * weekly / days_in_year))
             last = (day, policy, weeks * weekly)
@@ -124,19 +147,18 @@ def _rates(pot, rows):
 def daily_rates(pot):
     """[(day, unrounded units accrued that day)]. Under a monthly policy a
     month's twelfth falls on its last active day and its other days are 0.
+    A day whose policy puts it in another leave year is 0 (_Rows.counted).
     Raises ValidationError when a day's contract is in another unit than
     the pot, or no policy covers a day the person is contracted."""
     return _rates(pot, _Rows(pot))
 
 
 def _step(rows, pot):
-    """The rounding step: the policy's on the first contracted day of the year."""
+    """The rounding step: the policy's on the first day that counts towards the pot."""
     for day in _days(pot):
-        if not rows.employment.is_active_on(day):
-            continue
-        active = rows.active(day)
-        if rows.weekly(active):
-            return rows.policy(active, day).rounding
+        found = rows.counted(day)
+        if found is not None:
+            return found[2].rounding
     return None
 
 
@@ -157,22 +179,16 @@ def bank_holiday_entitlement(pot):
     """The bank-holiday pot, from the calendar: one working day (the weekly
     amount on the day ÷ 5, whatever the working pattern) for each bank
     holiday in the pot's year on which the person is employed with a
-    contract, rounded to the policy's step. The policy's weeks, tiers and
-    accrual basis do not apply. Every contracted day of the year is still
-    checked for its unit and its policy, as entitlement does."""
+    contract and which that day's policy puts in the pot's year, rounded to
+    the policy's step. The policy's weeks, tiers and accrual basis do not
+    apply. Every contracted day of the year is still checked for its unit
+    and its policy, as entitlement does."""
     rows = _Rows(pot)
     holidays = set(bank_holidays_between(pot.year_start, pot.year_end).values_list("date", flat=True))
     total = ZERO
     for day in _days(pot):
-        if not rows.employment.is_active_on(day):
-            continue
-        active = rows.active(day)
-        weekly = rows.weekly(active)
-        if not weekly:
-            continue
-        rows.check_unit(active, day)
-        rows.policy(active, day)
-        if day in holidays:
-            total += weekly / DAYS_PER_WEEK
+        found = rows.counted(day)                  # checks every day, holiday or not
+        if found is not None and day in holidays:
+            total += found[1] / DAYS_PER_WEEK
     step = _step(rows, pot)
     return ZERO if step is None else rounding.round_to(total, step)
