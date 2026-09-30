@@ -372,6 +372,10 @@ def _weekdays(start, n):
     return days
 
 
+# The counts used below (10 and 12 cancelled absences) are chosen so the joined
+# note crosses the 200-character limit: each entry is "Annual leave dd Mon yyyy"
+# (24 characters) plus a ", " separator. Change the entry format and they need
+# revisiting.
 def _leaver_with_absences(hr_admin, employee_user, cancellable, uncancellable_year_end=False):
     """A leaver whose spell ended on 1 March of the current leave year's first
     calendar year, with `cancellable` approved single days in the current leave
@@ -436,4 +440,22 @@ def test_record_keeps_a_comment_it_is_given(db, hr_admin):
 
 def test_record_by_an_actor_with_no_employee_falls_back_to_their_email(db, hr_admin):
     a = bookings.record(hr_admin, hours_employee(), absence_type("AL"), MON)
+    assert a.decision_comment == "Recorded by hr@example.com"
+
+
+def test_record_of_a_type_needing_no_approval_also_says_who_recorded_it(db, hr_admin):
+    from tests.factories import make_employee
+    make_employee(first="Jo", last="Bloggs", user=hr_admin)
+    a = bookings.record(hr_admin, hours_employee(), absence_type("SICK"), MON)
+    assert a.status == Absence.Status.APPROVED and a.decision_comment == "Recorded by Jo Bloggs"
+    assert Absence.objects.get(pk=a.pk).decision_comment == "Recorded by Jo Bloggs"
+
+
+def test_record_of_a_type_needing_no_approval_keeps_a_given_comment(db, hr_admin):
+    a = bookings.record(hr_admin, hours_employee(), absence_type("SICK"), MON, comment="Rang in at 8")
+    assert a.decision_comment == "Rang in at 8"
+
+
+def test_record_of_a_type_needing_no_approval_falls_back_to_the_email(db, hr_admin):
+    a = bookings.record(hr_admin, hours_employee(), absence_type("SICK"), MON)
     assert a.decision_comment == "Recorded by hr@example.com"

@@ -101,7 +101,7 @@ def preview(employment, absence_type, start_date, end_date=None, start_half="", 
 @transaction.atomic
 def request(actor, employment, absence_type, start_date, end_date=None, start_half="", end_half="",
             start_time=None, end_time=None, hours=None, category="", requested_by=None,
-            expected_start=None, expected_return=None):
+            expected_start=None, expected_return=None, approve_comment=""):
     a = preview(employment, absence_type, start_date, end_date, start_half, end_half, start_time,
                 end_time, hours, category, requested_by=requested_by or actor,
                 expected_start=expected_start, expected_return=expected_return)
@@ -112,7 +112,7 @@ def request(actor, employment, absence_type, start_date, end_date=None, start_ha
             changes[field] = ("", getattr(a, field))
     audit.record(actor, a, changes)
     if not absence_type.needs_approval:
-        return approve(actor, a)
+        return approve(actor, a, approve_comment)
     return a
 
 
@@ -123,11 +123,12 @@ def record(actor, employment, absence_type, start_date, end_date=None, comment="
     by `actor` and approved at once, in one transaction, so it is never left
     waiting on the person who recorded it. Takes request()'s arguments. With
     no comment given it is approved with "Recorded by <name>"."""
-    a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor, **fields)
+    if not comment:
+        recorder = access.employee_for(actor)
+        comment = f"Recorded by {recorder.name if recorder else actor.email}"
+    a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor,
+                approve_comment=comment, **fields)
     if a.status == Absence.Status.REQUESTED:
-        if not comment:
-            recorder = access.employee_for(actor)
-            comment = f"Recorded by {recorder.name if recorder else actor.email}"
         a = approve(actor, a, comment)
     return a
 
