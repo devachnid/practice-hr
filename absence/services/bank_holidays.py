@@ -22,7 +22,8 @@ def _target_type(handling):
 # The reason on an automatic row cancelled because the pattern or policy no
 # longer implies it (or the employment has ended before it). A row cancelled
 # for any other reason was cancelled on purpose: the sync leaves that day
-# alone, and it is charged again only by recording it.
+# alone, so it stays uncharged until an HR admin uses Charge again
+# (charge_again).
 NOT_IMPLIED = "no longer implied by the pattern or policy"
 
 _running = ContextVar("bank_holiday_sync_running", default=False)

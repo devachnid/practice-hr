@@ -252,7 +252,8 @@ def cancel(request, pk):
     except ValidationError as e:
         messages.error(request, " ".join(e.messages))
         return redirect("absence:mine")
-    notify.absence_cancelled(a)
+    if not a.auto_bank_holiday:
+        notify.absence_cancelled(a)
     messages.success(request, "Cancelled.")
     return redirect("absence:mine")
 

@@ -39,7 +39,12 @@ def _over_limit(request):
     address = client_ip(request) or "unknown"
     key = f"api-rate:{address}:{minute}"
     cache.add(key, 0, timeout=60)
-    if cache.incr(key) <= limit:
+    try:
+        count = cache.incr(key)
+    except ValueError:  # the key expired between add and incr: this is the window's first request
+        cache.add(key, 1, timeout=60)
+        count = 1
+    if count <= limit:
         return None
     if cache.add(f"api-rate-warned:{address}:{minute}", 1, timeout=60):
         log.warning("API rate limit reached: %s", address)

@@ -271,7 +271,7 @@ HR_API_TOKENS = frozenset(t.strip() for t in os.environ.get("HR_API_TOKENS", "")
 # The most requests one client address may make to the read API in a minute,
 # counted before the token is checked so guesses are slowed too. `0` turns the
 # limit off. See api/auth.py.
-API_RATE_LIMIT_PER_MINUTE = int(os.environ.get("API_RATE_LIMIT_PER_MINUTE", "120"))
+API_RATE_LIMIT_PER_MINUTE = int(os.environ.get("API_RATE_LIMIT_PER_MINUTE", "600"))
 
 # Where the API's request counts live. In the process's memory, so the count is
 # per gunicorn worker and the effective limit is API_RATE_LIMIT_PER_MINUTE times

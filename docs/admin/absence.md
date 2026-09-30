@@ -235,7 +235,8 @@ start of its policy **cannot be changed**: saving is refused with "This
 type has leave pots on the current year. End this policy and add a new one
 from the new year's first day instead (see the admin guide)", and nothing
 is saved. Follow the next section instead. A policy whose type has no pots
-yet can be changed freely. A leave request that runs across the end of the leave
+yet can be changed freely. A policy added, or moved, after pots exist follows the
+add-page rule described in [Policies](#policies). A leave request that runs across the end of the leave
 year is refused ("book the two leave years separately").
 
 #### Moving a type in use to a January year
@@ -408,10 +409,9 @@ two-step form, at `/absence/request/<employee>/`, showing *their* balances.
 Only the person the employee's requests go to (their line manager) and HR
 admins may use it; anyone else gets "forbidden". Because the person
 recording it is the one who would have approved it, it is **approved at
-once** (audited as requested and approved by you, with the comment
-"Recorded by …"), and the employee is emailed the decision. Your own
-absences go through the ordinary request. A recorded absence carries
-"Recorded by <name>" as its decision comment unless a comment was given.
+once** (audited as requested and approved by you, with the decision comment
+"Recorded by <name>"), and the employee is emailed the decision. Your own
+absences go through the ordinary request.
 
 ## Deciding a request
 
@@ -438,7 +438,8 @@ absence **until it starts**; after that only an HR admin can, at any time.
 An HR admin's own absences follow the employee's rule: another HR admin
 cancels one that has started.
 Cancelling an approved pot-backed absence puts its cost back with a
-cancellation line. The approver is emailed. An HR admin cancels someone
+cancellation line. The approver is emailed (not for an automatic
+bank-holiday row). An HR admin cancels someone
 else's absence in Absence › Absences: open the row, then **Cancel
 absence** (never their own there). **Only an HR admin cancels an automatic
 bank-holiday row**, and only someone else's, that way: not the person

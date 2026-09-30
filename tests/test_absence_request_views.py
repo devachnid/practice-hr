@@ -220,6 +220,14 @@ def test_an_hr_admin_cancels_another_persons_automatic_row_as_an_opt_out(admin_c
     assert auto.cancel_reason != bank_holidays.NOT_IMPLIED
 
 
+def test_an_hr_admin_cancelling_an_automatic_row_page_side_emails_no_one(admin_client, employee_user, configured):
+    auto = _auto_row(_me(employee_user))
+    mail.outbox.clear()
+    assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 302
+    assert Absence.objects.get(pk=auto.pk).status == "cancelled"
+    assert not mail.outbox
+
+
 def test_an_hr_admin_does_not_cancel_their_own_automatic_row(admin_client, hr_admin):
     auto = _auto_row(hours_employee(employee=make_employee(first="Hana", user=hr_admin)))
     assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
