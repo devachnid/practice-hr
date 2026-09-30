@@ -11,7 +11,7 @@ there.
 | Page | Covers |
 |---|---|
 | [People](people.md) | Employees, employments, positions, teams, contract types, contracts, working patterns, pay records, the audit log, the retention report |
-| [Absence and leave](absence.md) | Absence types and their flags, policies and every field, tiers, bank holidays and closed days, how a request is costed, requesting, deciding and cancelling, family leave, the calendar, balances |
+| [Absence and leave](absence.md) | Absence types and their flags, policies and every field, tiers, bank holidays and closed days, how a request is costed, requesting, deciding and cancelling, TOIL claims, family leave, the calendar, balances |
 | [Year end](year-end.md) | What the nightly closes at the end of a leave year: carry cap, expiry, TOIL, leavers' debts; running it by hand; reversing a line |
 | [Payroll changes report](payroll.md) | The monthly spreadsheet for the payroll bureau: what each sheet holds, which absence types reach it, spanning months, leaver balances, where the files live |
 | [The read API](api.md) | The three JSON endpoints the rota polls, the token in `HR_API_TOKENS`, and the shapes they return |

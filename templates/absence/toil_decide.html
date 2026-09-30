@@ -1,0 +1,35 @@
+{% extends "base.html" %}{% load absence_extras %}
+{% block title %}Decide a TOIL claim{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>{{ c.employment.employee.name }}: TOIL claim</h1><a href="{% url 'absence:queue' %}">Approvals</a></div>
+<section class="card">
+  <h2>The claim</h2>
+  <dl class="facts">
+    <dt>Who</dt><dd>{{ c.employment.employee.name }}</dd>
+    <dt>Day worked</dt><dd>{{ c.day|date:"D j M Y" }}</dd>
+    <dt>Amount</dt><dd><strong>{{ c.units|units:unit }}</strong></dd>
+    <dt>Reason</dt><dd>{{ c.reason }}</dd>
+    <dt>Asked</dt><dd>{{ c.requested_at|date:"j M Y" }}{% if asked_by %}, by {{ asked_by }}{% endif %}</dd>
+  </dl>
+</section>
+{% include "absence/_toil_card.html" with cancel=False claim_button=False %}
+<section class="card">
+  {% if closed %}
+  <h2>Already {{ closed.what }}</h2>
+  <p>Already {{ closed.what }}{% if closed.by %} by {{ closed.by }}{% endif %}{% if closed.on %} on {{ closed.on|date:"j M Y" }}{% endif %}.{% if c.decision_comment %} Comment: {{ c.decision_comment }}{% endif %}</p>
+  {% else %}
+  <h2>Your decision</h2>
+  <p class="muted">Approving adds {{ c.units|units:unit }} to their TOIL, dated the day worked.</p>
+  <form method="post">{% csrf_token %}
+    {% for e in form.non_field_errors %}<p class="flash flash-error" role="alert">{{ e }}</p>{% endfor %}
+    {{ form.comment.as_field_group }}
+    <div class="form-actions">
+      <button type="submit" name="action" value="approve" class="btn btn-primary">Approve</button>
+      <button type="submit" name="action" value="decline" class="btn">Decline</button>
+    </div>
+  </form>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

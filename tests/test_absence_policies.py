@@ -99,10 +99,18 @@ def test_the_seeded_standard_contract_in_2026(db, start, annual, bank):
 
 
 def _reseed():
+    """0012's seed, run against today's models. 0013 dropped the policy's
+    toil_expires_after_days, which 0012 (run in its own historical state)
+    compares with what it seeded, so the comparison leaves it out here."""
     from importlib import import_module
+    from unittest import mock
 
     from django.apps import apps
-    import_module("absence.migrations.0012_seed_standard_contract").seed(apps, None)
+    module = import_module("absence.migrations.0012_seed_standard_contract")
+    seeded = {k: v for k, v in module.AS_SEEDED.items() if k != "toil_expires_after_days"}
+    with mock.patch.multiple(module, AS_SEEDED=seeded,
+                             BANK_HOLIDAY_AS_SEEDED={**seeded, "weeks_per_year": Decimal("0")}):
+        module.seed(apps, None)
 
 
 def _back_to_0004(name, **al_changes):
@@ -202,3 +210,103 @@ def test_leave_year_start_on_a_real_date_is_accepted(db):
     from absence.models import Policy
     Policy(contract_type=make_contract_type(), absence_type=absence_type("AL"), effective_from=date(2026, 4, 1),
            year_start_month=1, year_start_day=31).full_clean()
+
+
+# --- TOIL is earned, not accrued: no policy of its own --------------------------------
+
+def test_a_type_that_does_not_accrue_borrows_the_annual_leave_policy(db):
+    emp = make_employment(start=date(2026, 4, 1))
+    ct = make_contract_type()
+    make_contract(emp, ct)
+    al = make_policy(ct, year_start_month=1)
+    toil = absence_type("TOIL")
+    assert toil.accrues is False and absence_type("AL").accrues is True
+    assert policies.policy_for(emp, toil, date(2026, 6, 1)) == al
+
+
+def test_an_earned_type_with_no_annual_leave_policy_names_annual_leave(db):
+    emp = make_employment(start=date(2026, 4, 1))
+    make_contract(emp, make_contract_type("HCA"))
+    with pytest.raises(policies.NoPolicy) as e:
+        policies.policy_for(emp, absence_type("TOIL"), date(2026, 6, 1))
+    assert "No Annual leave policy for HCA" in str(e.value)
+
+
+def test_toil_is_seeded_as_earned_with_a_365_day_expiry(db):
+    from absence.models import AbsenceType
+    toil = absence_type("TOIL")
+    assert (toil.accrues, toil.earned_expires_after_days) == (False, 365)
+    assert set(AbsenceType.objects.filter(accrues=False).values_list("code", flat=True)) == {"TOIL"}
+    assert not AbsenceType.objects.filter(accrues=True, earned_expires_after_days__isnull=False).exists()
+
+
+def test_a_policy_for_an_earned_type_is_refused(db):
+    from absence.models import Policy
+    p = Policy(contract_type=make_contract_type(), absence_type=absence_type("TOIL"),
+               effective_from=date(2026, 4, 1))
+    with pytest.raises(ValidationError) as e:
+        p.full_clean()
+    assert e.value.message_dict["absence_type"] == [
+        "TOIL is earned, not accrued; it needs no policy — set its expiry on the absence type."]
+
+
+def test_an_earned_expiry_is_only_for_a_type_that_does_not_accrue(db):
+    al = absence_type("AL")
+    al.earned_expires_after_days = 90
+    with pytest.raises(ValidationError) as e:
+        al.full_clean()
+    assert "earned_expires_after_days" in e.value.message_dict
+    al.accrues = False
+    al.full_clean()
+
+
+def _state_before_0013_data():
+    """Historical models as 0013's data step sees them (the type's new fields
+    added, the policy's TOIL expiry not yet dropped), on a database already
+    migrated past it: the dropped column is put back inside the test's
+    transaction, which rolls it away again."""
+    from django.db import connection
+    from django.db.migrations.loader import MigrationLoader
+    loader = MigrationLoader(connection)
+    state = loader.project_state(("absence", "0012_seed_standard_contract"))
+    migration = loader.get_migration("absence", "0013_toil_is_earned")
+    for op in migration.operations:
+        if op.__class__.__name__ != "AddField":
+            break
+        op.state_forwards("absence", state)
+    with connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE absence_policy ADD COLUMN toil_expires_after_days smallint unsigned NULL")
+    return state.apps
+
+
+def test_0013_moves_the_toil_expiry_to_the_type_and_deletes_the_toil_policies(db):
+    from importlib import import_module
+    apps = _state_before_0013_data()
+    AbsenceType, Policy, PolicyTier = (apps.get_model("absence", n) for n in ("AbsenceType", "Policy", "PolicyTier"))
+    ContractType = apps.get_model("people", "ContractType")
+    AbsenceType.objects.filter(code="TOIL").update(accrues=True, earned_expires_after_days=None)
+    toil, al = AbsenceType.objects.get(code="TOIL"), AbsenceType.objects.get(code="AL")
+    hca, nurse = ContractType.objects.get(name="HCA"), ContractType.objects.get(name="Practice nurse")
+    old = Policy.objects.create(contract_type=hca, absence_type=toil, effective_from=date(2020, 1, 1),
+                                effective_to=date(2025, 12, 31), toil_expires_after_days=60)
+    Policy.objects.create(contract_type=hca, absence_type=toil, effective_from=date(2026, 1, 1),
+                          toil_expires_after_days=90)
+    Policy.objects.create(contract_type=nurse, absence_type=toil, effective_from=date(2020, 1, 1))
+    PolicyTier.objects.create(policy=old, after_years=1, extra_weeks=Decimal("1"))
+    kept = Policy.objects.create(contract_type=hca, absence_type=al, effective_from=date(2020, 1, 1))
+    import_module("absence.migrations.0013_toil_is_earned").forward(apps, None)
+    toil = AbsenceType.objects.get(code="TOIL")
+    assert (toil.accrues, toil.earned_expires_after_days) == (False, 90)     # the latest policy's days
+    assert list(Policy.objects.values_list("pk", flat=True)) == [kept.pk]
+    assert not PolicyTier.objects.exists()
+    assert AbsenceType.objects.get(code="AL").accrues is True
+
+
+def test_0013_gives_toil_a_year_when_no_policy_said(db):
+    from importlib import import_module
+    apps = _state_before_0013_data()
+    AbsenceType = apps.get_model("absence", "AbsenceType")
+    AbsenceType.objects.filter(code="TOIL").update(accrues=True, earned_expires_after_days=None)
+    import_module("absence.migrations.0013_toil_is_earned").forward(apps, None)
+    toil = AbsenceType.objects.get(code="TOIL")
+    assert (toil.accrues, toil.earned_expires_after_days) == (False, 365)

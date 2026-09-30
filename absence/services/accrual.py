@@ -21,7 +21,10 @@ to March count in the new year's pots and not in the April pots as well.
 The rows are read once per pot (the employment's contracts, the policies
 and tiers for their contract types, the year's bank holidays) and every day
 is computed in memory, so an entitlement is a handful of queries, not
-several per day."""
+several per day.
+
+A pot whose type does not accrue (TOIL: earned, not accrued) is 0 on every
+day and reads nothing: no policy, contract or bank holiday."""
 
 from calendar import monthrange
 from datetime import date, timedelta
@@ -149,7 +152,10 @@ def daily_rates(pot):
     month's twelfth falls on its last active day and its other days are 0.
     A day whose policy puts it in another leave year is 0 (_Rows.counted).
     Raises ValidationError when a day's contract is in another unit than
-    the pot, or no policy covers a day the person is contracted."""
+    the pot, or no policy covers a day the person is contracted. All 0 for a
+    type that does not accrue."""
+    if not pot.absence_type.accrues:
+        return [(day, ZERO) for day in _days(pot)]
     return _rates(pot, _Rows(pot))
 
 
@@ -163,6 +169,8 @@ def _step(rows, pot):
 
 
 def entitlement(pot):
+    if not pot.absence_type.accrues:
+        return ZERO
     rows = _Rows(pot)
     total = sum((r for _, r in _rates(pot, rows)), ZERO)
     step = _step(rows, pot)
@@ -182,7 +190,9 @@ def bank_holiday_entitlement(pot):
     contract and which that day's policy puts in the pot's year, rounded to
     the policy's step. The policy's weeks, tiers and accrual basis do not
     apply. Every contracted day of the year is still checked for its unit
-    and its policy, as entitlement does."""
+    and its policy, as entitlement does. 0 for a type that does not accrue."""
+    if not pot.absence_type.accrues:
+        return ZERO
     rows = _Rows(pot)
     holidays = set(bank_holidays_between(pot.year_start, pot.year_end).values_list("date", flat=True))
     total = ZERO

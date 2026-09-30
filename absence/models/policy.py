@@ -42,7 +42,6 @@ class Policy(models.Model):
         help_text="Entitlements and costs are rounded to this step: 0.25 hour, 0.5 session.")
     bank_holiday_handling = models.CharField(
         max_length=6, choices=BankHolidays.choices, default=BankHolidays.CLOSED_NOT_CHARGED)
-    toil_expires_after_days = models.PositiveSmallIntegerField(null=True, blank=True)
     accrual = models.CharField(
         max_length=7, choices=Accrual.choices, default=Accrual.DAILY,
         help_text="Daily: earned day by day across the leave year. Monthly twelfths: a twelfth of the year's "
@@ -59,6 +58,9 @@ class Policy(models.Model):
         super().clean()
         if self.absence_type_id and not self.absence_type.uses_pot:
             raise ValidationError({"absence_type": "Only pot-backed types have a policy."})
+        if self.absence_type_id and not self.absence_type.accrues:
+            raise ValidationError({"absence_type": f"{self.absence_type} is earned, not accrued; it needs no "
+                                                   f"policy — set its expiry on the absence type."})
         if self.effective_to and self.effective_to < self.effective_from:
             raise ValidationError({"effective_to": "Ends before it starts."})
         if not 1 <= (self.year_start_month or 0) <= 12:

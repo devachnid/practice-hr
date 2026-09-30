@@ -15,9 +15,14 @@ code. Only types with `payroll_reportable` appear at all; of those:
   TOIL           not an absence sheet: the TOIL-earned and TOIL-taken ledger
                  lines of pot-backed types that are both `paid` and
                  `payroll_reportable`, so an unpaid TOIL type is on Unpaid
-                 (its bookings) and not here. A line dated before its pot's
-                 year is TOIL carried forward at year end (it keeps its earned
-                 date) and is left out: its original line is reported.
+                 (its bookings) and not here. An approved claim's line is
+                 reported in the month it was approved (the local date it
+                 was written), with the day worked beside it, so a claim
+                 approved after its month's report was made is still
+                 reported once; any other line in the month of its date. A
+                 lot carried forward at year end (noted
+                 year_end.CARRIED_FROM, it keeps its earned date) is left
+                 out: its original line is reported.
 
 Starters, Leavers, Contract changes and Pay changes come from People. The
 Leavers sheet also carries each leaver's balance in every pot-backed type
@@ -37,11 +42,12 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Q, Sum
+from django.utils import timezone
 from openpyxl import Workbook
 
 from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
-from absence.services import costing, pots
+from absence.services import costing, pots, year_end
 from people.models import Contract, Employment, PayRecord
 from people.services import audit, contracts
 
@@ -55,7 +61,7 @@ HEADERS = {
     "Sickness": ["Name", "From", "To", "Self-certified"],
     "Unpaid": ["Name", "From", "To", "Units", "Unit", "Type"],
     "Family leave": ["Name", "Type", "From", "To", "Expected start", "Actual start", "Expected return", "KIT days"],
-    "TOIL": ["Name", "Date", "Units", "Kind", "Note"],
+    "TOIL": ["Name", "Date", "Units", "Kind", "Note", "Day worked", "Approved"],
 }
 
 
@@ -130,13 +136,25 @@ def _absences(start, end):
 
 
 def _toil(start, end):
+    """The TOIL sheet's rows, by the date each is reported under: an
+    approved claim's line by the day it was approved (created_at, local),
+    any other by its own date. Day worked is an earned line's date; Approved
+    is filled for a claim's line only."""
+    claimed = Q(toil_claim__isnull=False)
     lines = (LedgerEntry.objects.filter(
-        date__range=(start, end), kind__in=(LedgerEntry.Kind.TOIL_EARNED, LedgerEntry.Kind.TOIL_TAKEN),
-        pot__absence_type__paid=True, pot__absence_type__payroll_reportable=True,
-        date__gte=F("pot__year_start"))     # not the carried copies year_end._close_toil writes
-        .select_related("pot__employment__employee").order_by("date", "id"))
-    return [[_name(line.pot.employment), line.date, float(line.units), line.get_kind_display(), line.note]
-            for line in lines]
+        kind__in=(LedgerEntry.Kind.TOIL_EARNED, LedgerEntry.Kind.TOIL_TAKEN),
+        pot__absence_type__paid=True, pot__absence_type__payroll_reportable=True)
+        .filter((claimed & Q(created_at__date__range=(start, end))) | (~claimed & Q(date__range=(start, end))))
+        .exclude(kind=LedgerEntry.Kind.TOIL_EARNED, note__startswith=year_end.CARRIED_FROM)
+        .select_related("pot__employment__employee", "toil_claim"))
+    rows = []
+    for line in lines:
+        approved = timezone.localdate(line.created_at) if hasattr(line, "toil_claim") else None
+        worked = line.date if line.kind == LedgerEntry.Kind.TOIL_EARNED else None
+        rows.append(((approved or line.date), line.pk, [
+            _name(line.pot.employment), approved or line.date, float(line.units), line.get_kind_display(),
+            line.note, worked, approved]))
+    return [row for _, _, row in sorted(rows, key=lambda r: (r[0], r[1]))]
 
 
 def build(start, end):

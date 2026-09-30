@@ -1,0 +1,4 @@
+{% load absence_extras %}{% autoescape off %}Your TOIL claim for {{ c.units|units:unit }} worked on {{ c.day|date:"j M Y" }} was {{ c.get_status_display|lower }}.
+{% if c.decision_comment %}
+Comment: {{ c.decision_comment }}
+{% endif %}{% endautoescape %}

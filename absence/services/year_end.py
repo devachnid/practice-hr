@@ -1,5 +1,6 @@
 """Closing a pot at the end of its leave year, and the expiries that run
-from dates: carried-in leave after the policy's deadline, TOIL after its own.
+from dates: carried-in leave after the policy's deadline, TOIL after the
+type's own (AbsenceType.earned_expires_after_days: TOIL has no policy).
 
 Every line goes through ledger.write, so each is an ordinary ledger line an
 HR admin reverses with an adjustment. Each function looks for its own
@@ -23,6 +24,7 @@ ZERO = Decimal("0")
 CLOSE = "year end close"             # the closing line's note starts with this: the pot is closed
 CARRY_IN_EXPIRED = "carry-in expired"
 TOIL_EXPIRED = "toil expired"
+CARRIED_FROM = "carried from"        # the note of a TOIL lot carried into the next year (_close_toil)
 
 
 def _sum(qs):
@@ -107,13 +109,14 @@ def _toil_marker(earned):
 
 def _toil_lots(pot):
     """The pot's TOIL-earned lines as lots, oldest first, each with its
-    deadline (the policy in force on the day it was earned; None for no
-    expiry), what of it is left after its own expiry, and what bookings
-    have used of it.
+    deadline (the day it was earned plus the type's
+    earned_expires_after_days; None for no expiry), what of it is left
+    after its own expiry, and what bookings have used of it.
 
-    Lots are the TOIL-earned lines and the positive adjustments not tied to
-    an absence (an HR admin adding TOIL, or reversing a TOIL expiry): each
-    is dated its line's date, expires toil_expires_after_days from it, and
+    Lots are the TOIL-earned lines (a claim approved, toil.approve) and the
+    positive adjustments not tied to an absence (an HR admin adding TOIL,
+    or reversing a TOIL expiry): each is dated its line's date, expires
+    earned_expires_after_days from it, and
     carries forward at year end like an earned line.
 
     The rule, shared with expire_carry_in: leave counts as using TOIL only
@@ -125,10 +128,10 @@ def _toil_lots(pot):
     already = {e.note: ZERO - e.units
                for e in pot.entries.filter(kind=K.EXPIRY, note__startswith=TOIL_EXPIRED)}
     lots = []
+    days = pot.absence_type.earned_expires_after_days
     manual = pot.entries.filter(kind=K.ADJUSTMENT, absence__isnull=True)
     earned = pot.entries.filter(Q(kind=K.TOIL_EARNED) | Q(pk__in=manual.filter(units__gt=0)))
     for line in earned.order_by("date", "id"):
-        days = policies.policy_for(pot.employment, pot.absence_type, line.date).toil_expires_after_days
         marker = _toil_marker(line)
         lots.append({"line": line, "marker": marker, "expired": marker in already,
                      "deadline": line.date + timedelta(days=days) if days else None,
@@ -171,7 +174,7 @@ def _close_toil(pot, remaining, new_start, actor):
     nxt = _next_pot(pot, new_start, actor)
     for line, units in trimmed:
         ledger.write(nxt, K.TOIL_EARNED, units, actor, date=line.date,
-                     note=f"carried from {pot.year_start:%d %b %Y}–{pot.year_end:%d %b %Y}")
+                     note=f"{CARRIED_FROM} {pot.year_start:%d %b %Y}–{pot.year_end:%d %b %Y}")
     return sum((units for _, units in trimmed), ZERO)
 
 
@@ -206,7 +209,9 @@ def close(pot, actor=None):
 
     Refused (ValidationError, so run() lists it and retries it the next
     night) while a request that would draw on the pot is still waiting: its
-    approval could no longer be written once the pot is closed."""
+    approval could no longer be written once the pot is closed. A TOIL claim
+    waiting does not hold it: approved after the close, it goes on the next
+    year's pot (toil.approve)."""
     _lock(pot)
     if is_closed(pot):
         return {"carried": ZERO, "expired": ZERO, "skipped": True}
@@ -222,7 +227,7 @@ def close(pot, actor=None):
         ledger.write(pot, K.EXPIRY, ZERO - remaining, actor,
                      note=f"{CLOSE}: leaver, {remaining:.2f} expired", date=pot.year_end)
         return {"carried": ZERO, "expired": remaining}
-    toil = pot.absence_type.code == "TOIL"
+    toil = not pot.absence_type.accrues        # earned (TOIL): its lots carry uncapped
     if toil and remaining > 0:
         carried = _close_toil(pot, remaining, new_start, actor)
     else:
@@ -273,8 +278,8 @@ def expire_carry_in(pot, today, actor=None):
 @transaction.atomic
 def expire_toil(pot, today, actor=None):
     """Expire each TOIL lot (an earned line, or an adjustment adding TOIL;
-    see _toil_lots) unused by its deadline: the day it was earned plus toil_expires_after_days of the policy then in force; usable
-    through that day. A line carried from last year keeps its earned date,
+    see _toil_lots) unused by its deadline: the day it was earned plus the
+    type's earned_expires_after_days; usable through that day. A line carried from last year keeps its earned date,
     so its deadline runs on.
 
     Used means booked on or before the deadline, first in, first out, in

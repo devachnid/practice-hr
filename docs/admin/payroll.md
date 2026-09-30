@@ -18,7 +18,7 @@ same and prints where the file went.
 | Sickness | Dates within the month, and whether the absence was self-certified (seven calendar days or fewer); never the kind of sickness |
 | Unpaid | Approved unpaid absences, with the units they cost. An absence that runs across a month end is split: each month shows only its own days and their cost |
 | Family leave | The days within the month, expected and actual dates, and the keeping-in-touch days within the month |
-| TOIL | TOIL earned and taken in the month. TOIL carried forward at the year end keeps its earned date but is listed once, in the month it was earned |
+| TOIL | TOIL earned and taken in the month. An approved [claim](absence.md#toil) is listed in the month it was **approved**, with the day worked beside it, so a claim approved after its month's report was made still reaches payroll, once. Other TOIL earned (from the shell) and TOIL taken are listed in the month of their date. TOIL carried forward at the year end is not listed again |
 
 Columns, in order:
 
@@ -31,7 +31,9 @@ Columns, in order:
 - **Unpaid:** Name, From, To, Units, Unit, Type.
 - **Family leave:** Name, Type, From, To, Expected start, Actual start,
   Expected return, KIT days.
-- **TOIL:** Name, Date, Units, Kind (earned or taken), Note.
+- **TOIL:** Name, Date (the approval date for a claim, otherwise the
+  line's date), Units, Kind (earned or taken), Note, Day worked (earned
+  TOIL), Approved (claims only).
 
 Which absence goes on which sheet follows the type's settings, never its
 name: an absence appears only if its type has **Payroll reportable** ticked;

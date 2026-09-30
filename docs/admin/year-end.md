@@ -46,6 +46,9 @@ pot is closed.
   closed: it is listed under `failed` ("… 1 request(s) waiting — decide them
   first") and closed the first night after the last one is approved,
   declined or cancelled. Decide requests that span the end of a leave year promptly.
+  A [TOIL claim](absence.md#toil) waiting does **not** hold the close:
+  approved afterwards, it goes on the new year's pot, still dated the day
+  worked.
 - **A closed pot takes no more lines.** Approving, cancelling or re-costing an
   absence whose pot has closed, a new request in a closed year, and
   *Recalculate entitlement* on a closed pot are all refused with a message
@@ -68,11 +71,14 @@ a negative carry-in never expires.
 
 ### TOIL
 
-A TOIL pot's positive balance carries forward **uncapped**, as each earned
-line's unused remainder, written to the next pot as a TOIL earned line dated
+Each approved [TOIL claim](absence.md#toil) is a *lot*: a TOIL earned line
+dated the day worked (an adjustment adding TOIL is one too). A TOIL pot's
+positive balance carries forward **uncapped**, as each earned line's unused
+remainder, written to the next pot as a TOIL earned line dated
 the day it was originally earned, so its deadline runs on unchanged. Each
-lot expires by its own policy days: *TOIL expires after days* from the day it
-was earned (blank means never), the policy in force on the day it was earned.
+lot expires [*Earned expires after days*](absence.md#earned-expires-after-days-earned_expires_after_days)
+after the day it was earned, as set on the TOIL absence type (365 as
+seeded, so twelve months; blank means never). TOIL has no policy.
 The same "booked by the deadline" rule applies (requested by then; a lot
 waits while a request made by its deadline is undecided), first in first
 out, in the order the requests were made. An earned line whose deadline has passed by the
@@ -113,7 +119,10 @@ one to take it away (reversing a carry-in). **A closed pot refuses
 adjustments**: its balance has already carried or expired, so to give
 someone back leave that expired at year end, adjust the **current** year's
 pot. An adjustment that adds TOIL is treated as a new TOIL lot dated the day
-it is written, so it expires on its own days from then. The one other action,
+it is written, so it expires on its own days from then; it is for
+corrections, such as putting back TOIL that expired wrongly or taking back
+a claim approved by mistake. TOIL worked is recorded as a
+[claim](absence.md#toil), which keeps the day worked and the reason. The one other action,
 *Recalculate entitlement* on the Pot list, only re-syncs the entitlement.
 
 **Hand-entered carry-overs** (opening balances from BreatheHR, say) are not

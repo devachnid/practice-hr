@@ -124,7 +124,7 @@ def _add_post(ct, code="AL", **fields):
             "effective_to": "", "days_per_year": "", "weeks_per_year": "", "leave_year_basis": "fixed",
             "year_start_month": 1, "year_start_day": 1, "carry_over_days": "", "carry_over_max_weeks": "",
             "carry_over_expires_after_days": "", "rounding": "0.25", "bank_holiday_handling": "pot",
-            "toil_expires_after_days": "", "accrual": "daily",
+            "accrual": "daily",
             "tiers-TOTAL_FORMS": 0, "tiers-INITIAL_FORMS": 0, "tiers-MIN_NUM_FORMS": 0,
             "tiers-MAX_NUM_FORMS": 1000}
     tiers = fields.pop("tiers", [])

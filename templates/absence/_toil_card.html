@@ -1,0 +1,43 @@
+{% comment %}A person's TOIL (toil.position): remaining now, earned this leave
+year, the claims waiting (with Cancel for the claimant) and what expires
+soon. Expects toil; claim_button to offer "Claim TOIL"; cancel to offer
+Cancel on the claims waiting.{% endcomment %}
+{% load absence_extras %}
+<section class="card toil-card">
+  <div class="card-head"><h2>TOIL</h2>{% if claim_button %}<a href="{% url 'absence:toil_claim' %}" class="btn">Claim TOIL</a>{% endif %}</div>
+  <dl class="facts">
+    <dt>Remaining now</dt><dd{% if toil.remaining < 0 %} class="neg"{% endif %}><strong>{{ toil.remaining|units:toil.unit }}</strong></dd>
+    <dt>Earned this leave year</dt><dd>{{ toil.earned|units:toil.unit }}{% if toil.pot %} <span class="muted">(since {{ toil.pot.year_start|date:"j M Y" }})</span>{% endif %}</dd>
+  </dl>
+  <h3>Claims waiting</h3>
+  {% if toil.waiting %}
+  <div class="table-scroll">
+  <table class="list claims">
+    <thead><tr><th scope="col">Day worked</th><th scope="col">Amount</th><th scope="col">Reason</th><th scope="col">Asked</th>{% if cancel %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for c in toil.waiting %}
+      <tr>
+        <th scope="row">{{ c.day|date:"j M Y" }}</th>
+        <td class="claim-right">{{ c.units|units:toil.unit }}</td>
+        <td class="claim-reason">{{ c.reason }}</td>
+        <td class="claim-asked">{{ c.requested_at|date:"j M Y" }}</td>
+        {% if cancel %}<td class="row-actions claim-right"><form method="post" action="{% url 'absence:toil_cancel' c.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form></td>{% endif %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Nothing waiting.</p>
+  {% endif %}
+  <h3>Expiring in the next {{ toil.window }} days</h3>
+  {% if toil.expiring %}
+  <ul class="toil-lots">
+    {% for lot in toil.expiring %}
+    <li>{{ lot.units|units:toil.unit }} earned {{ lot.earned_on|date:"j M Y" }}: use by <strong>{{ lot.deadline|date:"j M Y" }}</strong></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">None.</p>
+  {% endif %}
+</section>

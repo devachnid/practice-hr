@@ -21,7 +21,7 @@ def _reported(absence_type, e):
     annual leave (everyone has one); for the bank-holiday pot, used under
     "pot" handling, a missing policy of its own. Another pot-backed type
     with no policy for the contract type is simply not an allowance this
-    person has (TOIL, study leave), so it is skipped quietly."""
+    person has (study leave, say), so it is skipped quietly."""
     if absence_type.code == "AL":
         return True
     return absence_type.code == "BH" and isinstance(e, policies.NoPolicy)
@@ -37,10 +37,14 @@ def _open_pots(today, failed):
     after it ends, and is opened only if the person is still employed and
     contracted that day and a policy covers it. Annual leave always; the
     bank-holiday pot only where the annual policy's handling is "pot";
-    any other pot-backed type (TOIL, study leave…) where the contract type
-    has a policy for it. The pots are opened bare and synced by run()'s
-    loops, which count what they write."""
-    types = list(AbsenceType.objects.filter(uses_pot=True, active=True).order_by("display_order", "id"))
+    any other pot-backed type (study leave…) where the contract type has a
+    policy for it. A type that does not accrue (TOIL) is never opened here:
+    it would hold nothing, so its pot opens when TOIL is first earned
+    (toil.earn) or booked, and the balances show it at zero until then.
+    The pots are opened bare and synced by run()'s loops, which count what
+    they write."""
+    types = list(AbsenceType.objects.filter(uses_pot=True, accrues=True, active=True)
+                 .order_by("display_order", "id"))
     opened = 0
     for employment in employments.active_on(today).select_related("employee"):
         for absence_type in types:

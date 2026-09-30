@@ -26,5 +26,29 @@
   <p class="empty">No requests waiting.</p>
   {% endif %}
 </section>
+<section class="card">
+  <h2>TOIL claims waiting</h2>
+  {% if claims %}
+  <div class="table-scroll">
+  <table class="list claims">
+    <thead><tr><th>Who</th><th>Day</th><th>Amount</th><th>Reason</th><th>Asked</th><th></th></tr></thead>
+    <tbody>
+    {% for c in claims %}
+      <tr>
+        <th scope="row">{{ c.employment.employee.name }}</th>
+        <td class="claim-right">{{ c.day|date:"j M Y" }}</td>
+        <td>{{ c.units|units:c.unit }}</td>
+        <td class="claim-reason">{{ c.reason }}</td>
+        <td class="claim-asked">{{ c.requested_at|date:"j M Y" }}</td>
+        <td class="claim-right"><a href="{% url 'absence:toil_decide' c.pk %}" class="btn">Decide</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No TOIL claims waiting.</p>
+  {% endif %}
+</section>
 </div>
 {% endblock %}

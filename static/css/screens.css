@@ -792,6 +792,29 @@ body.page-grid {
   .absences td:nth-child(5):empty { display: none; }
   .absences .kit-form { justify-content: flex-start; }
 
+  /* The TOIL claim tables (the queue's and the TOIL card's) on a phone,
+     as My absences: who or the day and the amount on the first line, the
+     reason under them, then when it was asked and the button. */
+  .claims, .claims tbody { display: block; }
+  .claims thead {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .claims tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--sp-1) var(--sp-3);
+    align-items: baseline;
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .claims tr:last-child { border-bottom: 0; }
+  .claims th, .claims td { display: block; padding: 0; border: 0; }
+  .claims .claim-right { text-align: right; }
+  .claims .claim-reason { grid-column: 1 / -1; }
+  .claims .claim-asked { color: var(--muted); font-size: var(--fs-sm); }
+  .claims .claim-asked::before { content: "Asked "; }
+
   /* The calendar on a phone: the list, not the grid. */
   .cal-grid-wrap { display: none; }
   .cal-list {
@@ -811,3 +834,22 @@ body.page-grid {
   .cal-list .cal-chips { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); }
   .cal-list .cal-chip { display: inline-block; max-width: 100%; }
 }
+
+/* ------------------------------------------------------------- TOIL --- */
+
+/* The TOIL card (absence/_toil_card.html): its heading with "Claim TOIL"
+   beside it, wrapping under it on a narrow window, and a little air above
+   each of its parts, which sit under their own small headings. */
+.card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2) var(--sp-4);
+  flex-wrap: wrap;
+}
+.toil-card .facts { margin-top: var(--sp-3); }
+.toil-card h3 { margin: var(--sp-5) 0 var(--sp-2); font-size: var(--fs-md); }
+.toil-lots { margin: 0; padding-left: var(--sp-5); }
+.toil-lots li + li { margin-top: var(--sp-1); }
+/* The claim form sits a little below its card's heading, as the request form does. */
+.toil-form { margin-top: var(--sp-4); }

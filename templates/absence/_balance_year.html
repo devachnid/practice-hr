@@ -1,9 +1,18 @@
-{% comment %}One year's row of the balances table. Expects type, pot, summary, links, label.{% endcomment %}
+{% comment %}One year's row of the balances table. Expects type, pot, summary, links, label, unit.
+A type that does not accrue (TOIL) has a summary of zeros and no pot until
+something is earned or booked: its figures are shown without ledger links.{% endcomment %}
 {% load absence_extras %}
 <tr>
   <th scope="row">{{ type.name }}</th>
   <td>{{ label }}{% if pot %}<br><span class="muted">{{ pot.year_start|date:"j M Y" }} – {{ pot.year_end|date:"j M Y" }}</span>{% endif %}</td>
-  {% if summary %}
+  {% if summary and not pot %}
+    <td>{{ summary.entitlement|floatformat:"-2" }}</td><td>{{ summary.carried_in|floatformat:"-2" }}</td>
+    <td>{{ summary.taken|floatformat:"-2" }}</td><td>{{ summary.booked|floatformat:"-2" }}</td>
+    <td>{{ summary.pending|floatformat:"-2" }}</td><td>{{ summary.expired|floatformat:"-2" }}</td>
+    <td>{{ summary.adjustments|floatformat:"-2" }}</td>
+    <td><strong>{{ summary.remaining|units:unit }}</strong></td>
+    <td></td>
+  {% elif summary %}
     <td><a href="{{ links.entitlement }}" class="figure-link">{{ summary.entitlement|floatformat:"-2" }}</a></td>
     <td><a href="{{ links.carried_in }}" class="figure-link">{{ summary.carried_in|floatformat:"-2" }}</a></td>
     <td><a href="{{ links.taken }}" class="figure-link">{{ summary.taken|floatformat:"-2" }}</a></td>

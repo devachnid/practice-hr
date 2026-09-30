@@ -174,7 +174,7 @@ def test_adding_a_policy_in_admin_audits_it_and_syncs_nothing_it_cannot_reach(ad
     data = {"contract_type": ct.pk, "absence_type": absence_type("BH").pk, "effective_from": "2020-01-01",
             "effective_to": "", "weeks_per_year": "0", "leave_year_basis": "fixed", "year_start_month": 4,
             "year_start_day": 1, "carry_over_max_weeks": "", "carry_over_expires_after_days": "",
-            "rounding": "0.25", "bank_holiday_handling": "pot", "toil_expires_after_days": "", "accrual": "daily",
+            "rounding": "0.25", "bank_holiday_handling": "pot", "accrual": "daily",
             "tiers-TOTAL_FORMS": 0, "tiers-INITIAL_FORMS": 0, "tiers-MIN_NUM_FORMS": 0,
             "tiers-MAX_NUM_FORMS": 1000}
     resp = admin_client.post("/admin/absence/policy/add/", data, follow=True)
@@ -326,3 +326,40 @@ def test_the_adjust_form_is_for_hr_admins_only(db):
     c.force_login(staff)
     assert c.post(f"/admin/absence/pot/{pot.pk}/adjust/", {"units": "5", "note": "x"}).status_code in (302, 403)
     assert pot.entries.filter(kind="adjustment").count() == 0
+
+
+def _policy_data(ct, code):
+    from tests.factories import absence_type
+    return {"contract_type": ct.pk, "absence_type": absence_type(code).pk, "effective_from": "2020-01-01",
+            "effective_to": "", "weeks_per_year": "0", "days_per_year": "", "carry_over_days": "",
+            "leave_year_basis": "fixed", "year_start_month": 4, "year_start_day": 1,
+            "carry_over_max_weeks": "", "carry_over_expires_after_days": "", "rounding": "0.25",
+            "bank_holiday_handling": "closed", "accrual": "daily",
+            "tiers-TOTAL_FORMS": 0, "tiers-INITIAL_FORMS": 0, "tiers-MIN_NUM_FORMS": 0,
+            "tiers-MAX_NUM_FORMS": 1000}
+
+
+def test_the_policy_admin_refuses_a_policy_for_toil(admin_client, db):
+    from absence.models import Policy
+    from tests.factories import make_contract_type
+    ct = make_contract_type()
+    resp = admin_client.post("/admin/absence/policy/add/", _policy_data(ct, "TOIL"))
+    assert resp.status_code == 200
+    assert "TOIL is earned, not accrued; it needs no policy — set its expiry on the absence type." in \
+        resp.content.decode()
+    assert not Policy.objects.exists()
+
+
+def test_the_absence_type_admin_sets_accrues_and_the_earned_expiry(admin_client, db):
+    from absence.models import AbsenceType
+    from tests.factories import absence_type
+    toil = absence_type("TOIL")
+    page = admin_client.get(f"/admin/absence/absencetype/{toil.pk}/change/").content.decode()
+    assert 'name="accrues"' in page and 'name="earned_expires_after_days"' in page
+    data = {"name": "TOIL", "paid": "on", "uses_pot": "on", "needs_approval": "on", "calendar_label": "Leave",
+            "display_order": 40, "active": "on", "earned_expires_after_days": 180}
+    assert admin_client.post(f"/admin/absence/absencetype/{toil.pk}/change/", data).status_code == 302
+    assert AbsenceType.objects.get(pk=toil.pk).earned_expires_after_days == 180
+    resp = admin_client.post(f"/admin/absence/absencetype/{toil.pk}/change/", {**data, "accrues": "on"})
+    assert resp.status_code == 200 and "Only for a type that does not accrue" in resp.content.decode()
+    assert AbsenceType.objects.get(pk=toil.pk).accrues is False

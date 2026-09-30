@@ -12,7 +12,8 @@
       <tr><th scope="row">{{ r.employee.name }}</th>
         <td>{% if r.position %}{{ r.position.title }}, {{ r.position.team }}{% elif not r.employed %}Not currently employed{% endif %}</td>
         <td><a href="{% url 'absence:balances_for' r.employee.pk %}" class="btn">Balances</a>
-          {% if r.can_record %}<a href="{% url 'absence:request_for' r.employee.pk %}" class="btn btn-quiet">Record leave for {{ r.employee.name }}</a>{% endif %}</td></tr>
+          {% if r.can_record %}<a href="{% url 'absence:request_for' r.employee.pk %}" class="btn btn-quiet">Record leave for {{ r.employee.name }}</a>
+          <a href="{% url 'absence:toil_claim_for' r.employee.pk %}" class="btn btn-quiet">Record TOIL for {{ r.employee.name }}</a>{% endif %}</td></tr>
     {% empty %}<tr><td colspan="3">Nobody reports to you today.</td></tr>{% endfor %}
     </tbody>
   </table>

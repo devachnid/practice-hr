@@ -14,10 +14,10 @@
     {% if balance %}
       {% if balance.error %}
         <dt>Balance</dt><dd>It cannot be worked out: there is no contract or allowance policy for it. Ask an HR admin to check.</dd>
-      {% elif balance.pot %}
-        <dt>Remaining now</dt><dd>{{ balance.remaining|units:balance.pot.unit }}</dd>
-        <dt>Balance after</dt><dd{% if balance.over %} class="neg"{% endif %}><strong>{{ balance.after|units:balance.pot.unit }}</strong></dd>
-        {% if balance.pending %}<dt>Waiting</dt><dd>{{ balance.pending|units:balance.pot.unit }} in requests not yet decided, this one included</dd>{% endif %}
+      {% elif balance.unit %}
+        <dt>Remaining now</dt><dd>{{ balance.remaining|units:balance.unit }}</dd>
+        <dt>Balance after</dt><dd{% if balance.over %} class="neg"{% endif %}><strong>{{ balance.after|units:balance.unit }}</strong></dd>
+        {% if balance.pending %}<dt>Waiting</dt><dd>{{ balance.pending|units:balance.unit }} in requests not yet decided, this one included</dd>{% endif %}
       {% else %}
         <dt>Balance</dt><dd>Not opened yet for that leave year. This year's and next year's open overnight; a later year's opens when leave in it is approved.</dd>
       {% endif %}

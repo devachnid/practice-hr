@@ -1,6 +1,6 @@
 from django.urls import path
 
-from absence.views import approvals, balances, calendar, payroll, requests
+from absence.views import approvals, balances, calendar, payroll, requests, toil
 
 app_name = "absence"
 urlpatterns = [
@@ -16,6 +16,11 @@ urlpatterns = [
     path("queue/", approvals.queue, name="queue"),
     # exactly notify.DECIDE_PATH: the link in the approver's email
     path("decide/<int:pk>/", approvals.decide, name="decide"),
+    path("toil/claim/", toil.claim, name="toil_claim"),
+    path("toil/claim/<int:pk>/", toil.claim_for, name="toil_claim_for"),
+    # exactly notify.CLAIM_DECIDE_PATH: the link in the approver's email
+    path("toil/<int:pk>/decide/", toil.decide, name="toil_decide"),
+    path("toil/<int:pk>/cancel/", toil.cancel, name="toil_cancel"),
     path("<int:pk>/cancel/", requests.cancel, name="cancel"),
     path("<int:pk>/kit-day/", requests.kit_day, name="kit_day"),
 ]

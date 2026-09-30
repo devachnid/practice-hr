@@ -9,7 +9,7 @@ from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
 from absence.services import bookings, ledger, payroll, toil
 from people.models import AuditEntry, PayRecord
 from people.services import contracts, employments
-from tests.factories import (absence_type, hours_employee, make_contract_type, make_employee, make_policy,
+from tests.factories import (absence_type, hours_employee, make_contract_type, make_employee,
                              make_pot)
 
 JUNE = (date(2026, 6, 1), date(2026, 6, 30))
@@ -34,8 +34,6 @@ def test_sections(db, hr_admin, employee_user):
     bookings.request(employee_user, changed, absence_type("SICK"), date(2026, 6, 3), date(2026, 6, 4), category="mental")
     unpaid = bookings.request(employee_user, changed, absence_type("UNPAID"), date(2026, 6, 10))
     bookings.approve(hr_admin, unpaid)
-    ct = changed.contracts.first().contract_type
-    make_policy(ct, "TOIL")
     toil.earn(hr_admin, changed, Decimal("2"), date(2026, 6, 5), "late")
     wb = payroll.build(*JUNE)
     assert wb.sheetnames == ["Starters", "Leavers", "Contract changes", "Pay changes", "Sickness", "Unpaid",
@@ -91,7 +89,6 @@ def test_family_leave_sheet_clips_to_the_month_and_counts_its_kit_days(db, emplo
 
 def test_toil_sheet_only_when_toil_is_paid(db, hr_admin):
     emp = hours_employee(start=date(2026, 6, 1))
-    make_policy(emp.contracts.first().contract_type, "TOIL")
     toil.earn(hr_admin, emp, Decimal("2"), date(2026, 6, 5), "late")
     assert len(_sheet(payroll.build(*JUNE), "TOIL")) == 2
     AbsenceType.objects.filter(code="TOIL").update(paid=False)
@@ -219,7 +216,7 @@ def test_automatic_bank_holiday_rows_are_never_reported(db):
 def test_toil_carried_at_year_end_is_listed_once_in_its_month(db, hr_admin):
     from absence.services import year_end
     emp = hours_employee(start=date(2026, 1, 1))
-    make_policy(emp.contracts.first().contract_type, "TOIL", weeks_per_year=Decimal("0"), toil_expires_after_days=90)
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=90)
     toil.earn(hr_admin, emp, Decimal("3"), date(2027, 3, 10), "late clinic")
     year_end.run(date(2027, 4, 1))                     # carries the 3 to the 2027/28 pot, dated 10 Mar
     rows = _sheet(payroll.build(date(2027, 3, 1), date(2027, 3, 31)), "TOIL")[1:]

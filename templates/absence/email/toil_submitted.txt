@@ -1,0 +1,6 @@
+{% load absence_extras %}{% autoescape off %}{{ c.employment.employee.name }} has claimed TOIL:
+{{ c.units|units:unit }} worked on {{ c.day|date:"j M Y" }}.
+Reason: {{ c.reason }}
+
+Decide it here: {{ url }}
+{% endautoescape %}

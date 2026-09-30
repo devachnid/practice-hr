@@ -1,5 +1,5 @@
-{% autoescape off %}These leave requests are waiting for a decision:
+{% load absence_extras %}{% autoescape off %}These are waiting for a decision:
 {% for row in rows %}
-{{ row.a.employment.employee.name }}, {{ row.a.absence_type }}, {% include "absence/email/_dates.txt" with a=row.a %}
+{% if row.claim %}{{ row.claim.employment.employee.name }}, TOIL claim, {{ row.claim.units|units:row.unit }} worked on {{ row.claim.day|date:"j M Y" }}{% else %}{{ row.a.employment.employee.name }}, {{ row.a.absence_type }}, {% include "absence/email/_dates.txt" with a=row.a %}{% endif %}
 {{ row.url }}
 {% endfor %}{% endautoescape %}

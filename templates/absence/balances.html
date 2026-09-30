@@ -16,9 +16,9 @@
     <thead><tr><th>Type</th><th>Leave year</th><th>Entitlement</th><th>Carried in</th><th>Taken</th><th>Booked</th><th>Waiting</th><th>Expired</th><th>Adjustments</th><th>Remaining</th><th></th></tr></thead>
     <tbody>
     {% for r in rows %}
-      {% include "absence/_balance_year.html" with type=r.type pot=r.pot summary=r.summary links=r.links error=r.error label="This year" %}
+      {% include "absence/_balance_year.html" with type=r.type pot=r.pot summary=r.summary links=r.links error=r.error unit=r.unit label="This year" %}
       {% if not r.error %}
-        {% include "absence/_balance_year.html" with type=r.type pot=r.next_pot summary=r.next_summary links=r.next_links unavailable=r.next_unavailable label="Next year" %}
+        {% include "absence/_balance_year.html" with type=r.type pot=r.next_pot summary=r.next_summary links=r.next_links unavailable=r.next_unavailable unit=r.unit label="Next year" %}
       {% endif %}
     {% empty %}<tr><td colspan="11">No allowances.</td></tr>{% endfor %}
     </tbody>

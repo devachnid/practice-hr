@@ -27,10 +27,12 @@ chased by `hr_nightly` (01:30) — see [Nightly housekeeping](sign-in.md#nightly
 and [the year-end page](year-end.md). Each night it opens, for everyone
 employed, **this leave year's and next year's pot** of every allowance-backed
 type they have a policy for (annual leave always; the bank-holiday pot where
-annual leave's policy says "pot"; TOIL, study leave or your own types once
-their contract type has a policy), so the request and decide pages can show
-next year's balance. Until it has run, such a pot shows "Not opened yet: it
+annual leave's policy says "pot"; study leave or your own types once their
+contract type has a policy), so the request and decide pages can show next
+year's balance. Until it has run, such a pot shows "Not opened yet: it
 opens overnight." A year beyond next opens when leave in it is approved.
+TOIL is the exception: it is [earned, not accrued](#accrues), so its pot
+opens when TOIL is first earned or booked, and until then it shows as 0.
 
 ## Absence types
 
@@ -61,10 +63,32 @@ after, and approving writes a booking line to the pot. Unticked, a request
 is costed and recorded but nothing is deducted. *If you tick it on a type
 with no policy,* requests fail with a message naming the missing policy
 (and the nightly reports it) rather than silently costing nothing. Study
-leave and TOIL are seeded pot-backed **without** a policy: add one before
-anyone books them. Once a contract type has one, the nightly opens a pot of
-that type for everyone on it; without one, nobody on that contract type has
-that allowance and nothing is reported.
+leave is seeded pot-backed **without** a policy: add one before anyone
+books it. Once a contract type has one, the nightly opens a pot of that
+type for everyone on it; without one, nobody on that contract type has
+that allowance and nothing is reported. A type that does not
+[accrue](#accrues) (TOIL) needs no policy at all.
+
+### Accrues
+
+Ticked (the default): the pot is given an entitlement from its
+[policy](#policies). **Unticked: the type is earned, not accrued**, as
+TOIL is seeded. Its pots start at zero for everyone and only approved
+claims, adjustments and year-end carry-ins add to them. It has **no policy
+of its own** and the policy page refuses one ("TOIL is earned, not accrued;
+it needs no policy — set its expiry on the absence type"): its pot borrows
+the contract type's **annual-leave** policy for its leave year and rounding
+step, and nothing else of it. So a person with no annual-leave policy
+cannot earn or book it either, and the error names annual leave's policy.
+Balances show it for everyone with a contract, at 0 until something is
+earned. Leave it ticked on every other type.
+
+### Earned expires after days (`earned_expires_after_days`)
+
+Only for a type that does not accrue (the page refuses it otherwise): how
+many days after the day it was earned each amount of TOIL may still be
+used. TOIL is seeded with **365**, twelve months. Blank means never. See
+[Year end](year-end.md#toil).
 
 ### Needs approval
 
@@ -282,11 +306,6 @@ in 2026, one working day each, pro rata to contracted hours") in place of an
 entitlement, and has no handling of its own (annual leave's decides) and no
 tiers.
 
-### TOIL expires after days (`toil_expires_after_days`)
-
-On a TOIL policy: how long earned TOIL may be used, counted from the day it
-was earned. Blank means never. See [Year end](year-end.md#toil).
-
 ### Tiers
 
 The inline on a policy adds leave for service: **After years** and, for an
@@ -401,6 +420,60 @@ cancellation line. **Automatic bank-holiday rows can never be cancelled** (the
 nightly would only recreate them; change the policy or the pattern
 instead). The approver is emailed.
 
+## TOIL
+
+Time off in lieu is **earned, not accrued**. Everyone's TOIL starts at zero;
+it goes up only when a claim for time worked is approved, and down when TOIL
+is taken as leave. There is no TOIL policy: the type does not
+[accrue](#accrues), and its pot borrows the annual-leave policy's leave year
+and rounding.
+
+1. **Claim.** *My absences › TOIL › Claim TOIL* (`/absence/toil/claim/`):
+   the day worked, how much, and what for. The day is today or earlier,
+   never later, and no further back than the type's *Earned expires after
+   days* (365 as seeded): older TOIL would already have expired, so it is
+   refused. The person must have been employed with a contract that day.
+   Hours staff claim in **quarter hours** (0.25, 1.75…), sessions staff in
+   **half sessions**; there is no cap. A claim for a day in a leave year
+   that has already ended (2 January for 30 December, say) is fine: it is
+   added to the current year's pot, still dated the day worked, just as the
+   year end carries unused TOIL forward, so it expires on the same day.
+2. **Approve.** The claim goes to the same person a leave request would
+   ([routing](#deciding-a-request): the line manager, or the HR admins when
+   there is none, never the claimant), who is emailed a link to the decide
+   page (`/absence/toil/<id>/decide/`) and sees it under **TOIL claims
+   waiting** on Approvals, counted in the nav's number. The page shows the
+   claim, the person's TOIL remaining now, earned this leave year and
+   expiring in the next 60 days. Approving writes one *TOIL earned* line to
+   their TOIL pot **dated the day worked**, with the reason as its note, and
+   opens the pot if it is the first; declining writes nothing. The claimant
+   is emailed either way. A manager (or HR admin) can also **record** a claim
+   for someone, from *Team balances › Record TOIL for …*
+   (`/absence/toil/claim/<employee>/`): it is approved at once and they are
+   emailed.
+3. **Take it.** TOIL is booked like any leave: *Request leave*, type TOIL.
+   The request page and the decide page show what is left and what would be
+   left after it; approving writes a *TOIL taken* line. Booking more than is
+   left is allowed with the same warning as leave.
+4. **Expiry.** Each amount earned may be used for
+   [*Earned expires after days*](#earned-expires-after-days-earned_expires_after_days)
+   after the day worked (365 as seeded: twelve months), first in, first out;
+   the nightly expires what is unused, and the year end carries what is left
+   into the next leave year keeping its earned date. See
+   [Year end](year-end.md#toil).
+
+A claim can be **cancelled** by the claimant (or an HR admin) while it is
+waiting, from the TOIL card on *My absences*. Once approved it cannot be
+cancelled or edited: an HR admin corrects the pot with an adjustment
+([Adjusting a balance](year-end.md#adjusting-a-balance)). **The Adjust
+balance form is for corrections only**, not for recording TOIL earned: use
+Record TOIL so the claim, its day and its reason are kept.
+
+The **TOIL card** on *My absences* shows the person's TOIL remaining now,
+earned this leave year, their claims waiting (with Cancel) and anything
+expiring in the next 60 days. Waiting claims are chased like
+[waiting requests](#waiting-requests).
+
 ## Family leave and keeping-in-touch days
 
 Requests for the four family-leave types take an **expected start** and
@@ -438,18 +511,23 @@ because a request reaches the ledger only when approved). The running
 balance column always shows the true balance, whatever the filter. A year
 "not opened yet" has no pot; the nightly opens it. The next year reads "Not
 employed then." for someone leaving before it starts. The Bank holiday row
-shows only where the annual-leave policy's handling is "pot". HR admins also see set-up
-gaps, such as a type with no policy.
+shows only where the annual-leave policy's handling is "pot". TOIL always has
+a row for someone with a contract, at 0 until something is earned: its pot
+opens on the first approved claim (or TOIL booking), not overnight, so its
+figures link to no ledger until then. HR admins also see set-up gaps, such
+as a type with no policy.
 
 **Team** (from Balances; approvers and HR admins) lists the people whose
 balances you may open: direct reports for an approver, everyone for an HR
-admin.
+admin; with *Record leave for …* and *Record TOIL for …* for each one you
+may record for.
 
 ## Waiting requests
 
-A request undecided after **`CHASE_AFTER_WORKING_DAYS`** working days (default
-**3**) is "waiting": it appears on the admin dashboard, and the nightly
-emails every HR admin once about it. Working days exclude weekends,
+A leave request or [TOIL claim](#toil) undecided after
+**`CHASE_AFTER_WORKING_DAYS`** working days (default **3**) is "waiting": it
+appears on the admin dashboard, and the nightly emails every HR admin once
+about it. Working days exclude weekends,
 England and Wales bank holidays and closed days. If the email does not go,
 the nightly tries again. The dashboard also shows whether email is set up,
 and lists the last emails that failed to send. A failed email never blocks a
@@ -457,7 +535,8 @@ request; the person is told to send the link themselves.
 
 ## Email and `SITE_URL`
 
-Links in emails (the decide page) are the site's address plus a path. Set
+Links in emails (the decide pages for a request and for a TOIL claim) are
+the site's address plus a path. Set
 `SITE_URL=https://hr.example.org` in `/etc/practice-hr.env`; unset, links
 are relative and cannot be opened. `check --deploy` warns (`hr.W002`).
 
@@ -470,8 +549,8 @@ revision line if the entitlement is out of step (for example after a
 working-pattern change), and **Adjust balance** on a pot's own page (HR
 admins), which writes one audited adjustment line with your note; see
 [Adjusting a balance](year-end.md#adjusting-a-balance). Both refuse a pot
-whose leave year has been closed. TOIL is earned from the shell
-(`absence.services.toil.earn`); there is no screen for it yet.
+whose leave year has been closed. TOIL is earned by an approved
+[claim](#toil), not an adjustment.
 
 The **Absences** list is a read-only record of every absence, apart from a
 family-leave absence's dates (see [above](#family-leave-and-keeping-in-touch-days)).
