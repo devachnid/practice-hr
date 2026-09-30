@@ -280,6 +280,79 @@ def test_an_absence_shows_its_cancel_reason_read_only(admin_client, hr_admin, db
     assert "Cancel reason" in page and "booked in error" in page and 'name="cancel_reason"' not in page
 
 
+# --- "Cancel absence" on an absence's page ---------------------------------------------------
+
+def _auto_row(employee=None):
+    from datetime import timedelta
+
+    from absence.models import Absence
+    from tests.factories import absence_type, current_leave_year, hours_employee
+    start, _ = current_leave_year()
+    emp = hours_employee(start=start, **({"employee": employee} if employee else {}))
+    day = start + timedelta(days=14)
+    return Absence.objects.create(employment=emp, absence_type=absence_type("BH"), start_date=day, end_date=day,
+                                  status=Absence.Status.APPROVED, auto_bank_holiday=True)
+
+
+def test_an_hr_admin_cancels_another_persons_automatic_row_from_its_page(admin_client, hr_admin, db):
+    auto = _auto_row()
+    change, cancel = f"/admin/absence/absence/{auto.pk}/change/", f"/admin/absence/absence/{auto.pk}/cancel/"
+    body = admin_client.get(change).content.decode()
+    assert cancel in body and "Cancel absence" in body
+    confirm = admin_client.get(cancel)
+    assert confirm.status_code == 200 and 'method="post"' in confirm.content.decode()
+    auto.refresh_from_db()
+    assert auto.status == "approved"                                    # a GET writes nothing
+    r = admin_client.post(cancel)
+    assert r.status_code == 302 and r["Location"] == change
+    auto.refresh_from_db()
+    assert (auto.status, auto.cancel_reason, auto.cancelled_by) == ("cancelled", "", hr_admin)
+    assert cancel not in admin_client.get(change).content.decode()      # no longer live
+    assert admin_client.post(cancel).status_code == 403
+
+
+def test_the_cancel_action_shows_the_services_refusal(admin_client, hr_admin, db):
+    from datetime import timedelta
+
+    from absence.services import bookings, pots, year_end
+    from tests.factories import absence_type, current_leave_year, hours_employee
+    start, _ = current_leave_year()
+    emp = hours_employee(start=start)
+    monday = start + timedelta(days=70)
+    monday -= timedelta(days=monday.weekday())
+    leave = bookings.approve(hr_admin, bookings.request(hr_admin, emp, absence_type("AL"), monday))
+    year_end.close(pots.for_day(emp, absence_type("AL"), monday))
+    r = admin_client.post(f"/admin/absence/absence/{leave.pk}/cancel/", follow=True)
+    assert r.status_code == 200 and "is closed" in r.content.decode()
+    leave.refresh_from_db()
+    assert leave.status == "approved"
+
+
+def test_an_hr_admin_does_not_cancel_their_own_absence_from_its_page(admin_client, hr_admin, db):
+    from tests.factories import make_employee
+    auto = _auto_row(make_employee(first="Hana", user=hr_admin))
+    body = admin_client.get(f"/admin/absence/absence/{auto.pk}/change/").content.decode()
+    assert f"/admin/absence/absence/{auto.pk}/cancel/" not in body
+    assert admin_client.post(f"/admin/absence/absence/{auto.pk}/cancel/").status_code == 403
+    auto.refresh_from_db()
+    assert auto.status == "approved"
+
+
+def test_a_manager_does_not_cancel_from_the_admin(db):
+    from django.contrib.auth import get_user_model
+    from django.test import Client
+
+    from tests.factories import make_employee, make_position
+    manager = get_user_model().objects.create_user(email="manager@example.org", password="pw", is_staff=True)
+    auto = _auto_row()
+    make_position(auto.employment, manager=make_employee(first="Mo", user=manager))
+    c = Client()
+    c.force_login(manager)
+    assert c.post(f"/admin/absence/absence/{auto.pk}/cancel/").status_code in (302, 403)
+    auto.refresh_from_db()
+    assert auto.status == "approved"
+
+
 # --- "Adjust balance" on the pot's page (I7) ------------------------------------------------
 
 def _open_pot():

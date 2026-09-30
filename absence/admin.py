@@ -1,7 +1,8 @@
 """Unfold admin over the absence models. Policy set-up is edited here; pots
 and their ledger are read-only, and their two actions (recalculate on the
 list, "Adjust balance" on a pot's page) go through the ledger service. Absences are read-only but for a family-leave absence's
-three dates, which an HR admin sets through bookings.set_family_dates."""
+three dates, which an HR admin sets through bookings.set_family_dates, and
+"Cancel absence" on an absence's page, through bookings.cancel."""
 
 from django import forms
 from django.contrib import admin, messages
@@ -255,6 +256,34 @@ class AbsenceAdmin(ModelAdmin):
                     "auto_bank_holiday")
     list_filter = ("status", "absence_type", "auto_bank_holiday")
     date_hierarchy = "start_date"
+    actions_detail = ["cancel_absence"]
+
+    def has_cancel_permission(self, request, object_id=None):
+        # an HR admin, on a live absence that is not their own
+        if object_id is None or not access.can_view_restricted(request.user):
+            return False
+        absence = Absence.objects.filter(pk=object_id).select_related("employment__employee").first()
+        return (absence is not None and absence.status in bookings.LIVE
+                and absence.employment.employee.user_id != request.user.pk)
+
+    @action(description="Cancel absence", url_path="cancel", permissions=["cancel"])
+    def cancel_absence(self, request, object_id):
+        """A confirmation page, then bookings.cancel as the admin, with no
+        reason: an automatic bank-holiday row cancelled here stays cancelled
+        (bank_holidays)."""
+        absence = get_object_or_404(Absence.objects.select_related("employment__employee", "absence_type"),
+                                    pk=object_id)
+        if request.method != "POST":
+            return render(request, "absence/admin/cancel_absence.html", {
+                **self.admin_site.each_context(request), "title": f"Cancel absence: {absence}",
+                "absence": absence, "opts": self.model._meta})
+        try:
+            bookings.cancel(request.user, absence)
+        except ValidationError as e:
+            messages.error(request, " ".join(e.messages))
+        else:
+            messages.success(request, f"{absence}: cancelled.")
+        return HttpResponseRedirect(reverse("admin:absence_absence_change", args=[absence.pk]))
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         # A health-sensitive absence shown is one viewed: audited like NI and
