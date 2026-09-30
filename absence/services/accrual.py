@@ -27,6 +27,7 @@ from absence.services import policies, rounding
 from people.models import Contract
 
 ZERO = Decimal("0")
+DAYS_PER_WEEK = Decimal("5")          # a bank holiday is one working day of a five-day week
 
 
 def _days(pot):
@@ -85,7 +86,7 @@ class _Rows:
                 f"A change of unit needs a new pot; it cannot be mixed into this one.")
 
 
-def _rates(pot, rows, weeks_for_day):
+def _rates(pot, rows):
     employment = rows.employment
     days_in_year = (pot.year_end - pot.year_start).days + 1
     out = []
@@ -102,48 +103,68 @@ def _rates(pot, rows, weeks_for_day):
                 continue
             rows.check_unit(active, day)
             policy = rows.policy(active, day)
-            if weeks_for_day is not None:
-                weeks = weeks_for_day(policy, day)
-            else:
-                weeks = policy.weeks_per_year + policies.tier_extra_weeks(policy, employment, day)
+            weeks = policy.weeks_per_year + policies.tier_extra_weeks(policy, employment, day)
             rates.append((day, weeks * weekly / days_in_year))
             last = (day, policy, weeks * weekly)
-        if weeks_for_day is None and last is not None and last[1].accrual == Policy.Accrual.MONTHLY:
+        if last is not None and last[1].accrual == Policy.Accrual.MONTHLY:
             sampled, _, yearly = last
             rates = [(day, yearly / 12 if day == sampled else ZERO) for day, _ in rates]
         out.extend(rates)
     return out
 
 
-def daily_rates(pot, weeks_for_day=None):
+def daily_rates(pot):
     """[(day, unrounded units accrued that day)]. Under a monthly policy a
     month's twelfth falls on its last active day and its other days are 0.
-    weeks_for_day(policy, day) overrides the weeks figure, day by day
-    whatever the basis; bank_holiday_entitlement uses that. Raises
-    ValidationError when a day's contract is in another unit than the pot,
-    or no policy covers a day the person is contracted."""
-    return _rates(pot, _Rows(pot), weeks_for_day)
+    Raises ValidationError when a day's contract is in another unit than
+    the pot, or no policy covers a day the person is contracted."""
+    return _rates(pot, _Rows(pot))
 
 
-def _entitlement(pot, weeks_for_day=None):
-    rows = _Rows(pot)
-    rates = _rates(pot, rows, weeks_for_day)
-    total = sum((r for _, r in rates), Decimal("0"))
-    for day, _ in rates:
+def _step(rows, pot):
+    """The rounding step: the policy's on the first contracted day of the year."""
+    for day in _days(pot):
         if not rows.employment.is_active_on(day):
             continue
         active = rows.active(day)
         if rows.weekly(active):
-            return rounding.round_to(total, rows.policy(active, day).rounding)
-    return Decimal("0")
+            return rows.policy(active, day).rounding
+    return None
 
 
 def entitlement(pot):
-    return _entitlement(pot)
+    rows = _Rows(pot)
+    total = sum((r for _, r in _rates(pot, rows)), ZERO)
+    step = _step(rows, pot)
+    return ZERO if step is None else rounding.round_to(total, step)
+
+
+def in_year(start, end):
+    """The England and Wales bank holidays from `start` to `end`: the only
+    ones the pot and the automatic absences count."""
+    return BankHoliday.objects.filter(date__range=(start, end), nation="EW")
 
 
 def bank_holiday_entitlement(pot):
-    """Under pro_rata_pot: the year's bank holidays divided by five, as weeks."""
-    n = BankHoliday.objects.filter(date__range=(pot.year_start, pot.year_end), nation="EW").count()
-    weeks = Decimal(n) / Decimal("5")
-    return _entitlement(pot, weeks_for_day=lambda policy, day: weeks)
+    """The bank-holiday pot, from the calendar: one working day (the weekly
+    amount on the day ÷ 5, whatever the working pattern) for each bank
+    holiday in the pot's year on which the person is employed with a
+    contract, rounded to the policy's step. The policy's weeks, tiers and
+    accrual basis do not apply. Every contracted day of the year is still
+    checked for its unit and its policy, as entitlement does."""
+    rows = _Rows(pot)
+    holidays = set(in_year(pot.year_start, pot.year_end).values_list("date", flat=True))
+    total = ZERO
+    for day in _days(pot):
+        if not rows.employment.is_active_on(day):
+            continue
+        active = rows.active(day)
+        weekly = rows.weekly(active)
+        if not weekly:
+            continue
+        rows.check_unit(active, day)
+        rows.policy(active, day)
+        if day in holidays:
+            total += weekly / DAYS_PER_WEEK
+    step = _step(rows, pot)
+    return ZERO if step is None else rounding.round_to(total, step)

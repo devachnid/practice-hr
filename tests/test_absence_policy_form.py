@@ -183,3 +183,50 @@ def test_the_accrual_basis_is_chosen_on_the_policy_page(admin_client, db):
     _save(admin_client, policy, fields={"accrual": "monthly"})
     policy.refresh_from_db()
     assert policy.accrual == Policy.Accrual.MONTHLY
+
+
+def _bank_holiday_policy(**kw):
+    kw.setdefault("year_start_month", 1)
+    return make_policy(make_contract_type(), "BH", weeks_per_year=D("0"), bank_holiday_handling="pot", **kw)
+
+
+@pytest.mark.parametrize("month,line", [
+    (1, "8 bank holidays in 2026, one working day each, pro rata to contracted hours"),
+    (4, "10 bank holidays in 2026/27, one working day each, pro rata to contracted hours"),
+])
+def test_the_bank_holiday_line_counts_the_seeded_calendar(db, month, line):
+    from absence import admin_forms
+    policy = _bank_holiday_policy(year_start_month=month)
+    assert admin_forms.bank_holiday_summary(policy, date(2026, 6, 1)) == line
+
+
+def test_a_bank_holiday_policy_shows_the_calendar_line_not_weeks_days_or_handling(admin_client, db):
+    from django.utils import timezone
+
+    from absence import admin_forms
+    policy = _bank_holiday_policy()
+    page = admin_client.get(_change(policy)).content.decode()
+    for name in ("weeks_per_year", "days_per_year", "bank_holiday_handling", "tiers-TOTAL_FORMS"):
+        assert f'name="{name}"' not in page, name
+    assert admin_forms.bank_holiday_summary(policy, timezone.localdate()) in page
+    assert "one working day each, pro rata to contracted hours" in page
+    resp = _save(admin_client, policy, fields={"rounding": "0.5"})
+    assert "pot(s) revised" in resp.content.decode()
+    policy.refresh_from_db()
+    assert (policy.rounding, policy.weeks_per_year, policy.bank_holiday_handling) == (D("0.50"), D("0"), "pot")
+
+
+def test_adding_a_bank_holiday_policy_stores_no_weeks(admin_client, db):
+    ct = make_contract_type("TUPE 2019")
+    resp = admin_client.post("/admin/absence/policy/add/", _add_post(ct, "BH", days_per_year="25"), follow=True)
+    assert "pot(s) revised" in resp.content.decode()
+    assert Policy.objects.get(contract_type=ct, absence_type__code="BH").weeks_per_year == D("0")
+
+
+def test_the_changelist_shows_the_bank_holiday_line_for_a_bank_holiday_policy(admin_client, db):
+    from django.utils import timezone
+
+    from absence import admin_forms
+    policy = _bank_holiday_policy()
+    page = admin_client.get("/admin/absence/policy/").content.decode()
+    assert admin_forms.bank_holiday_summary(policy, timezone.localdate()) in page

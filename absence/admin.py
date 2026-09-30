@@ -9,6 +9,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action
 from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWidget
@@ -72,12 +73,12 @@ class PolicyAdmin(ModelAdmin):
     error; the edit itself stands and the nightly reports the pot until a
     policy covers it."""
     list_display = ("contract_type", "absence_type", "effective_from", "effective_to", "entitlement",
-                    "leave_year_basis", "bank_holiday_handling")
+                    "leave_year_basis", "handling")
     list_filter = ("contract_type", "absence_type")
     list_select_related = ("contract_type", "absence_type")
     form = admin_forms.PolicyForm
     inlines = [PolicyTierInline]
-    readonly_fields = ("stored_weeks",)
+    readonly_fields = ("stored_weeks", "bank_holidays")
 
     # admin_forms.mode(policy) → which of the weeks fields become what on the page
     _SWAPS = {
@@ -86,8 +87,10 @@ class PolicyAdmin(ModelAdmin):
         admin_forms.EITHER: {"weeks_per_year": ("days_per_year", "weeks_per_year"),
                              "carry_over_max_weeks": ("carry_over_days", "carry_over_max_weeks")},
         admin_forms.WEEKS: {},
+        # the pot comes from the calendar, and the annual-leave policy's handling decides how it is charged
+        admin_forms.BANK_HOLIDAY: {"weeks_per_year": ("bank_holidays",), "bank_holiday_handling": ()},
     }
-    _OWN = {"days_per_year", "carry_over_days", "stored_weeks"}
+    _OWN = {"days_per_year", "carry_over_days", "stored_weeks", "bank_holidays"}
 
     def get_fields(self, request, obj=None):
         swaps = self._SWAPS[admin_forms.mode(obj)]
@@ -97,16 +100,32 @@ class PolicyAdmin(ModelAdmin):
                 out.extend(swaps.get(name, (name,)))
         return out
 
+    def get_inlines(self, request, obj):
+        # tiers add weeks, and the bank-holiday pot has none
+        return [] if admin_forms.mode(obj) == admin_forms.BANK_HOLIDAY else super().get_inlines(request, obj)
+
     @admin.display(description="Stored as")
     def stored_weeks(self, obj):
         return f"= {admin_forms.plain(obj.weeks_per_year)} weeks" if obj.pk else ""
 
     @admin.display(description="Entitlement")
+    def bank_holidays(self, obj):
+        return admin_forms.bank_holiday_summary(obj, timezone.localdate()) if obj.pk else ""
+
+    @admin.display(description="Entitlement")
     def entitlement(self, obj):
         weeks = admin_forms.plain(obj.weeks_per_year)
-        if admin_forms.mode(obj) == admin_forms.DAYS:
-            return f"{admin_forms.plain(admin_forms.as_days(obj.weeks_per_year))} days ({weeks} weeks)"
+        match admin_forms.mode(obj):
+            case admin_forms.DAYS:
+                return f"{admin_forms.plain(admin_forms.as_days(obj.weeks_per_year))} days ({weeks} weeks)"
+            case admin_forms.BANK_HOLIDAY:
+                return self.bank_holidays(obj)
         return f"{weeks} weeks"
+
+    @admin.display(description="Bank holiday handling")
+    def handling(self, obj):
+        # a bank-holiday policy's own handling is never read: annual leave's decides
+        return "" if admin_forms.mode(obj) == admin_forms.BANK_HOLIDAY else obj.get_bank_holiday_handling_display()
 
     def save_model(self, request, obj, form, change):
         # read before the save: the audit's "before" and, if the form moved the

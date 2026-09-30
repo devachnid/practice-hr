@@ -222,3 +222,69 @@ def test_monthly_still_names_a_missing_policy(db):
     with pytest.raises(ValidationError) as e:
         accrual.entitlement(pot)
     assert "No Annual leave policy for Reception on 01 Sep 2026" in str(e.value)
+
+
+# The bank-holiday pot, exactly from the calendar: one working day (weekly amount ÷ 5) for
+# each England and Wales bank holiday in the pot's year on which the person is employed with
+# a contract. 2026 (seeded, 0006) has eight: 1 Jan, 3 and 6 Apr, 4 and 25 May, 31 Aug,
+# 25 Dec and 28 Dec (Boxing Day substitute).
+
+def _bank_holiday_pot(emp, day=date(2026, 6, 1)):
+    return pots.for_day(emp, absence_type("BH"), day)
+
+
+def _calendar_year_bh(**kw):
+    ct = make_contract_type()
+    make_policy(ct, year_start_month=1, bank_holiday_handling="pot", **kw)
+    make_policy(ct, "BH", weeks_per_year=D("0"), year_start_month=1, bank_holiday_handling="pot", **kw)
+    return ct
+
+
+@pytest.mark.parametrize("amount,expected", [
+    (D("37.5"), D("60.00")),      # 8 × 7.5
+    (D("18.75"), D("30.00")),     # 8 × 3.75
+])
+def test_bank_holiday_pot_is_one_working_day_per_holiday(db, amount, expected):
+    _calendar_year_bh()
+    emp = hours_employee(start=date(2025, 1, 1), amount=amount)
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp)) == expected
+
+
+def test_bank_holiday_pot_starter_gets_the_holidays_left_in_the_year(db):
+    from absence.models import BankHoliday
+    _calendar_year_bh()
+    emp = hours_employee(start=date(2026, 3, 15))
+    assert BankHoliday.objects.filter(date__range=(date(2026, 3, 15), date(2026, 12, 31)), nation="EW").count() == 7
+    # 3 Apr onwards: 7 × 7.5 = 52.50
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp, date(2026, 3, 15))) == D("52.50")
+
+
+def test_bank_holiday_pot_leaver_gets_the_holidays_up_to_their_last_day(db):
+    _calendar_year_bh()
+    emp = hours_employee(start=date(2025, 1, 1), end_date=date(2026, 9, 3), leaving_reason="resigned")
+    # 1 Jan to 31 Aug: 6 × 7.5 = 45.00
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp)) == D("45.00")
+
+
+def test_bank_holiday_pot_ignores_the_monthly_basis(db):
+    _calendar_year_bh(accrual="monthly")
+    emp = hours_employee(start=date(2026, 3, 15))
+    # still the 7 holidays from 15 March (52.50), not ten monthly twelfths of 60 (50.00)
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp, date(2026, 3, 15))) == D("52.50")
+
+
+def test_bank_holiday_pot_counts_a_holiday_on_a_day_the_person_does_not_work(db):
+    _calendar_year_bh()
+    emp = make_employment(start=date(2025, 1, 1))
+    make_contract(emp, make_contract_type(), amount=D("30"))
+    make_pattern(emp, {d: (D("3.75"), D("3.75")) for d in (1, 2, 3, 4)})      # Tuesday to Friday
+    # pro rata to hours, not to the pattern: 8 × 30/5 = 48.00, Mondays included
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp)) == D("48.00")
+
+
+def test_bank_holiday_pot_april_year_leaver(db):
+    # an April-March year, leaving 30 Nov 2026: 3 and 6 Apr, 4 and 25 May, 31 Aug = 5 × 7.5
+    # = 37.50 (the old formula, ten holidays ÷ 5 as weeks accrued daily, gave 50.25)
+    emp = hours_employee(start=date(2026, 4, 1), end_date=date(2026, 11, 30), leaving_reason="resigned")
+    make_policy(emp.contracts.first().contract_type, "BH", bank_holiday_handling="pot")
+    assert accrual.bank_holiday_entitlement(_bank_holiday_pot(emp)) == D("37.50")

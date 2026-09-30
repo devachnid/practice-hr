@@ -2,7 +2,9 @@
 and tiers in weeks (multiplied by the contracted weekly amount); for an
 hours contract type they are entered here as full-time days instead, at
 five days to a full-time week, and stored as days ÷ 5. A sessions contract
-type (GPs) keeps its weeks fields.
+type (GPs) keeps its weeks fields. A bank-holiday policy has neither: its
+pot is counted from the calendar (accrual.bank_holiday_entitlement), and
+the page says what that comes to instead.
 
 The form's shape follows the policy it edits (`mode`): the saved policy's
 contract type on its change page, both inputs on the add page until a
@@ -17,12 +19,13 @@ from django.forms.models import BaseInlineFormSet
 from unfold.widgets import UnfoldAdminDecimalFieldWidget
 
 from absence.models import Policy, PolicyTier
+from absence.services import accrual, leave_year
 from people.models import ContractType
 
 DAYS_PER_WEEK = Decimal("5")
 HUNDREDTH = Decimal("0.01")          # weeks are stored to two places, so days go in steps of 0.05
 
-DAYS, WEEKS, EITHER = "days", "weeks", "either"
+DAYS, WEEKS, EITHER, BANK_HOLIDAY = "days", "weeks", "either", "bank_holiday"
 
 
 def plain(value):
@@ -36,13 +39,29 @@ def as_days(weeks):
 
 def mode(policy):
     """How `policy`'s entitlement is entered: DAYS for an hours contract
-    type, WEEKS for a sessions one and for the bank-holiday pot's policy,
-    EITHER on the add page (no saved policy, so no contract type yet)."""
+    type, WEEKS for a sessions one, BANK_HOLIDAY (not at all: it comes from
+    the calendar) for the bank-holiday pot's policy, EITHER on the add page
+    (no saved policy, so no contract type yet)."""
     if policy is None or policy.pk is None:
         return EITHER
     if policy.absence_type.code == "BH":
-        return WEEKS
+        return BANK_HOLIDAY
     return DAYS if policy.contract_type.unit == ContractType.Unit.HOURS else WEEKS
+
+
+def _year_label(start, end):
+    return str(start.year) if (start.month, start.day) == (1, 1) else f"{start.year}/{end:%y}"
+
+
+def bank_holiday_summary(policy, today):
+    """What a bank-holiday policy's pot holds (accrual.bank_holiday_entitlement),
+    in words, for its leave year containing `today`."""
+    tail = "one working day each, pro rata to contracted hours"
+    if policy.leave_year_basis == Policy.Basis.ANNIVERSARY:
+        return f"The bank holidays in each person's leave year (from their start date), {tail}"
+    start, end = leave_year.bounds(policy, None, today)
+    n = accrual.in_year(start, end).count()
+    return f"{n} bank holiday{'' if n == 1 else 's'} in {_year_label(start, end)}, {tail}"
 
 
 def to_weeks(days, allow_zero=False):
@@ -108,7 +127,7 @@ class PolicyForm(_Stores, forms.ModelForm):
             self.initial.setdefault("days_per_year", as_days(self.instance.weeks_per_year))
             if self.instance.carry_over_max_weeks is not None:
                 self.initial.setdefault("carry_over_days", as_days(self.instance.carry_over_max_weeks))
-        elif self.mode == WEEKS:
+        elif self.mode in (WEEKS, BANK_HOLIDAY):
             self.fields.pop("days_per_year")
             self.fields.pop("carry_over_days")
         if self.mode == EITHER and "weeks_per_year" in self.fields:
@@ -119,9 +138,13 @@ class PolicyForm(_Stores, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if self.mode == WEEKS:
+        if self.mode in (WEEKS, BANK_HOLIDAY):
             return data
-        hours = _hours_chosen(self.mode, data.get("contract_type"), data.get("absence_type"))
+        absence_type = data.get("absence_type")
+        if self.mode == EITHER and absence_type is not None and absence_type.code == "BH":
+            self.store("weeks_per_year", Decimal("0"))      # its pot comes from the calendar; never read
+            return data
+        hours = _hours_chosen(self.mode, data.get("contract_type"), absence_type)
         if hours:
             self._clean_days(data)
         elif self.mode == EITHER:
@@ -149,8 +172,7 @@ class PolicyForm(_Stores, forms.ModelForm):
             self.add_error("carry_over_days", e)
 
     def _clean_weeks(self, data):
-        """The add page, a sessions contract type (or the bank-holiday pot's
-        policy): weeks, as the model has them."""
+        """The add page, a sessions contract type: weeks, as the model has them."""
         if data.get("weeks_per_year") is None and "weeks_per_year" not in self.errors:
             self.add_error("weeks_per_year", "This field is required.")
         for name in ("days_per_year", "carry_over_days"):
@@ -179,7 +201,7 @@ class PolicyTierForm(_Stores, forms.ModelForm):
             self.fields["days"].required = True
             if self.instance.pk is not None:
                 self.initial.setdefault("days", as_days(policy.weeks_per_year + self.instance.extra_weeks))
-        elif self.mode == WEEKS:
+        elif self.mode in (WEEKS, BANK_HOLIDAY):
             self.fields.pop("days")
         if self.mode == EITHER and "extra_weeks" in self.fields:
             self.fields["extra_weeks"].required = False
@@ -195,7 +217,7 @@ class PolicyTierForm(_Stores, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if self.mode == WEEKS:
+        if self.mode in (WEEKS, BANK_HOLIDAY):
             return data
         policy = self.policy
         contract_type = policy.contract_type if policy.contract_type_id else None
@@ -246,7 +268,7 @@ class PolicyTierFormSet(BaseInlineFormSet):
         super().clean()
         rows = []
         for form in self.forms:
-            if getattr(form, "mode", WEEKS) == WEEKS or not form.is_valid() or not form.cleaned_data:
+            if getattr(form, "mode", WEEKS) in (WEEKS, BANK_HOLIDAY) or not form.is_valid() or not form.cleaned_data:
                 continue
             if self.can_delete and self._should_delete_form(form) or form.cleaned_data.get("days") is None:
                 continue
