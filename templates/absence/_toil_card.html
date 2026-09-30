@@ -12,16 +12,16 @@ Cancel on the claims waiting.{% endcomment %}
   <h3>Claims waiting</h3>
   {% if toil.waiting %}
   <div class="table-scroll">
-  <table class="list">
+  <table class="list claims">
     <thead><tr><th scope="col">Day worked</th><th scope="col">Amount</th><th scope="col">Reason</th><th scope="col">Asked</th>{% if cancel %}<th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
     <tbody>
     {% for c in toil.waiting %}
       <tr>
         <th scope="row">{{ c.day|date:"j M Y" }}</th>
-        <td>{{ c.units|units:toil.unit }}</td>
-        <td>{{ c.reason }}</td>
-        <td>{{ c.requested_at|date:"j M Y" }}</td>
-        {% if cancel %}<td class="row-actions"><form method="post" action="{% url 'absence:toil_cancel' c.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form></td>{% endif %}
+        <td class="claim-right">{{ c.units|units:toil.unit }}</td>
+        <td class="claim-reason">{{ c.reason }}</td>
+        <td class="claim-asked">{{ c.requested_at|date:"j M Y" }}</td>
+        {% if cancel %}<td class="row-actions claim-right"><form method="post" action="{% url 'absence:toil_cancel' c.pk %}">{% csrf_token %}<button type="submit" class="btn btn-quiet">Cancel</button></form></td>{% endif %}
       </tr>
     {% endfor %}
     </tbody>
@@ -32,7 +32,7 @@ Cancel on the claims waiting.{% endcomment %}
   {% endif %}
   <h3>Expiring in the next {{ toil.window }} days</h3>
   {% if toil.expiring %}
-  <ul class="plain-list">
+  <ul class="toil-lots">
     {% for lot in toil.expiring %}
     <li>{{ lot.units|units:toil.unit }} earned {{ lot.earned_on|date:"j M Y" }}: use by <strong>{{ lot.deadline|date:"j M Y" }}</strong></li>
     {% endfor %}

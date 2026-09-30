@@ -14,12 +14,13 @@
 {% else %}
   <section class="card">
     <h2>{% if for_employee %}The time worked{% else %}Your claim{% endif %}</h2>
-    <form method="post">{% csrf_token %}
+    <form method="post" class="toil-form">{% csrf_token %}
       {{ form.as_div }}
       <div class="form-actions"><button type="submit" class="btn btn-primary">{% if for_employee %}Record and approve{% else %}Send for approval{% endif %}</button></div>
     </form>
   </section>
-  {% include "absence/_toil_card.html" with cancel=False claim_button=False %}
+  {% if for_employee %}{% include "absence/_toil_card.html" with cancel=False claim_button=False %}
+  {% else %}{% include "absence/_toil_card.html" with cancel=True claim_button=False %}{% endif %}
 {% endif %}
 </div>
 {% endblock %}

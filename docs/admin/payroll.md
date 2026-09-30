@@ -18,7 +18,7 @@ same and prints where the file went.
 | Sickness | Dates within the month, and whether the absence was self-certified (seven calendar days or fewer); never the kind of sickness |
 | Unpaid | Approved unpaid absences, with the units they cost. An absence that runs across a month end is split: each month shows only its own days and their cost |
 | Family leave | The days within the month, expected and actual dates, and the keeping-in-touch days within the month |
-| TOIL | TOIL earned and taken in the month. TOIL carried forward at the year end keeps its earned date but is listed once, in the month it was earned |
+| TOIL | TOIL earned (approved claims, dated the day worked) and taken in the month. TOIL carried forward at the year end keeps its earned date but is listed once, in the month it was earned |
 
 Columns, in order:
 
