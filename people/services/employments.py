@@ -82,13 +82,16 @@ def _cancel_after(actor, employment, end_date):
     if end_date is None:
         return ""
     from absence.models import Absence
-    from absence.services import bookings
+    from absence.services import bank_holidays, bookings
     done, left = [], []
     live = (Absence.objects.filter(employment=employment, status__in=bookings.LIVE, start_date__gt=end_date)
             .select_related("employment__employee", "absence_type").order_by("start_date", "id"))
     for absence in live:
         try:
-            bookings.cancel(actor, absence)       # its own savepoint: a refusal leaves the rest
+            # its own savepoint: a refusal leaves the rest. An automatic bank
+            # holiday is no longer implied: back again if the date is moved.
+            reason = bank_holidays.NOT_IMPLIED if absence.auto_bank_holiday else ""
+            bookings.cancel(actor, absence, reason=reason)
         except ValidationError as e:
             left.append(f"{absence} ({'; '.join(e.messages)})")
         else:

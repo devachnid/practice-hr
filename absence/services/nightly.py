@@ -90,7 +90,7 @@ def run(today):
         synced += 1
         if revised is not None:
             revisions += 1
-    created = removed = recosted = 0
+    created = removed = recosted = kept_cancelled = 0
     for pot in open_pots:
         if pot.absence_type.code != "AL":
             continue
@@ -102,6 +102,7 @@ def run(today):
         created += r["created"]
         removed += r["removed"]
         recosted += r["recosted"]
+        kept_cancelled += r["kept_cancelled"]
     chased = 0
     try:
         chased = chase.notify_once(today)
@@ -109,7 +110,8 @@ def run(today):
         failed.append(f"chase: {e.__class__.__name__}: {e}")
     return {"pots_opened": opened, "pots_synced": synced, "revisions": revisions,
             "bank_holiday_created": created, "bank_holiday_removed": removed,
-            "bank_holiday_recosted": recosted, "year_end_closed": ended["closed"],
+            "bank_holiday_recosted": recosted, "bank_holiday_kept_cancelled": kept_cancelled,
+            "year_end_closed": ended["closed"],
             "carried_total": ended["carried_total"], "expired_total": ended["expired_total"],
             "carry_in_expired": ended["carry_in_expired"], "toil_expired": ended["toil_expired"],
             "leaver_debts": ended["leaver_debts"], "chased": chased, "failed": failed}

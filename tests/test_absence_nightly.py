@@ -198,3 +198,23 @@ def test_ending_the_employment_cancels_its_automatic_bank_holidays_at_once(db, h
     live = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
     assert live.count() == 5 and max(a.start_date for a in live) <= date(2026, 11, 30)
     assert nightly.run(date(2026, 10, 1))["bank_holiday_removed"] == 0
+
+
+def test_nightly_counts_automatic_bank_holidays_kept_cancelled(db, hr_admin):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from absence.models import Absence, BankHoliday
+    from absence.services import bookings
+    today = timezone.localdate()
+    day = today + timedelta(days=30)
+    day += timedelta(days=(2 - day.weekday()) % 7)                   # a Wednesday they work
+    BankHoliday.objects.get_or_create(date=day, nation="EW", defaults={"name": "Test holiday"})
+    emp = hours_employee(start=today - timedelta(days=30))
+    _pot_handling(emp)
+    assert nightly.run(today)["failed"] == []
+    bookings.cancel(hr_admin, Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day))
+    result = nightly.run(today)
+    assert (result["bank_holiday_kept_cancelled"], result["bank_holiday_created"]) == (1, 0)
+

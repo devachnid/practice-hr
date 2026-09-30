@@ -19,6 +19,12 @@ def _target_type(handling):
     return None
 
 
+# The reason on an automatic row cancelled because the pattern or policy no
+# longer implies it (or the employment has ended before it). A row cancelled
+# for any other reason was cancelled on purpose: the sync leaves that day
+# alone, and it is charged again only by recording it.
+NOT_IMPLIED = "no longer implied by the pattern or policy"
+
 _running = ContextVar("bank_holiday_sync_running", default=False)
 
 
@@ -34,7 +40,9 @@ def sync_auto_absences(employment, year_start, year_end, actor=None, today=None)
     imply, cancel the ones they no longer imply, and re-cost the ones from
     `today` on whose pattern has changed (a past charge stands). Idempotent.
     A day the person has booked off still gets its row: their booking
-    skipped the bank holiday (costing), so this row is what charges it."""
+    skipped the bank holiday (costing), so this row is what charges it. A
+    day whose latest automatic row was cancelled other than by the sync
+    (NOT_IMPLIED) is not charged again ("kept_cancelled")."""
     token = _running.set(True)
     try:
         return _sync(employment, year_start, year_end, actor, today or timezone.localdate())
@@ -43,7 +51,7 @@ def sync_auto_absences(employment, year_start, year_end, actor=None, today=None)
 
 
 def _sync(employment, year_start, year_end, actor, today):
-    created = removed = recosted = 0
+    created = removed = recosted = kept_cancelled = 0
     al = AbsenceType.objects.get(code="AL")
     existing = {a.start_date: a for a in Absence.objects.filter(
         employment=employment, auto_bank_holiday=True, status=Absence.Status.APPROVED,
@@ -68,10 +76,16 @@ def _sync(employment, year_start, year_end, actor, today):
             wanted[bh.date] = target
     for day, absence in list(existing.items()):
         if wanted.get(day) != absence.absence_type:
-            bookings.cancel(actor, absence)
+            bookings.cancel(actor, absence, reason=NOT_IMPLIED)
             removed += 1
             del existing[day]
+    cancelled = {a.start_date: a for a in Absence.objects.filter(      # the latest per day wins
+        employment=employment, auto_bank_holiday=True, status=Absence.Status.CANCELLED,
+        start_date__range=(year_start, year_end)).order_by("cancelled_at", "pk")}
     for day, target in wanted.items():
+        if day not in existing and day in cancelled and cancelled[day].cancel_reason != NOT_IMPLIED:
+            kept_cancelled += 1
+            continue
         if day in existing:
             kept = existing[day]
             if day >= today and costing.cost(kept) != kept.cost_units:
@@ -84,4 +98,4 @@ def _sync(employment, year_start, year_end, actor, today):
         a.save()
         bookings.approve(actor, a, comment="bank holiday")
         created += 1
-    return {"created": created, "removed": removed, "recosted": recosted}
+    return {"created": created, "removed": removed, "recosted": recosted, "kept_cancelled": kept_cancelled}

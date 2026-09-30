@@ -266,6 +266,20 @@ def test_other_absences_stay_read_only_in_admin(admin_client, employee_user):
     assert admin_client.post(url, {"expected_return": "2026-06-02"}).status_code == 403
 
 
+def test_an_absence_shows_its_cancel_reason_read_only(admin_client, hr_admin, db):
+    from datetime import timedelta
+
+    from absence.services import bookings
+    from tests.factories import absence_type, current_leave_year, hours_employee
+    start, _ = current_leave_year()
+    monday = start + timedelta(days=70)
+    monday -= timedelta(days=monday.weekday())
+    leave = bookings.request(hr_admin, hours_employee(start=start), absence_type("AL"), monday)
+    bookings.cancel(hr_admin, leave, reason="booked in error")
+    page = admin_client.get(f"/admin/absence/absence/{leave.pk}/change/").content.decode()
+    assert "Cancel reason" in page and "booked in error" in page and 'name="cancel_reason"' not in page
+
+
 # --- "Adjust balance" on the pot's page (I7) ------------------------------------------------
 
 def _open_pot():

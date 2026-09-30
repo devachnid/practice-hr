@@ -174,7 +174,7 @@ def decline(actor, absence, comment=""):
 
 
 @transaction.atomic
-def cancel(actor, absence):
+def cancel(actor, absence, reason=""):
     caller, absence = absence, _lock(absence)
     if absence.status not in LIVE:
         raise ValidationError("Only a requested or approved absence can be cancelled.")
@@ -186,6 +186,7 @@ def cancel(actor, absence):
     absence.status = Absence.Status.CANCELLED
     absence.cancelled_at = timezone.now()
     absence.cancelled_by = actor
+    absence.cancel_reason = reason[:60]
     absence.save()
     if pot is not None:
         ledger.write(pot, LedgerEntry.Kind.CANCELLATION, absence.cost_units, actor, absence=absence,
