@@ -140,6 +140,13 @@ person has that day. If none covers a day the person needs, the error says
 nightly lists it. A gap between one policy ending and the next starting is
 that same error.
 
+Once the contract type has pots of that absence type, a policy added (or
+moved by its **Effective from**) with a different leave year is refused
+unless it starts on its own leave year's first day, the day after the old
+policy ends ("This type has leave pots under another leave year…"); a
+change to or from **Anniversary of start** is refused either way (see
+[Moving a type in use to a January year](#moving-a-type-in-use-to-a-january-year)).
+
 Saving a policy immediately recalculates the entitlement of every open pot it
 can change, as you, and reports "N pot(s) revised". Changes therefore reach
 existing people at once.
