@@ -42,7 +42,8 @@ def test_tier_added_in_admin_resyncs_every_pot_of_the_type(db, admin_client):
     ledger.sync_entitlement(pa)
     ledger.sync_entitlement(pb)
     policy = a.contracts.first().contract_type.policies.get()
-    admin_client.post(f"/admin/absence/policy/{policy.pk}/change/", _policy_post(policy, new_tiers=[(5, "1")]))
+    # an hours tier is posted as the new total days: 28 (5.6 weeks) + 5 = 33, one extra week
+    admin_client.post(f"/admin/absence/policy/{policy.pk}/change/", _policy_post(policy, new_tiers=[(5, "33")]))
     assert PolicyTier.objects.filter(policy=policy, after_years=5).exists()
     assert ledger.entitlement_lines_total(pa) == D("6.6") * D("37.5")
     assert ledger.entitlement_lines_total(pb) == D("5.6") * D("37.5")

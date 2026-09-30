@@ -120,35 +120,114 @@ Saving a policy immediately recalculates the entitlement of every open pot it
 can change, as you, and reports "N pot(s) revised". Changes therefore reach
 existing people at once.
 
-Eight annual-leave policies are seeded (one per seeded contract type, from
-1 Jan 2020): 5.6 weeks, leave year from 1 April, rounding 0.25 (hours) or 0.5
-(sessions), bank holidays as a pot for hours contracts and closed for
-sessions contracts, **no carry-over** (see below), and a bank-holiday
-policy for each hours type.
+Eight annual-leave policies are seeded, one per seeded contract type, from
+1 Jan 2020, with **no carry-over** (see below):
 
-### Weeks per year (`weeks_per_year`)
+- **Hours types** (Practice nurse, HCA, Reception, Administration,
+  Management) have the practice's standard contract: a leave year from
+  1 January, 22 days full time, 23 after one complete year, 25 after three
+  and 27 after five, earned in [monthly twelfths](#accrual-accrual), rounded
+  to 0.25 hour, plus the bank holidays as a [pot](#bank-holiday-handling-bank_holiday_handling)
+  (each also has a bank-holiday policy in the same year). Part-timers get
+  the same pro rata to their contracted hours.
+- **Sessions types** (Partner, Salaried GP, GP trainee): 5.6 weeks, a leave
+  year from 1 April, earned daily, rounded to 0.5 session, bank holidays
+  "closed".
 
-The entitlement in weeks, multiplied by the contracted weekly amount (37.5
-hours, 9 sessions…). It is earned day by day across the leave year for the
-days the person is employed with a contract, so starters and leavers are
-pro-rated and a contract change mid-year changes the rate from that day.
+The hours types were first seeded like the sessions ones; the move to the
+standard contract changed only the policies still exactly as seeded, and
+only for contract types whose staff had no annual-leave or bank-holiday
+pot yet. A policy you had already edited, or a type already in use, was
+left as it was: to move a type in use, see
+[Moving a type in use to a January year](#moving-a-type-in-use-to-a-january-year).
+
+### Entitlement: full-time days or weeks (`days_per_year`, `weeks_per_year`)
+
+The policy stores the entitlement in **weeks**, multiplied by each
+person's contracted weekly amount (37.5 hours, 9 sessions…).
+
+- **Hours contract types:** the page asks for **Full-time days per year**
+  (`days_per_year`) instead, the days someone full time gets before bank
+  holidays (22, say). It is stored as weeks at five days to a full-time
+  week, days ÷ 5, and shown beside the field ("= 4.4 weeks"); reopening the
+  policy shows the days again. So 22 days is 4.4 weeks, which is 165 hours a
+  year at 37.5 hours a week and 82.5 at 18.75. Days must be above zero and
+  a multiple of 0.05 (weeks are kept to two places).
+- **Sessions contract types** (GPs) keep **Weeks per year** as it is.
+- **Adding a policy:** the add page offers both until it is saved. Give days
+  for an hours contract type and weeks for a sessions one; the wrong one is
+  refused with a message saying which to use.
+
 *Too low or too high* simply gives everyone the wrong allowance, and it
-revises every open pot at once. The bank-holiday pot ignores this figure
-(its policy is seeded at 0): its weeks come from the calendar.
+revises every open pot at once. The bank-holiday pot's policy has no
+entitlement field at all: its pot comes from the calendar (see
+[Bank holiday handling](#bank-holiday-handling-bank_holiday_handling)).
+
+### Accrual (`accrual`)
+
+How the year's entitlement is earned when someone is not there all year,
+or their hours or tier change part way through:
+
+- **Daily** (the default, and the sessions seeds): earned day by day across
+  the leave year for the days the person is employed with a contract, so a
+  contract change changes the rate from that day.
+- **Monthly twelfths** (the hours seeds): a twelfth of the year's
+  entitlement for each month of the leave year (see below) in which the person
+  is employed with a contract on any day. **A part month counts as a full
+  month, for starters and leavers alike.** Someone starting on 15 March
+  gets March to December, 10/12; someone leaving on 3 September gets
+  January to September, 9/12. A month is worked out on its **last day
+  employed with a contract**: the hours, the policy and the tier in force
+  that day count for the whole month, so hours cut from 20 June count at
+  the new hours for all of June, and a tier reached on 10 May counts from
+  May.
+
+The twelve months are counted from the start of the leave year, on the same
+day of the month (the month's last day where it is shorter): a 1 January
+year has the calendar months, and a year from 15 March (fixed, or the
+anniversary of a 15 March start) has 15 March to 14 April, and so on to
+15 February to 14 March. Someone starting on 20 April in that year gets
+11/12. Every leave year has exactly twelve. The bank-holiday pot does not
+use the accrual basis.
 
 ### Leave year basis (`leave_year_basis`)
 
 **Fixed date:** the year starts on **Year start month / day** (default 1
 April). **Anniversary of start:** the year starts on the anniversary of the
-*employment's start date* (not the continuous service date). Decide it once: pots already open keep the dates they were opened with, so
-changing the basis on a policy in use can leave them out of step with the
-new boundaries. A leave request that runs across the end of the leave year is refused ("book
-the two leave years separately").
+*employment's start date* (not the continuous service date). Decide it
+once: pots keep the dates they were opened with, and a day counts only
+towards the pot of the leave year its policy puts it in. So once anyone on
+the contract type has a pot of that absence type, the basis and the year
+start of its policy **cannot be changed**: saving is refused with "This
+type has leave pots on the current year. End this policy and add a new one
+from the new year's first day instead (see the admin guide)", and nothing
+is saved. Follow the next section instead. A policy whose type has no pots
+yet can be changed freely. A leave request that runs across the end of the leave
+year is refused ("book the two leave years separately").
+
+#### Moving a type in use to a January year
+
+To move a contract type whose staff already have April pots, do not edit
+its year start: end its April policy on 31 December and add a January
+policy (year from 1 January) effective from 1 January, then let the nightly
+close the April pots when they end on 31 March, so their carry-in lands in
+the January pot. Do the same with its bank-holiday policy, so the
+bank-holiday pot follows the same year.
+
+Each day then counts once. The April pots earn 1 April to 31 December
+under the old policy; January to March belong to the January policy's
+year, so they count in the new pots and not in the April ones too. For
+37.5 hours moving from 5.6 weeks to 22 days: the 2026/27 pot is 158.25
+(210 × 275/365) and the 2027 pot 165.00; the 2026/27 bank-holiday pot has
+the seven holidays of April to December 2026 (52.50) and 2027's has all
+eight (60.00).
 
 ### Carry over max weeks (`carry_over_max_weeks`)
 
 The most that carries into the next year, in weeks times the contracted
-amount on the new year's first day, rounded. **Blank means nothing carries**:
+amount on the new year's first day, rounded. For an hours contract type the
+page asks for **Carry over max days** (`carry_over_days`) instead, full-time
+days stored as weeks (days ÷ 5). **Blank means nothing carries**:
 all unused leave expires at year end. Negative balances always carry in
 full. See [Year end](year-end.md).
 
@@ -174,9 +253,21 @@ leave policy:
   not leave. The right choice where the practice closes and allowances are
   in sessions.
 - **Pro-rated bank holiday pot:** each person has a separate Bank holiday
-  pot, sized as the year's bank holidays divided by five, as weeks, times
-  their weekly amount. Each bank holiday that falls on a day they work is
-  charged to it automatically at that day's pattern.
+  pot, counted from the [calendar](#bank-holidays-and-closed-days): **one
+  working day for each bank holiday** in the pot's year on which the person
+  is employed with a contract, a working day being their weekly amount that
+  day ÷ 5, pro rata to their contracted hours whatever days they work. With
+  the eight England and Wales holidays in a January to December year that
+  is 8 × 7.5 = 60 hours at 37.5 hours a week, 30 at 18.75; someone starting
+  on 15 March 2026 gets the seven still to come, 52.5 hours. It is rounded
+  to the bank-holiday policy's step and does not use the accrual basis.
+  Each bank holiday that falls on a day they work is charged to it
+  automatically at that day's pattern. The pot and the charges need not
+  match: someone on 18.75 hours over Monday to Wednesday has a 30.00 pot
+  but is charged 6.25 for each holiday on a working day, and five of
+  2026's fall on a Monday (31.25), so the balance can end slightly
+  negative (carried in full) or, for other patterns, in surplus (which
+  expires); that is the contract's pro-rata rule.
 - **Included in annual leave:** each is charged to the Annual leave pot
   instead.
 
@@ -185,7 +276,11 @@ when the pot opens and kept in step nightly (removed if the pattern or policy
 no longer implies it; re-costed from today if the pattern changes). *The
 pot option needs a Bank holiday policy for the same contract type* to give
 the pot its leave year and rounding; without one the nightly reports the gap
-instead of charging nothing.
+instead of charging nothing. Give it the same leave year as the
+annual-leave policy. Its page shows what the pot comes to ("8 bank holidays
+in 2026, one working day each, pro rata to contracted hours") in place of an
+entitlement, and has no handling of its own (annual leave's decides) and no
+tiers.
 
 ### TOIL expires after days (`toil_expires_after_days`)
 
@@ -194,12 +289,27 @@ was earned. Blank means never. See [Year end](year-end.md#toil).
 
 ### Tiers
 
-The inline on a policy adds weeks for service: **After years** and **Extra
-weeks**. The extra is the *total* extra at that point, not added on top of
-earlier tiers (a 5-year tier of 1 and a 10-year tier of 2 give one extra
-week at 6 years, two at 11). Service is counted from the employment's
-continuous service date, and the entitlement steps up from the day a tier
-is reached.
+The inline on a policy adds leave for service: **After years** and, for an
+hours contract type, **Full-time days**, the new *total* days a year from
+then on ("23 days after 1 year"), stored as extra weeks over the policy's
+own days and shown beside it ("+0.2 weeks"). A tier cannot give fewer days
+than the policy itself, nor a later tier fewer than an earlier one; change
+the policy's days and the tiers keep their totals. For a sessions contract
+type the inline takes **Extra weeks**, the *total* extra at that point, not
+added on top of earlier tiers (a 5-year tier of 1 and a 10-year tier of 2
+give one extra week at 6 years, two at 11). Service is counted from the
+employment's continuous service date, and the entitlement steps up from the
+day a tier is reached (under monthly twelfths, from the month).
+
+### Historic terms (TUPE and other groups)
+
+A group on different terms, such as staff who joined under TUPE in 2019 or
+reception staff kept on an older contract, needs no code: **create a
+contract type per group** (People › Contract types, say "Reception (TUPE
+2019)"), **give it its own policy** here with that group's days, tiers,
+leave year and accrual (and a bank-holiday policy if its annual leave uses
+the pot), and put the group's contracts on that type. Everyone else keeps
+the standard contract.
 
 ## Bank holidays and closed days
 

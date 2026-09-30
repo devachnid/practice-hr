@@ -15,6 +15,10 @@ class Policy(models.Model):
         FIXED = "fixed", "Fixed date"
         ANNIVERSARY = "anniversary", "Anniversary of start"
 
+    class Accrual(models.TextChoices):
+        DAILY = "daily", "Daily"
+        MONTHLY = "monthly", "Monthly twelfths"
+
     class BankHolidays(models.TextChoices):
         CLOSED_NOT_CHARGED = "closed", "Practice closed, not charged"
         PRO_RATA_POT = "pot", "Pro-rated bank holiday pot"
@@ -39,6 +43,10 @@ class Policy(models.Model):
     bank_holiday_handling = models.CharField(
         max_length=6, choices=BankHolidays.choices, default=BankHolidays.CLOSED_NOT_CHARGED)
     toil_expires_after_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    accrual = models.CharField(
+        max_length=7, choices=Accrual.choices, default=Accrual.DAILY,
+        help_text="Daily: earned day by day across the leave year. Monthly twelfths: a twelfth of the year's "
+                  "entitlement for each month of the leave year employed, a part month counting in full.")
 
     class Meta:
         verbose_name_plural = "policies"

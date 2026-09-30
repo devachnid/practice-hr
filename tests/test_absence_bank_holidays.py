@@ -130,12 +130,17 @@ def test_pot_handling_with_no_bank_holiday_policy_is_an_error_naming_it(db):
 
 @pytest.mark.seeded_policies
 def test_seeded_policies_charge_every_working_bank_holiday_for_hours_staff(db):
+    # the seeded hours types' leave year is the calendar year (0012): starting 1 April 2026,
+    # the 2026 pot has the seven holidays from Good Friday on, each one working day
     emp = hours_employee()                   # seeded Reception: AL "pot" plus a BH policy
-    assert bank_holidays.sync_auto_absences(emp, Y0, Y1) == {"created": 10, "removed": 0, "recosted": 0}
+    year = (date(2026, 1, 1), date(2026, 12, 31))
+    assert bank_holidays.sync_auto_absences(emp, *year) == {"created": 7, "removed": 0, "recosted": 0}
     autos = Absence.objects.filter(employment=emp, auto_bank_holiday=True, status="approved")
     assert {a.cost_units for a in autos} == {D("7.50")}
     pot = pots.for_day(emp, absence_type("BH"), Y0)
-    assert sum(e.units for e in pot.entries.filter(kind=LedgerEntry.Kind.BOOKING)) == D("-75.00")
+    assert (pot.year_start, pot.year_end) == year
+    assert sum(e.units for e in pot.entries.filter(kind=LedgerEntry.Kind.BOOKING)) == D("-52.50")
+    assert ledger.balance(pot) == D("0.00")      # opened with 7 × 7.5 = 52.50
 
 
 def test_a_shorter_monday_re_costs_future_monday_bank_holidays_only(db, hr_admin):
