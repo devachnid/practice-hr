@@ -7,6 +7,7 @@
   <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
 {% else %}
   {% if employment %}{% include "absence/_balances.html" %}{% endif %}
+  {% if toil %}{% include "absence/_toil_card.html" with claim_button=True cancel=True %}{% endif %}
   {% if coming or earlier or bank_groups %}
   <section class="card">
     <h2>Coming up</h2>

@@ -14,12 +14,17 @@ from people.services import access, contracts
 
 log = logging.getLogger(__name__)
 
-# The page a decision is made on. The route is registered at exactly this path.
+# The pages a decision is made on. The routes are registered at exactly these paths.
 DECIDE_PATH = "/absence/decide/{pk}/"
+CLAIM_DECIDE_PATH = "/absence/toil/{pk}/decide/"
 
 
 def decide_url(absence):
     return settings.SITE_URL.rstrip("/") + DECIDE_PATH.format(pk=absence.pk)
+
+
+def claim_decide_url(claim):
+    return settings.SITE_URL.rstrip("/") + CLAIM_DECIDE_PATH.format(pk=claim.pk)
 
 
 def hr_admin_addresses():
@@ -29,7 +34,8 @@ def hr_admin_addresses():
 
 def approver_addresses(absence):
     """The routed manager's work email, or every active HR admin's but the
-    requester's own (an HR admin's request goes to the other HR admins)."""
+    requester's own (an HR admin's request goes to the other HR admins).
+    `absence` is anything with an employment: a TOIL claim is routed the same."""
     manager = access.route_for(absence.employment, timezone.localdate())
     if manager is not None and manager.work_email:
         return [manager.work_email]
@@ -77,8 +83,30 @@ def absence_cancelled(absence):
         _render("cancelled", a=absence), approver_addresses(absence), None))
 
 
-def requests_waiting(absences):
-    absences = list(absences)
-    return _deliver(f"{len(absences)} leave request(s) waiting", lambda: (
-        _render("waiting", rows=[{"a": a, "url": decide_url(a)} for a in absences]),
+def requests_waiting(rows):
+    """The chase's one email: the leave requests and TOIL claims that have
+    waited too long (chase.waiting), one line each with its decide link."""
+    from absence.models import ToilClaim
+    rows = list(rows)
+    claims = sum(isinstance(r, ToilClaim) for r in rows)
+    parts = [f"{n} {what}(s)" for n, what in ((len(rows) - claims, "leave request"), (claims, "TOIL claim")) if n]
+    return _deliver(f"{' and '.join(parts)} waiting", lambda: (
+        _render("waiting", rows=[{"claim": r, "url": claim_decide_url(r), "unit": _claim_unit(r)}
+                                 if isinstance(r, ToilClaim) else {"a": r, "url": decide_url(r)} for r in rows]),
         hr_admin_addresses(), None))
+
+
+def _claim_unit(claim):
+    return contracts.unit(claim.employment, claim.day) or ""
+
+
+def claim_submitted(claim):
+    name = claim.employment.employee.name
+    return _deliver(f"TOIL claim from {name}", lambda: (
+        _render("toil_submitted", c=claim, url=claim_decide_url(claim), unit=_claim_unit(claim)),
+        approver_addresses(claim), _requester_address(claim)))
+
+
+def claim_decided(claim):
+    return _deliver(f"Your TOIL claim was {claim.get_status_display().lower()}", lambda: (
+        _render("toil_decided", c=claim, unit=_claim_unit(claim)), [_requester_address(claim)], None))

@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from absence.forms import KitDayForm, RequestForm
 from absence.models import Absence, AbsenceType, BankHoliday
-from absence.services import balances, bookings, leave_year, notify, policies, pots
+from absence.services import balances, bookings, leave_year, notify, policies, pots, toil
 from accounts.mail import email_is_configured
 from people.models import Employee
 from people.services import access, contracts, employments
@@ -173,6 +173,16 @@ def _bank_groups(employment, rows, year_start, year_end):
             for which, start, end, group in spans if group or which == "this"]
 
 
+def _toil(employment, today):
+    """The TOIL card (toil.position), for someone with a contract today
+    while the TOIL type is in use."""
+    if employment is None or contracts.unit(employment, today) is None:
+        return None
+    if not AbsenceType.objects.filter(code="TOIL", active=True).exists():
+        return None
+    return toil.position(employment, today)
+
+
 @login_required
 def mine(request):
     """The employee's absences in three parts: coming up (requested or
@@ -223,6 +233,7 @@ def mine(request):
         "year_start": year_start, "year_end": year_end,
         "record_for": record_for, "record_any": access.can_view_restricted(request.user),
         "unit": contracts.unit(employment, today) if employment else "",
+        "toil": _toil(employment, today),
         "balances": balances.rows(employment, today, show_setup_gaps=access.can_view_restricted(request.user))
         if employment else []})
 

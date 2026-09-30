@@ -105,3 +105,26 @@ class KitDayForm(forms.Form):
 
 class PayrollPeriodForm(forms.Form):
     period = forms.RegexField(regex=r"^\d{4}-\d{2}$", max_length=7, label="Month (YYYY-MM)")
+
+
+class ToilClaimForm(forms.Form):
+    """A TOIL claim's shape: the day worked, how much and why. The rules
+    (not after today, whole steps, a contract that day) are the service's,
+    toil.check; the step and the latest day are also put on the inputs."""
+    day = _date(label="Day worked")
+    units = forms.DecimalField(max_digits=5, decimal_places=2, label="Hours worked in lieu")
+    reason = forms.CharField(max_length=200, label="What for",
+                             help_text="The clinic or cover, say. Your approver sees it, and it is noted on the ledger.")
+
+    def __init__(self, *args, unit="hours", today=None, whose="your", **kw):
+        super().__init__(*args, **kw)
+        if today is not None:
+            self.fields["day"].widget.attrs["max"] = today.isoformat()
+        sessions = unit == "sessions"
+        step = "0.5" if sessions else "0.25"
+        self.fields["units"].widget.attrs.update(step=step, min=step)
+        self.fields["units"].label = "Sessions worked in lieu" if sessions else "Hours worked in lieu"
+        self.fields["units"].help_text = ("In half sessions." if sessions
+                                          else "In quarter hours: 1.25 is an hour and a quarter.")
+        if whose != "your":
+            self.fields["reason"].help_text = "The clinic or cover, say. Noted on the ledger, which they see."

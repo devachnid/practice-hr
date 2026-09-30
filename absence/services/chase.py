@@ -1,13 +1,14 @@
-"""Requests nobody has decided. After CHASE_AFTER_WORKING_DAYS working days a
-request is "waiting": it is listed on the admin dashboard, and the HR admins
-are emailed about it once."""
+"""Requests and TOIL claims nobody has decided. After
+CHASE_AFTER_WORKING_DAYS working days one is "waiting": it is listed on the
+admin dashboard, and the HR admins are emailed about it once (chased_at is
+stamped on the absence or the claim)."""
 
 from datetime import timedelta
 
 from django.conf import settings
 from django.utils import timezone
 
-from absence.models import Absence, BankHoliday, ClosedDay
+from absence.models import Absence, BankHoliday, ClosedDay, ToilClaim
 from absence.services import notify
 
 
@@ -31,24 +32,30 @@ def _working_days_between(start, end, off):
 
 
 def waiting(today):
-    """Requested absences older than CHASE_AFTER_WORKING_DAYS working days,
-    oldest first. An automatic bank-holiday row is never a request."""
+    """Requested absences and TOIL claims older than CHASE_AFTER_WORKING_DAYS
+    working days, oldest first (absences before claims asked at the same
+    moment). An automatic bank-holiday row is never a request."""
     rows = list(Absence.objects.filter(status=Absence.Status.REQUESTED, auto_bank_holiday=False)
-                .select_related("employment__employee", "absence_type").order_by("requested_at", "pk"))
+                .select_related("employment__employee", "absence_type"))
+    rows += list(ToilClaim.objects.filter(status=ToilClaim.Status.REQUESTED).select_related("employment__employee"))
     if not rows:
         return []
+    rows.sort(key=lambda r: (r.requested_at, isinstance(r, ToilClaim), r.pk))
     first = timezone.localtime(rows[0].requested_at).date()
     off = _non_working_dates(first, today)
     limit = settings.CHASE_AFTER_WORKING_DAYS
-    return [a for a in rows
-            if _working_days_between(timezone.localtime(a.requested_at).date(), today, off) > limit]
+    return [r for r in rows
+            if _working_days_between(timezone.localtime(r.requested_at).date(), today, off) > limit]
 
 
 def notify_once(today):
-    """Email the HR admins about the waiting requests not yet chased, and
-    stamp them. Returns how many were stamped: none when the email did not
-    go, so the next nightly run tries again."""
-    rows = [a for a in waiting(today) if a.chased_at is None]
+    """Email the HR admins about the waiting requests and claims not yet
+    chased, and stamp them. Returns how many were stamped: none when the
+    email did not go, so the next nightly run tries again."""
+    rows = [r for r in waiting(today) if r.chased_at is None]
     if not rows or not notify.requests_waiting(rows):
         return 0
-    return Absence.objects.filter(pk__in=[a.pk for a in rows]).update(chased_at=timezone.now())
+    now = timezone.now()
+    return (Absence.objects.filter(pk__in=[r.pk for r in rows if isinstance(r, Absence)]).update(chased_at=now)
+            + ToilClaim.objects.filter(pk__in=[r.pk for r in rows if isinstance(r, ToilClaim)])
+            .update(chased_at=now))

@@ -4,17 +4,17 @@ the name again), adding the absence workflow's card above the app list.{% endcom
 {% block content %}
 <div class="mb-8 flex flex-col gap-6">
   <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
-    <h2 class="text-lg font-semibold mb-2">Leave requests waiting</h2>
+    <h2 class="text-lg font-semibold mb-2">Leave requests and TOIL claims waiting</h2>
     {% if waiting %}
       <p class="mb-4">{{ waiting|length }} request{{ waiting|length|pluralize }} waiting more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
       <ul class="flex flex-col gap-2">
-      {% for a in waiting %}
-        <li><a href="{% url 'absence:decide' a.pk %}" class="underline">{{ a.employment.employee.name }}, {{ a.absence_type.name }}, {{ a|when }}</a>
-          <span class="text-font-subtle-light dark:text-font-subtle-dark">asked {{ a.requested_at|date:"j M Y" }}</span></li>
-      {% endfor %}
+      {% for w in waiting %}{% with a=w.a c=w.claim %}
+        <li><a href="{{ w.url }}" class="underline">{% if c %}{{ c.employment.employee.name }}, TOIL claim, {{ c.units|units:w.unit }} worked on {{ c.day|date:"j M Y" }}{% else %}{{ a.employment.employee.name }}, {{ a.absence_type.name }}, {{ a|when }}{% endif %}</a>
+          <span class="text-font-subtle-light dark:text-font-subtle-dark">asked {{ w.asked|date:"j M Y" }}</span></li>
+      {% endwith %}{% endfor %}
       </ul>
     {% else %}
-      <p>No requests have waited more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
+      <p>No requests or claims have waited more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
     {% endif %}
   </section>
 

@@ -9,18 +9,18 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from absence.forms import DecisionForm
-from absence.models import Absence
+from absence.models import Absence, ToilClaim
 from absence.services import balances, bookings, calendar, notify
 from people.services import access, contracts, positions
 
 
-def _routed_to(user, today, statuses):
-    """The absences in these statuses that are the user's to decide: those
-    routed to their employee, or every one for an HR admin. Never the user's
-    own: an HR admin's request goes to another HR admin. Rows are filtered
-    by status first and only the reports' rows are routed."""
-    qs = (Absence.objects.filter(status__in=statuses)
-          .select_related("employment__employee", "absence_type").order_by("start_date", "requested_at"))
+def routed(user, today, qs):
+    """The rows of `qs` that are the user's to decide: those routed to their
+    employee (access.route_for), or every one for an HR admin. Never the
+    user's own: an HR admin's request goes to another HR admin. `qs` is any
+    queryset of rows with an employment: absences, TOIL claims. Filter it
+    (by status) first: only the reports' rows are routed, one by one."""
+    qs = qs.select_related("employment__employee")
     me = access.employee_for(user)
     if me is not None:
         qs = qs.exclude(employment__employee=me)
@@ -29,9 +29,21 @@ def _routed_to(user, today, statuses):
     if me is None:
         return qs.none()
     reports = [e.employee_id for e in access.direct_reports(me, today)]
-    routed = [a.pk for a in qs.filter(employment__employee_id__in=reports)
-              if access.route_for(a.employment, today) == me]
-    return qs.filter(pk__in=routed)
+    mine = [row.pk for row in qs.filter(employment__employee_id__in=reports)
+            if access.route_for(row.employment, today) == me]
+    return qs.filter(pk__in=mine)
+
+
+def _routed_to(user, today, statuses):
+    """The absences in these statuses that are the user's to decide (routed)."""
+    return routed(user, today, Absence.objects.filter(status__in=statuses).select_related("absence_type")
+                  .order_by("start_date", "requested_at"))
+
+
+def claims_for(user, today, statuses=(ToilClaim.Status.REQUESTED,)):
+    """The TOIL claims in these statuses that are the user's to decide:
+    routed exactly as leave is. By default the ones waiting, oldest day first."""
+    return routed(user, today, ToilClaim.objects.filter(status__in=statuses).order_by("day", "requested_at"))
 
 
 def queue_for(user, today):
@@ -77,7 +89,10 @@ def queue(request):
     today = timezone.localdate()
     if not _may_see_queue(request.user, today):
         raise PermissionDenied
-    return render(request, "absence/queue.html", {"rows": queue_for(request.user, today)})
+    claims = list(claims_for(request.user, today))
+    for c in claims:
+        c.unit = contracts.unit(c.employment, c.day) or ""
+    return render(request, "absence/queue.html", {"rows": queue_for(request.user, today), "claims": claims})
 
 
 @login_required

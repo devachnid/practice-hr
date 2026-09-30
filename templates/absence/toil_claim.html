@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{% if for_employee %}Record TOIL for {{ for_employee.name }}{% else %}Claim TOIL{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+{% if for_employee %}
+<div class="page-head"><h1>Record TOIL for {{ for_employee.name }}</h1><a href="{% url 'absence:balances_for' for_employee.pk %}">Their balances</a></div>
+<p class="muted">Time they have already worked in lieu. Recorded by you, approved at once and added to their TOIL; {{ for_employee.name }} is emailed.</p>
+{% else %}
+<div class="page-head"><h1>Claim TOIL</h1><a href="{% url 'absence:mine' %}">My absences</a></div>
+<p class="muted">For time you have already worked beyond your hours. Your approver decides it; once approved it is added to your TOIL, and you take it by <a href="{% url 'absence:request' %}">requesting leave</a> of type TOIL.{% if expires_after %} It can be used for {{ expires_after }} days after the day you worked it.{% endif %}</p>
+{% endif %}
+{% if no_employment %}
+  <p class="notice">{% if for_employee %}{{ for_employee.name }} has no current employment, so there is nothing to record against.{% elif employee %}You have no current employment, so there is nothing to claim against.{% else %}There is no employee record linked to your login yet. Ask the practice manager.{% endif %}</p>
+{% else %}
+  <section class="card">
+    <h2>{% if for_employee %}The time worked{% else %}Your claim{% endif %}</h2>
+    <form method="post">{% csrf_token %}
+      {{ form.as_div }}
+      <div class="form-actions"><button type="submit" class="btn btn-primary">{% if for_employee %}Record and approve{% else %}Send for approval{% endif %}</button></div>
+    </form>
+  </section>
+  {% include "absence/_toil_card.html" with cancel=False claim_button=False %}
+{% endif %}
+</div>
+{% endblock %}
