@@ -55,6 +55,9 @@ def test_tier_extra_weeks_highest_reached(db):
 
 @pytest.mark.seeded_policies
 def test_seeded_policies(db):
+    # 0004/0007 seeded 5.6 weeks from 1 April; 0012 moved the hours types to the practice's
+    # standard contract: 22 days (4.4 weeks) from 1 January, 23/25/27 days after 1/3/5 years,
+    # earned in monthly twelfths, bank holidays as a pot in the same year
     from absence.models import Policy
     rows = {(p.contract_type.name, p.absence_type.code): p
             for p in Policy.objects.select_related("contract_type", "absence_type")}
@@ -62,16 +65,96 @@ def test_seeded_policies(db):
     sessions = {"Partner", "Salaried GP", "GP trainee"}
     assert set(rows) == {(n, "AL") for n in hours | sessions} | {(n, "BH") for n in hours}
     for (name, code), p in rows.items():
-        assert (p.leave_year_basis, p.year_start_month, p.year_start_day) == ("fixed", 4, 1)
         assert p.effective_from == date(2020, 1, 1) and p.effective_to is None
+        assert p.leave_year_basis == "fixed" and p.carry_over_max_weeks is None
+        tiers = [(t.after_years, t.extra_weeks) for t in p.tiers.all()]
         if code == "BH":
-            # the bank-holiday pot's weeks come from the calendar (accrual.bank_holiday_entitlement),
-            # so the policy carries none of its own
+            # the bank-holiday pot comes from the calendar (accrual.bank_holiday_entitlement),
+            # so the policy carries no weeks of its own
+            assert (p.year_start_month, p.year_start_day) == (1, 1)
             assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("0"), Decimal("0.25"), "pot")
+            assert p.accrual == "daily" and tiers == []
         elif name in sessions:
+            assert (p.year_start_month, p.year_start_day) == (4, 1)
             assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.5"), "closed")
+            assert p.accrual == "daily" and tiers == []
         else:
-            assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("5.6"), Decimal("0.25"), "pot")
+            assert (p.year_start_month, p.year_start_day) == (1, 1)
+            assert (p.weeks_per_year, p.rounding, p.bank_holiday_handling) == (Decimal("4.4"), Decimal("0.25"), "pot")
+            assert p.accrual == "monthly"
+            assert tiers == [(1, Decimal("0.2")), (3, Decimal("0.6")), (5, Decimal("1.0"))]
+
+
+@pytest.mark.seeded_policies
+@pytest.mark.parametrize("start,annual,bank", [
+    (date(2026, 1, 1), Decimal("165.00"), Decimal("60.00")),     # 12 twelfths of 4.4 × 37.5; 8 × 7.5
+    (date(2026, 3, 15), Decimal("137.50"), Decimal("52.50")),    # 10 twelfths; 7 holidays from 3 April
+])
+def test_the_seeded_standard_contract_in_2026(db, start, annual, bank):
+    from absence.services import accrual, pots
+    from tests.factories import hours_employee
+    emp = hours_employee(start=start)                    # the seeded Reception type and its policies
+    assert accrual.entitlement(pots.for_day(emp, absence_type("AL"), start)) == annual
+    assert accrual.bank_holiday_entitlement(pots.for_day(emp, absence_type("BH"), start)) == bank
+
+
+def _reseed():
+    from importlib import import_module
+
+    from django.apps import apps
+    import_module("absence.migrations.0012_seed_standard_contract").seed(apps, None)
+
+
+def _back_to_0004(name, **al_changes):
+    """Put a seeded hours type's policies back as 0004 and 0007 left them, with `al_changes`."""
+    from absence.models import Policy
+    rows = Policy.objects.filter(contract_type__name=name)
+    for p in rows:
+        p.tiers.all().delete()
+    rows.update(year_start_month=4, year_start_day=1, accrual="daily")
+    rows.filter(absence_type__code="AL").update(**{"weeks_per_year": Decimal("5.6"), **al_changes})
+
+
+def _state(name):
+    from absence.models import Policy
+    return {p.absence_type.code: (p.weeks_per_year, p.year_start_month, p.year_start_day, p.accrual,
+                                  [(t.after_years, t.extra_weeks) for t in p.tiers.all()])
+            for p in Policy.objects.filter(contract_type__name=name).select_related("absence_type")}
+
+
+STANDARD = {"AL": (Decimal("4.4"), 1, 1, "monthly", [(1, Decimal("0.2")), (3, Decimal("0.6")), (5, Decimal("1.0"))]),
+            "BH": (Decimal("0"), 1, 1, "daily", [])}
+
+
+@pytest.mark.seeded_policies
+def test_reseed_moves_rows_still_as_seeded_and_is_idempotent(db):
+    _back_to_0004("Reception")
+    _reseed()
+    assert _state("Reception") == STANDARD
+    _reseed()
+    assert _state("Reception") == STANDARD                 # no second set of tiers
+
+
+@pytest.mark.seeded_policies
+@pytest.mark.parametrize("edit", [{"weeks_per_year": Decimal("6")}, {"rounding": Decimal("0.5")},
+                                  {"carry_over_max_weeks": Decimal("1")}, {"effective_to": date(2030, 3, 31)}])
+def test_reseed_leaves_an_edited_policy_and_its_bank_holiday_policy_alone(db, edit):
+    _back_to_0004("HCA", **edit)
+    before = _state("HCA")
+    _reseed()
+    assert _state("HCA") == before
+    assert before["BH"][1:3] == (4, 1)                        # the two pots keep sharing a year
+
+
+@pytest.mark.seeded_policies
+def test_reseed_leaves_a_policy_given_tiers_alone(db):
+    from absence.models import Policy, PolicyTier
+    _back_to_0004("Management")
+    PolicyTier.objects.create(policy=Policy.objects.get(contract_type__name="Management", absence_type__code="AL"),
+                              after_years=10, extra_weeks=Decimal("1"))
+    before = _state("Management")
+    _reseed()
+    assert _state("Management") == before
 
 
 @pytest.mark.parametrize("month,day,field", [(13, 1, "year_start_month"), (4, 31, "year_start_day"),
