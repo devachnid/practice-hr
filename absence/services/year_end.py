@@ -15,7 +15,7 @@ from django.db import transaction
 from django.db.models import Exists, OuterRef, Q, Sum
 from django.utils import timezone
 
-from absence.models import Absence, LedgerEntry, Pot
+from absence.models import Absence, LedgerEntry, Pot, ToilClaim
 from absence.services import ledger, policies, pots, rounding
 from people.services import contracts
 
@@ -56,6 +56,15 @@ def waiting(pot):
     return Absence.objects.filter(employment=pot.employment, absence_type=pot.absence_type,
                                   status=Absence.Status.REQUESTED,
                                   start_date__range=(pot.year_start, pot.year_end))
+
+
+def claims_waiting(pot):
+    """The TOIL claims still to be decided that would add to the pot: for a
+    type that does not accrue, the person's claims for a day in its year."""
+    if pot.absence_type.accrues:
+        return ToilClaim.objects.none()
+    return ToilClaim.objects.filter(employment=pot.employment, status=ToilClaim.Status.REQUESTED,
+                                    day__range=(pot.year_start, pot.year_end))
 
 
 def _lock(pot):
@@ -207,12 +216,13 @@ def close(pot, actor=None):
     later run until it is settled. Idempotent: a closed pot is skipped.
 
     Refused (ValidationError, so run() lists it and retries it the next
-    night) while a request that would draw on the pot is still waiting: its
-    approval could no longer be written once the pot is closed."""
+    night) while a request that would draw on the pot, or a TOIL claim that
+    would add to it (claims_waiting), is still waiting: its approval could
+    no longer be written once the pot is closed."""
     _lock(pot)
     if is_closed(pot):
         return {"carried": ZERO, "expired": ZERO, "skipped": True}
-    n = waiting(pot).count()
+    n = waiting(pot).count() + claims_waiting(pot).count()
     if n:
         raise ValidationError(f"{n} request(s) waiting — decide them first")
     ledger.sync_entitlement(pot, actor, cause="year end")

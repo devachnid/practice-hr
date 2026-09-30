@@ -308,3 +308,19 @@ def test_claim_emails_never_raise(employee_user):
     c = _claim(employee_user, emp)
     assert notify.claim_submitted(c) is False                       # email is not configured
     assert AbsenceType.objects.get(code="TOIL")                     # nothing else disturbed
+
+
+def test_the_year_end_waits_for_a_claim_in_the_closing_year(employee_user):
+    """As for a leave request: once the pot closed, the claim's approval
+    could no longer be written, so the close waits for the decision."""
+    emp, boss_user = _people(employee_user)
+    start, end = current_leave_year()
+    toil.approve(boss_user, _claim(employee_user, emp, day=start))             # the pot, with 2.5 in it
+    pot = pots.lookup(emp, absence_type("TOIL"), start)
+    late = _claim(employee_user, emp, day=start + timedelta(days=1))
+    with pytest.raises(ValidationError, match="1 request"):
+        year_end.close(pot)
+    assert not year_end.is_closed(pot)
+    toil.approve(boss_user, late)
+    year_end.close(pot)
+    assert year_end.is_closed(pot)
