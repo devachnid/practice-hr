@@ -7,7 +7,7 @@
   <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
 {% else %}
   {% if employment %}{% include "absence/_balances.html" %}{% endif %}
-  {% if coming or earlier or bank %}
+  {% if coming or earlier or bank_groups %}
   <section class="card">
     <h2>Coming up</h2>
     {% if coming %}
@@ -33,20 +33,23 @@
     </div>
   </section>
   {% endif %}
-  {% if bank %}
+  {% if bank_groups %}
   <details class="card bank-holidays">
     <summary><span class="summary-title">Bank holidays, charged automatically</span>
-      <span class="summary-count">{{ bank|length }} day{{ bank|length|pluralize }}{% if year_end %} this leave year{% endif %}, {{ bank_total|units:unit }}</span></summary>
+      <span class="summary-count">{% with n=bank_this.rows|length %}{% if n %}{{ n }} day{{ n|pluralize }}{% if bank_this.end %} this leave year{% endif %}, {{ bank_this.total|units:unit }}{% else %}None this leave year{% endif %}{% endwith %}{% if bank_next %}{% with m=bank_next.rows|length %}{% if bank_this.rows %}, and{% else %};{% endif %} {{ m }} day{{ m|pluralize }} ({{ bank_next.total|units:unit }}) already charged to next leave year{% endwith %}{% endif %}</span></summary>
+    {% for g in bank_groups %}{% if g.rows %}
+    {% if bank_next %}<h3 class="bank-year">{% if g.which == "next" %}Next leave year{% else %}This leave year{% endif %}{% if g.start and g.end %}, {{ g.start|date:"j M Y" }} – {{ g.end|date:"j M Y" }}{% endif %}</h3>{% endif %}
     <div class="table-scroll">
-    <table class="list">
+    <table class="list" data-year="{{ g.which }}">
       <thead><tr><th scope="col">Date</th><th scope="col">Bank holiday</th><th scope="col">Cost</th></tr></thead>
       <tbody>
-      {% for r in bank %}
+      {% for r in g.rows %}
         <tr><th scope="row">{{ r.a.start_date|date:"D j M Y" }}</th><td>{{ r.name }}</td><td>{{ r.a.cost_units|units:unit }}</td></tr>
       {% endfor %}
       </tbody>
     </table>
     </div>
+    {% endif %}{% endfor %}
   </details>
   {% endif %}
   {% else %}

@@ -482,6 +482,13 @@ body.page-grid {
 }
 .summary-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
 .bank-holidays[open] > summary { margin-bottom: var(--sp-3); }
+/* This leave year's and next year's rows, each under its own heading. */
+.bank-year { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-md); }
+.bank-holidays[open] > summary + .bank-year { margin-top: 0; }
+/* The two years' tables share their column widths, so they line up. */
+.bank-holidays table { table-layout: fixed; }
+.bank-holidays th:nth-child(1) { width: 35%; }
+.bank-holidays th:nth-child(2) { width: 45%; }
 
 /* The request form sits a little below its card's heading, so its first
    group's legend does not read as a subtitle of the card. */

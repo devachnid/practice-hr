@@ -43,7 +43,8 @@
     <h2>{% if preview %}Or change it{% elif for_employee %}The absence{% else %}Your request{% endif %}</h2>
     {% comment %}Grouped by what each part is for. Every group shows without
     script; absence/request.js hides (and disables) the ones the chosen type
-    does not use, from the flags on the type's <option>.{% endcomment %}
+    does not use, from the flags on the type's <option>. Part of a day is
+    here whenever the allowance is in hours, for every type.{% endcomment %}
     <form method="post" class="request-form">{% csrf_token %}
       {% for e in form.non_field_errors %}<p class="field-error" role="alert">{{ e }}</p>{% endfor %}
       {% for h in form.hidden_fields %}{{ h }}{% endfor %}

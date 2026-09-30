@@ -285,6 +285,9 @@ def test_a_chip_sits_in_its_days_cell_with_first_name_and_initial(db, admin_clie
     assert "P0 P · Leave · Annual leave</span>" in _cell(grid, date(2026, 5, 12))    # HR sees the type
     assert "P0 P · Leave · Annual leave · AM</span>" in _cell(grid, date(2026, 5, 13))
     assert 'title="P0 Patel' in _cell(grid, date(2026, 5, 12))
+    assert '<span class="visually-hidden">P0 Patel · Leave · Annual leave</span>' in _cell(grid, date(2026, 5, 12))
+    assert '<span class="visually-hidden">P0 Patel · Leave · Annual leave · morning only</span>' in _cell(
+        grid, date(2026, 5, 13))
     assert "chip" not in _cell(grid, date(2026, 5, 11)) and "chip" not in _cell(grid, date(2026, 5, 14))
 
 

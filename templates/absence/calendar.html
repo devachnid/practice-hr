@@ -33,7 +33,7 @@
         <td class="cal-day{% if d.weekend %} is-weekend{% endif %}{% if d.bank_holiday %} is-holiday{% endif %}{% if d.day == today %} is-today{% endif %}"{% if d.day == today %} aria-current="date"{% endif %} data-date="{{ d.day|date:'Y-m-d' }}">
           <div class="cal-day-head"><span class="cal-num"><span class="visually-hidden">{{ d.day|date:"l" }} </span>{{ d.day|date:"j" }}</span>{% if d.present is not None and not d.weekend and not d.bank_holiday %}<span class="cal-present">{{ d.present }} of {{ d.headcount }}</span>{% endif %}</div>
           {% if d.bank_holiday %}<p class="cal-holiday">{{ d.bank_holiday }}</p>{% endif %}
-          {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}">{{ o|off_chip }}</span>{% endfor %}</div>{% endif %}
+          {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}"><span aria-hidden="true">{{ o|off_chip }}</span><span class="visually-hidden">{{ o|off_title }}</span></span>{% endfor %}</div>{% endif %}
         </td>
       {% else %}
         <td class="cal-out"></td>
@@ -48,7 +48,7 @@
     <li class="cal-list-day{% if d.day == today %} is-today{% endif %}"{% if d.day == today %} aria-current="date"{% endif %} data-date="{{ d.day|date:'Y-m-d' }}">
       <div class="cal-day-head"><h3 class="cal-list-date">{{ d.day|date:"D j M" }}</h3>{% if d.present is not None and not d.weekend and not d.bank_holiday %}<span class="cal-present">{{ d.present }} of {{ d.headcount }} present</span>{% endif %}</div>
       {% if d.bank_holiday %}<p class="cal-holiday">{{ d.bank_holiday }}</p>{% endif %}
-      {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}">{{ o|off_chip }}</span>{% endfor %}</div>{% endif %}
+      {% if d.off %}<div class="cal-chips">{% for o in d.off %}<span class="chip cal-chip" title="{{ o|off_title }}"><span aria-hidden="true">{{ o|off_chip }}</span><span class="visually-hidden">{{ o|off_title }}</span></span>{% endfor %}</div>{% endif %}
     </li>
     {% endfor %}
   </ol>

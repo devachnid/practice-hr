@@ -19,15 +19,14 @@ def _time(**kw):
 class TypeSelect(forms.Select):
     """The type <select>. Each option carries its type's flags, which
     absence/static/absence/request.js reads to show only the groups of the
-    form the chosen type uses: part of a day (a pot-backed type), sickness
-    (health_sensitive), family leave (is_family)."""
+    form the chosen type uses: sickness (health_sensitive) and family leave
+    (is_family). Part of a day depends on the employment, not the type."""
 
     def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
         option = super().create_option(name, value, label, selected, index, subindex, attrs)
         t = getattr(value, "instance", None)
         if t is not None:
             option["attrs"].update({
-                "data-uses-pot": "1" if t.uses_pot else "0",
                 "data-health-sensitive": "1" if t.health_sensitive else "0",
                 "data-family": "1" if t.is_family else "0",
             })
@@ -38,11 +37,12 @@ class RequestForm(forms.Form):
     """A request, checked against the requester's employment. The part-day
     fields are left out for anyone whose allowance is not in hours; the
     category and the family dates are there for everyone and used only by
-    the types they belong to: clean() blanks them for any other type. The
-    page groups them; its script hides and disables a group the chosen type
-    does not use, so a hidden group's values are kept but not sent (the
-    part-day tick included, which clean() would otherwise act on). Without
-    script every group shows."""
+    the types they belong to: clean() blanks them for any other type. A part
+    day, where the allowance is in hours, is open to every type. The page
+    groups the fields; its script hides and disables the sickness and family
+    groups for a type that does not use them, so their values are kept but
+    not sent. Without script every group shows, and what the server accepts
+    is the same."""
     absence_type = forms.ModelChoiceField(
         queryset=AbsenceType.objects.filter(active=True).exclude(code="BH"), label="Type", widget=TypeSelect)
     start_date = _date(label="First day")
