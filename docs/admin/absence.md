@@ -340,9 +340,11 @@ the standard contract.
 ## Bank holidays and closed days
 
 `/admin/absence/bankholiday/` holds the England and Wales calendar, seeded
-for 2026 to 2028. Add each later year's dates before that year starts: a
+for 2026 to 2030. Add each later year's dates before that year starts: a
 year with none charges nothing and gives the bank-holiday pot no
-entitlement. Only `EW` entries count. `/admin/absence/closedday/`
+entitlement. The nightly's log warns when the last one entered is about a
+year away; add the next year's from gov.uk here, under Absence › Bank
+holidays. Only `EW` entries count. `/admin/absence/closedday/`
 holds practice closures that are not bank holidays. **Closed days are never
 charged.** Bank holidays are charged only by the automation above: an
 ordinary booking skips them, so a Monday-to-Friday week off across a bank

@@ -1,10 +1,14 @@
+import logging
 from datetime import timedelta
 
 from django.core.exceptions import ValidationError
+from django.db.models import Max
 
-from absence.models import AbsenceType, Pot
+from absence.models import AbsenceType, BankHoliday, Pot
 from absence.services import balances, bank_holidays, chase, ledger, policies, pots, year_end
 from people.services import contracts, employments
+
+log = logging.getLogger("hr.nightly")
 
 
 def _why(subject, e):
@@ -68,6 +72,18 @@ def _open_pots(today, failed):
     return opened
 
 
+def _bank_holidays_seeded_to(today):
+    """The last England and Wales bank holiday entered, or None; a warning
+    in the log when it is less than 400 days off, while there is still time
+    to add the next year's before its pots open without them."""
+    last = BankHoliday.objects.filter(nation="EW").aggregate(last=Max("date"))["last"]
+    if last is None or last < today + timedelta(days=400):
+        entered = f"run only to {last:%d %b %Y}" if last else "have none entered"
+        log.warning("England and Wales bank holidays %s: add the next year's in the admin, under "
+                    "Absence › Bank holidays, from gov.uk.", entered)
+    return last
+
+
 def run(today):
     """Close the pots whose leave year has ended and run the carry-in and
     TOIL expiries (year_end.run), open this year's and next year's pots of
@@ -111,7 +127,7 @@ def run(today):
     return {"pots_opened": opened, "pots_synced": synced, "revisions": revisions,
             "bank_holiday_created": created, "bank_holiday_removed": removed,
             "bank_holiday_recosted": recosted, "bank_holiday_kept_cancelled": kept_cancelled,
-            "year_end_closed": ended["closed"],
+            "bank_holidays_seeded_to": _bank_holidays_seeded_to(today), "year_end_closed": ended["closed"],
             "carried_total": ended["carried_total"], "expired_total": ended["expired_total"],
             "carry_in_expired": ended["carry_in_expired"], "toil_expired": ended["toil_expired"],
             "leaver_debts": ended["leaver_debts"], "chased": chased, "failed": failed}
