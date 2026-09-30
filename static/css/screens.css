@@ -483,6 +483,10 @@ body.page-grid {
 .summary-count { color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
 .bank-holidays[open] > summary { margin-bottom: var(--sp-3); }
 
+/* The request form sits a little below its card's heading, so its first
+   group's legend does not read as a subtitle of the card. */
+.request-form { margin-top: var(--sp-4); }
+
 /* ----------------------------------------------------------- calendar --- */
 
 /* Previous / month / Next on the left, the team choice on the right,

@@ -632,6 +632,22 @@ form > .field-error { margin: 0 0 var(--sp-4); }
   padding: var(--sp-6);
 }
 .neg { color: var(--danger); }
+/* A quiet note under a heading ("Each figure opens the ledger lines behind
+   it."). Templates carried the class before anything styled it. */
+.muted { color: var(--muted); }
+
+/* A figure that opens the ledger lines behind it: it reads as a number in
+   the table, in ink with no underline, and shows it is a link on hover and
+   focus. The row's "Ledger" link stays an ordinary link. */
+.figure-link {
+  color: var(--ink);
+  text-decoration: none;
+}
+.figure-link:hover,
+.figure-link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline;
+}
 
 /* ------------------------------------------------------------- modal --- */
 

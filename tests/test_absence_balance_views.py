@@ -40,6 +40,16 @@ def test_own_balances_two_years_and_ledger_link(employee_client, employee_user):
     assert r.status_code == 200 and "Entitlement" in r.content.decode()
 
 
+def test_figures_are_quiet_links_and_the_ledger_a_plain_one(employee_client, employee_user):
+    import re
+    emp = _me(employee_user)
+    pot = pots.for_day(emp, absence_type("AL"), timezone.localdate())
+    body = employee_client.get("/absence/balances/").content.decode()
+    figures = re.findall(r'<a href="([^"]+)" class="figure-link">', body)
+    assert len(figures) == 7 and all(f"/absence/ledger/{pot.pk}/" in href for href in figures)
+    assert f'<a href="/absence/ledger/{pot.pk}/">Ledger</a>' in body
+
+
 def test_a_get_opens_no_pot_and_writes_no_line(employee_client, employee_user):
     emp = _me(employee_user)
     body = employee_client.get("/absence/balances/").content.decode()
