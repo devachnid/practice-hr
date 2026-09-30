@@ -88,7 +88,8 @@ earned. Leave it ticked on every other type.
 Only for a type that does not accrue (the page refuses it otherwise): how
 many days after the day it was earned each amount of TOIL may still be
 used. TOIL is seeded with **365**, twelve months. Blank means never, and 0
-is not accepted: it would expire the TOIL the day it was earned. See
+is not accepted: it would expire the TOIL the day it was earned (a 0
+entered before this version is read as blank). See
 [Year end](year-end.md#toil).
 
 ### Needs approval
@@ -267,7 +268,8 @@ full. See [Year end](year-end.md).
 
 How long carried-in leave may be *booked* for, counted from the start of
 the new year. Leave carried in and still unbooked after that many days
-expires. Blank means it never expires, and 0 is not accepted. Setting a cap but no expiry lets
+expires. Blank means it never expires, and 0 is not accepted (a 0 entered before this version is read as
+blank). Setting a cap but no expiry lets
 carried leave sit forever.
 
 ### Rounding (`rounding`)

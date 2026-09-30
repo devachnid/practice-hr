@@ -337,3 +337,22 @@ def test_0013_gives_toil_a_year_when_no_policy_said(db):
     import_module("absence.migrations.0013_toil_is_earned").forward(apps, None)
     toil = AbsenceType.objects.get(code="TOIL")
     assert (toil.accrues, toil.earned_expires_after_days) == (False, 365)
+
+
+def test_the_zero_expiry_migration_blanks_a_stored_zero_and_nothing_else(db):
+    import importlib
+
+    from django.apps import apps
+    migration = importlib.import_module("absence.migrations.0017_zero_expiry_to_blank")
+    toil = absence_type("TOIL")
+    type(toil).objects.filter(pk=toil.pk).update(earned_expires_after_days=0)
+    ct = make_contract_type()
+    zero = make_policy(ct, carry_over_expires_after_days=0)
+    ninety = make_policy(make_contract_type("Other"), carry_over_expires_after_days=90)
+    migration.zero_to_blank(apps, None)
+    migration.zero_to_blank(apps, None)                       # idempotent
+    toil.refresh_from_db()
+    zero.refresh_from_db()
+    ninety.refresh_from_db()
+    assert toil.earned_expires_after_days is None
+    assert (zero.carry_over_expires_after_days, ninety.carry_over_expires_after_days) == (None, 90)

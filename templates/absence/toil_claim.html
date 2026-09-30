@@ -7,7 +7,7 @@
 <p class="muted">Time they have already worked in lieu. Recorded by you, approved at once and added to their TOIL; {{ for_employee.name }} is emailed.</p>
 {% else %}
 <div class="page-head"><h1>Claim TOIL</h1><a href="{% url 'absence:mine' %}">My absences</a></div>
-<p class="muted">For time you have already worked beyond your hours. Your approver decides it; once approved it is added to your TOIL, and you take it by <a href="{% url 'absence:request' %}">requesting leave</a> of type TOIL.{% if expires_after %} It can be used for {{ expires_after }} days after the day you worked it.{% endif %}</p>
+<p class="muted">For time you have already worked beyond your hours. Your approver decides it; once approved it is added to your TOIL, and you take it by <a href="{% url 'absence:request' %}">requesting leave</a> of type TOIL.{% if expires_after is not None %} It can be used for {{ expires_after }} days after the day you worked it.{% endif %}</p>
 {% endif %}
 {% if no_employment %}
   <p class="notice">{% if for_employee %}{{ for_employee.name }} has no current employment, so there is nothing to record against.{% elif employee %}You have no current employment, so there is nothing to claim against.{% else %}There is no employee record linked to your login yet. Ask the practice manager.{% endif %}</p>
