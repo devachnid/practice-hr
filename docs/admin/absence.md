@@ -389,7 +389,8 @@ admins may use it; anyone else gets "forbidden". Because the person
 recording it is the one who would have approved it, it is **approved at
 once** (audited as requested and approved by you, with the comment
 "Recorded by …"), and the employee is emailed the decision. Your own
-absences go through the ordinary request.
+absences go through the ordinary request. A recorded absence carries
+"Recorded by <name>" as its decision comment unless a comment was given.
 
 ## Deciding a request
 

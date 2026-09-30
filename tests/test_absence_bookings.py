@@ -360,3 +360,80 @@ def test_ending_an_employment_leaves_an_absence_on_a_closed_pot_and_says_so(db, 
     assert Absence.objects.get(pk=late.pk).status == Absence.Status.APPROVED
     note = AuditEntry.objects.get(model="people.employment", object_id=emp.pk, field="end_date").note
     assert "not cancelled" in note and "closed" in note
+
+
+def _weekdays(start, n):
+    """n consecutive weekdays from `start` on (a weekend start moves to Monday)."""
+    days, day = [], start
+    while len(days) < n:
+        if day.weekday() < 5:
+            days.append(day)
+        day += timedelta(days=1)
+    return days
+
+
+def _leaver_with_absences(hr_admin, employee_user, cancellable, uncancellable_year_end=False):
+    """A leaver whose spell ended on 1 March of the current leave year's first
+    calendar year, with `cancellable` approved single days in the current leave
+    year and, if asked, one approved day in the closed previous year."""
+    from absence.services import year_end
+    from people.services import employments
+    from tests.factories import current_leave_year
+    ly_start, _ = current_leave_year()
+    emp = hours_employee(start=date(ly_start.year - 2, 4, 1))
+    al = absence_type("AL")
+    if uncancellable_year_end:
+        late = bookings.approve(hr_admin, bookings.request(employee_user, emp, al,
+                                                           _weekdays(date(ly_start.year, 3, 10), 1)[0]))
+        year_end.close(late.ledger_entries.get().pot)
+    for day in _weekdays(ly_start + timedelta(days=14), cancellable):
+        bookings.approve(hr_admin, bookings.request(employee_user, emp, al, day))
+    employments.end(hr_admin, emp, date(ly_start.year, 3, 1), "resigned")      # recorded late
+    return emp
+
+
+def _end_note(emp):
+    from people.models import AuditEntry
+    return AuditEntry.objects.get(model="people.employment", object_id=emp.pk, field="end_date").note
+
+
+def test_the_leaver_note_lists_what_was_not_cancelled_first_even_when_it_is_long(db, hr_admin, employee_user):
+    emp = _leaver_with_absences(hr_admin, employee_user, cancellable=10, uncancellable_year_end=True)
+    note = _end_note(emp)
+    assert note.startswith("not cancelled:") and "closed" in note
+    assert len(note) <= 200
+    assert Absence.objects.filter(employment=emp, status=Absence.Status.CANCELLED).count() == 10
+
+
+def test_a_leaver_note_that_overflows_ends_with_an_ellipsis(db, hr_admin, employee_user):
+    emp = _leaver_with_absences(hr_admin, employee_user, cancellable=12)
+    note = _end_note(emp)
+    assert len(note) == 200 and note.endswith("…")
+    assert note.startswith("cancelled 12 absence(s) after the leaving date: ")
+
+
+def test_a_leaver_note_with_nothing_left_over_is_just_the_cancelled_part(db, hr_admin, employee_user):
+    emp = _leaver_with_absences(hr_admin, employee_user, cancellable=2)
+    note = _end_note(emp)
+    assert note.startswith("cancelled 2 absence(s) after the leaving date: ")
+    assert "not cancelled" not in note and not note.endswith("…")
+
+
+def test_record_with_no_comment_says_who_recorded_it(db, hr_admin):
+    from tests.factories import make_employee
+    make_employee(first="Jo", last="Bloggs", user=hr_admin)
+    emp = hours_employee()
+    a = bookings.record(hr_admin, emp, absence_type("AL"), MON)
+    assert a.status == Absence.Status.APPROVED and a.decision_comment == "Recorded by Jo Bloggs"
+
+
+def test_record_keeps_a_comment_it_is_given(db, hr_admin):
+    from tests.factories import make_employee
+    make_employee(first="Jo", last="Bloggs", user=hr_admin)
+    a = bookings.record(hr_admin, hours_employee(), absence_type("AL"), MON, comment="Agreed in person")
+    assert a.decision_comment == "Agreed in person"
+
+
+def test_record_by_an_actor_with_no_employee_falls_back_to_their_email(db, hr_admin):
+    a = bookings.record(hr_admin, hours_employee(), absence_type("AL"), MON)
+    assert a.decision_comment == "Recorded by hr@example.com"

@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from absence.models import Absence, KitDay, LedgerEntry
 from absence.services import costing, leave_year, ledger, policies, pots, year_end
-from people.services import audit, contracts
+from people.services import access, audit, contracts
 
 LIVE = (Absence.Status.REQUESTED, Absence.Status.APPROVED)
 SELF_CERT_DAYS = 7
@@ -121,9 +121,13 @@ def record(actor, employment, absence_type, start_date, end_date=None, comment="
     """An absence recorded for someone by the person who would approve it
     (their routed manager) or an HR admin: requested in the employee's name
     by `actor` and approved at once, in one transaction, so it is never left
-    waiting on the person who recorded it. Takes request()'s arguments."""
+    waiting on the person who recorded it. Takes request()'s arguments. With
+    no comment given it is approved with "Recorded by <name>"."""
     a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor, **fields)
     if a.status == Absence.Status.REQUESTED:
+        if not comment:
+            recorder = access.employee_for(actor)
+            comment = f"Recorded by {recorder.name if recorder else actor.email}"
         a = approve(actor, a, comment)
     return a
 

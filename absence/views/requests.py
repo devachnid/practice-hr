@@ -123,10 +123,9 @@ def request_for(request, pk):
                                                         "for_employee": employee})
     if not access.may_record_for(request.user, employment, today):
         raise PermissionDenied
-    recorder = me.name if me is not None else request.user.email
 
     def submit(fields):
-        a = bookings.record(request.user, comment=f"Recorded by {recorder}", **fields)
+        a = bookings.record(request.user, **fields)
         # after the service's transaction has committed, never inside it
         if not notify.request_decided(a):
             messages.warning(request, f"Saved, but the email to {employee.name} did not go. Let them know yourself.")

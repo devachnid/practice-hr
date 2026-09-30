@@ -77,7 +77,8 @@ def _cancel_after(actor, employment, end_date):
     (requested or approved) that start after its last day, so they leave the
     calendar, the rota's feed and the balances. One that cannot be cancelled
     (its pot's leave year has closed) is left as it is. Returns the audit
-    note saying which were cancelled and which were not, or ""."""
+    note, the ones not cancelled first (the part HR must act on), then a count
+    and list of those cancelled, or ""."""
     if end_date is None:
         return ""
     from absence.models import Absence
@@ -93,11 +94,13 @@ def _cancel_after(actor, employment, end_date):
         else:
             done.append(f"{absence.absence_type} {absence.start_date:%d %b %Y}")
     parts = []
-    if done:
-        parts.append(f"cancelled {len(done)} absence(s) after the leaving date: {', '.join(done)}")
     if left:
         parts.append(f"not cancelled: {'; '.join(left)}")
-    return "; ".join(parts)[:200]
+    if done:
+        parts.append(f"cancelled {len(done)} absence(s) after the leaving date: {', '.join(done)}")
+    note = "; ".join(parts)
+    # AuditEntry.note holds 200 characters: show a cut, never drop the end silently
+    return note if len(note) <= 200 else note[:199] + "…"
 
 
 @transaction.atomic

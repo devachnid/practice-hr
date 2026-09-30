@@ -10,9 +10,9 @@ class Employee(models.Model):
     last_name = models.CharField(max_length=60)
     preferred_name = models.CharField(max_length=60, blank=True, default="")
     work_email = models.EmailField(
-        help_text="The practice email address, unique whatever its case. Sign-in does not "
-                  "read it: the User field below is what links this record to a login "
-                  "account, and the account's own email is what the rota receives.")
+        help_text="The practice email address, unique whatever its case. It is the address "
+                  "the rota receives for this person. Sign-in does not read it: the User field "
+                  "below is what links this record to a login account.")
     personal_email = models.EmailField(blank=True, default="")
     phone = models.CharField(max_length=30, blank=True, default="")
     date_of_birth = models.DateField(null=True, blank=True)
