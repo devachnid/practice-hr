@@ -100,14 +100,14 @@ def _pot_day(employment, day, today):
     unless its leave year has ended (or its pot has been closed) by
     `today`; then `today`, so the line lands on the pot open now instead of
     a closed or stranded one. For someone whose employment has ended, the
-    later day is their last, never a pot for a year they were not employed
+    fallback is no later than their last day, never a pot for a year they were not employed
     in (a closed pot is then refused by earn)."""
-    later = today if employment.end_date is None else min(today, employment.end_date)
+    fallback = today if employment.end_date is None else min(today, employment.end_date)
     _, end = pots.bounds(employment, _toil(), day)
     if end < today:
-        return later
+        return fallback
     pot = pots.lookup(employment, _toil(), day)
-    return later if pot is not None and year_end.is_closed(pot) else day
+    return fallback if pot is not None and year_end.is_closed(pot) else day
 
 
 def _own(actor, claim):
