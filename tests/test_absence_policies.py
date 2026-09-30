@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
-from absence.models import PolicyTier
+from absence.models import Policy, PolicyTier
 from absence.services import policies
 from tests.factories import (absence_type, make_contract, make_contract_type, make_employment,
                              make_policy)
@@ -258,6 +258,33 @@ def test_an_earned_expiry_is_only_for_a_type_that_does_not_accrue(db):
     assert "earned_expires_after_days" in e.value.message_dict
     al.accrues = False
     al.full_clean()
+
+
+ZERO_EXPIRY = "Leave blank for no expiry; 0 would expire it the day it was earned."
+
+
+def test_an_earned_expiry_of_zero_is_refused(db):
+    toil = absence_type("TOIL")
+    toil.earned_expires_after_days = 0
+    with pytest.raises(ValidationError) as e:
+        toil.full_clean()
+    assert e.value.message_dict["earned_expires_after_days"] == [ZERO_EXPIRY]
+    toil.earned_expires_after_days = None
+    toil.full_clean()                                   # blank: never
+    toil.earned_expires_after_days = 1
+    toil.full_clean()
+
+
+def test_a_carry_over_expiry_of_zero_is_refused(db):
+    p = Policy(contract_type=make_contract_type(), absence_type=absence_type("AL"),
+               effective_from=date(2026, 4, 1), weeks_per_year=Decimal("5.6"), carry_over_expires_after_days=0)
+    with pytest.raises(ValidationError) as e:
+        p.full_clean()
+    assert e.value.message_dict["carry_over_expires_after_days"] == [ZERO_EXPIRY]
+    p.carry_over_expires_after_days = None
+    p.full_clean()
+    p.carry_over_expires_after_days = 1
+    p.full_clean()
 
 
 def _state_before_0013_data():

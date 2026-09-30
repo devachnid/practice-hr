@@ -10,8 +10,8 @@ from django.utils import timezone
 from absence.models import AbsenceType, LedgerEntry, Policy
 from absence.services import bookings, ledger, nightly, pots, toil, year_end
 from people.models import AuditEntry
-from tests.factories import (absence_type, hours_employee, make_contract, make_contract_type, make_employment,
-                             make_pattern, make_policy)
+from tests.factories import (absence_type, current_leave_year, hours_employee, make_contract, make_contract_type,
+                             make_employment, make_pattern, make_policy)
 
 D = Decimal
 K = LedgerEntry.Kind
@@ -255,6 +255,21 @@ def test_a_negative_carry_in_never_expires(db):
     assert year_end.expire_carry_in(_next_pot(emp), date(2027, 7, 1)) is None
 
 
+def test_a_blank_carry_over_expiry_never_expires_the_carry_in(db):
+    start = current_leave_year()[0]
+    last = date(start.year - 1, start.month, start.day)
+    emp = hours_employee(start=last)
+    Policy.objects.update(carry_over_max_weeks=D("1"), carry_over_expires_after_days=None)
+    pot = pots.for_day(emp, absence_type("AL"), last + timedelta(days=60))
+    ledger.sync_entitlement(pot)
+    year_end.close(pot)
+    nxt = pots.for_day(emp, absence_type("AL"), start)
+    assert nxt.entries.filter(kind=K.CARRY_IN, units__gt=0).exists()
+    assert year_end.expire_carry_in(nxt, start + timedelta(days=1000)) is None
+    Policy.objects.update(carry_over_expires_after_days=1)
+    assert year_end.expire_carry_in(nxt, start + timedelta(days=1000)).kind == K.EXPIRY
+
+
 # --- TOIL ------------------------------------------------------------------------
 
 def test_toil_earned_and_expired(db, hr_admin):
@@ -285,6 +300,22 @@ def test_a_toil_lot_reads_the_expiry_from_the_type_not_a_policy(db, hr_admin):
     pot.absence_type.refresh_from_db()
     assert [lot["deadline"] for lot in year_end._toil_lots(pot)] == [None]
     assert year_end.expire_toil(pot, date(2030, 1, 1)) == []
+
+
+def test_a_toil_lot_has_no_deadline_only_when_the_expiry_is_blank(db, hr_admin):
+    start = current_leave_year()[0]
+    emp = hours_employee(start=start)
+    day = start + timedelta(days=10)
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=30)
+    pot = toil.earn(hr_admin, emp, D("3"), day, "late clinic").pot
+    pot.absence_type.refresh_from_db()
+    assert [lot["deadline"] for lot in year_end._toil_lots(pot)] == [day + timedelta(days=30)]
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=0)      # refused by clean, but read as days
+    pot.absence_type.refresh_from_db()
+    assert [lot["deadline"] for lot in year_end._toil_lots(pot)] == [day]
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=None)
+    pot.absence_type.refresh_from_db()
+    assert [lot["deadline"] for lot in year_end._toil_lots(pot)] == [None]
 
 
 def test_toil_earned_is_audited(db, hr_admin):
