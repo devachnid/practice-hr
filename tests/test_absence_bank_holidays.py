@@ -241,3 +241,23 @@ def test_cancel_stores_a_reason_and_other_cancellations_have_none(db, hr_admin):
     assert two.cancel_reason == ""
     recorded = bookings.record(hr_admin, emp, absence_type("AL"), monday + timedelta(days=1))
     assert recorded.status == "approved" and recorded.cancel_reason == ""
+
+
+def test_automatic_rows_cancelled_before_the_reason_existed_count_as_not_implied(db, hr_admin):
+    import importlib
+    from datetime import timedelta
+
+    from django.apps import apps
+    migration = importlib.import_module("absence.migrations.0015_absence_cancel_reason")
+    assert migration.NOT_IMPLIED == bank_holidays.NOT_IMPLIED
+    emp, start, end, day = _this_year_with_a_holiday()
+    bank_holidays.sync_auto_absences(emp, start, end)
+    auto = Absence.objects.get(employment=emp, auto_bank_holiday=True, start_date=day)
+    bookings.cancel(hr_admin, auto)
+    leave = bookings.request(hr_admin, emp, absence_type("AL"), day + timedelta(days=1))          # a Thursday
+    bookings.cancel(hr_admin, leave)
+    migration.mark_earlier_cancellations(apps, None)
+    auto.refresh_from_db()
+    leave.refresh_from_db()
+    assert (auto.cancel_reason, leave.cancel_reason) == (bank_holidays.NOT_IMPLIED, "")
+    assert bank_holidays.sync_auto_absences(emp, start, end)["created"] == 1
