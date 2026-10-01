@@ -35,6 +35,7 @@ Every admin setting is documented in [docs/admin/](docs/admin/README.md) —
 one page per area, each field explained with what depends on it and what
 goes wrong if it is set wrong. The sequence below gets a new practice
 running; that guide is the reference for what the settings actually mean.
+Plain-language guides for HR administrators and line managers are in [docs/guides/](docs/guides/README.md).
 
 ## First-time setup
 
