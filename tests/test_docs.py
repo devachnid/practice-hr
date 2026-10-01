@@ -1,5 +1,6 @@
-"""The admin guide's pages exist, are reachable from its index, and every
-relative link and anchor in them (and the README's) resolves."""
+"""The admin guide's and the user guides' pages exist, are reachable from
+their index, and every relative link and anchor in them (and the README's)
+resolves."""
 import re
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs" / "admin"
 PAGES = ("people.md", "sign-in.md", "absence.md", "year-end.md", "payroll.md", "api.md")
+GUIDES = ROOT / "docs" / "guides"
+GUIDE_PAGES = ("manager.md", "hr-administrator.md")
 LINK = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)\s]+)\)")
 
 
@@ -43,7 +46,15 @@ def test_every_guide_page_exists_and_is_linked_from_the_index():
         assert f"]({page})" in index, page
 
 
-@pytest.mark.parametrize("source", [DOCS / name for name in ("README.md",) + PAGES] + [ROOT / "README.md"],
+def test_every_user_guide_exists_and_is_linked_from_its_index():
+    index = (GUIDES / "README.md").read_text()
+    for page in GUIDE_PAGES:
+        assert (GUIDES / page).exists(), page
+        assert f"]({page})" in index, page
+
+
+@pytest.mark.parametrize("source", [DOCS / name for name in ("README.md",) + PAGES] + [ROOT / "README.md"]
+                         + [GUIDES / name for name in ("README.md",) + GUIDE_PAGES],
                          ids=lambda p: str(p.relative_to(ROOT)))
 def test_every_relative_link_and_anchor_resolves(source):
     for target in _links(source):

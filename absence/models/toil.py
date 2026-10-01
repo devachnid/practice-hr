@@ -34,6 +34,8 @@ class ToilClaim(models.Model):
     chased_at = models.DateTimeField(null=True, blank=True)   # when HR were last nagged about this claim
 
     class Meta:
+        verbose_name = "TOIL claim"
+        verbose_name_plural = "TOIL claims"
         ordering = ["-day", "-id"]
         constraints = [models.CheckConstraint(condition=Q(units__gt=0), name="toil_claim_units_positive")]
 

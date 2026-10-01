@@ -36,6 +36,8 @@ one page per area, each field explained with what depends on it and what
 goes wrong if it is set wrong. The sequence below gets a new practice
 running; that guide is the reference for what the settings actually mean.
 
+Plain-language guides: [for HR administrators](docs/guides/hr-administrator.md) and [for line managers](docs/guides/manager.md).
+
 ## First-time setup
 
 1. `deploy/manage createsuperuser` on the server (`DEBUG=1 python
