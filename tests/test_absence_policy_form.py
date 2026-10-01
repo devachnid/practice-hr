@@ -296,3 +296,115 @@ def test_a_bank_holiday_policy_in_use_cannot_change_its_leave_year_either(admin_
     assert escape(YEAR_LOCKED) in resp.content.decode()
     policy.refresh_from_db()
     assert policy.year_start_month == 1
+
+
+YEAR_ADD_LOCKED = "This type has leave pots under another leave year. Start a policy with a new leave year " \
+                  "on that year's first day, the day after the old policy ends (see the admin guide)."
+
+
+def _april_type_in_use():
+    """Reception's April-year annual-leave policy (from 2020), with a pot on
+    the current leave year. Returns (contract type, April policy, 1 January
+    of the current leave year)."""
+    from tests.factories import current_leave_year, hours_employee, make_pot
+    start, _ = current_leave_year()
+    emp = hours_employee(start=start)
+    make_pot(emp)
+    ct = emp.contracts.get().contract_type
+    return ct, ct.policies.get(), date(start.year + 1, 1, 1)
+
+
+def _end(client, policy, last_day):
+    _save(client, policy, fields={"effective_to": last_day.isoformat()})
+    policy.refresh_from_db()
+    assert policy.effective_to == last_day
+
+
+def _add(client, ct, effective_from, **fields):
+    fields.setdefault("days_per_year", "22")
+    return client.post("/admin/absence/policy/add/",
+                       _add_post(ct, effective_from=effective_from.isoformat(), **fields), follow=True)
+
+
+def test_the_documented_move_to_a_january_year_passes(admin_client, db):
+    from datetime import timedelta
+    ct, april, jan1 = _april_type_in_use()
+    _end(admin_client, april, jan1 - timedelta(days=1))
+    resp = _add(admin_client, ct, jan1)
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    assert Policy.objects.get(contract_type=ct, effective_from=jan1).year_start_month == 1
+
+
+def test_a_backdated_add_with_a_january_year_is_refused_while_the_april_policy_runs(admin_client, db):
+    ct, april, jan1 = _april_type_in_use()
+    resp = _add(admin_client, ct, jan1)
+    assert resp.status_code == 200 and escape(YEAR_ADD_LOCKED) in resp.content.decode()
+    assert list(ct.policies.all()) == [april]
+
+
+def test_an_add_starting_mid_year_after_the_old_one_ended_is_refused(admin_client, db):
+    from datetime import timedelta
+    ct, april, jan1 = _april_type_in_use()
+    july1 = jan1.replace(year=jan1.year - 1, month=7)
+    _end(admin_client, april, july1 - timedelta(days=1))
+    resp = _add(admin_client, ct, july1)                                  # a January year from 1 July
+    assert escape(YEAR_ADD_LOCKED) in resp.content.decode()
+    assert list(ct.policies.all()) == [april]
+
+
+def test_an_add_with_the_same_leave_year_may_be_backdated(admin_client, db):
+    ct, april, jan1 = _april_type_in_use()
+    resp = _add(admin_client, ct, jan1, year_start_month=4, days_per_year="25")
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    assert ct.policies.get(effective_from=jan1).weeks_per_year == D("5")
+
+
+@pytest.mark.parametrize("old,new", [({}, {"leave_year_basis": "anniversary"}),
+                                     ({"leave_year_basis": "anniversary"}, {})])
+def test_a_change_to_or_from_an_anniversary_year_with_pots_is_refused(admin_client, db, old, new):
+    from datetime import timedelta
+    ct, april, jan1 = _april_type_in_use()
+    Policy.objects.filter(pk=april.pk).update(effective_to=jan1 - timedelta(days=1), **old)
+    resp = _add(admin_client, ct, jan1, **new)                         # January year, or anniversary
+    assert escape(YEAR_ADD_LOCKED) in resp.content.decode()
+    assert ct.policies.count() == 1
+
+
+def test_moving_a_january_policy_back_into_the_april_year_is_refused(admin_client, db):
+    from datetime import timedelta
+    ct, april, jan1 = _april_type_in_use()
+    Policy.objects.filter(pk=april.pk).update(effective_to=jan1 - timedelta(days=1))
+    january = make_policy(ct, effective_from=jan1, year_start_month=1)
+    resp = _save(admin_client, january, fields={"effective_from": (jan1 - timedelta(days=31)).isoformat()})
+    assert escape(YEAR_ADD_LOCKED) in resp.content.decode()
+    january.refresh_from_db()
+    assert january.effective_from == jan1
+
+
+def test_a_type_with_no_pots_takes_any_new_leave_year(admin_client, db):
+    from tests.factories import current_leave_year
+    ct = make_contract_type()
+    april = make_policy(ct)
+    jan1 = date(current_leave_year()[0].year + 1, 1, 1)
+    resp = _add(admin_client, ct, jan1)
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    assert ct.policies.exclude(pk=april.pk).get().year_start_month == 1
+
+
+def test_a_superseded_open_ended_april_policy_does_not_block_a_january_add(admin_client, db):
+    # the type moved to January a year ago without ending its 2020 April policy: the
+    # January one governs from then on, so a new January policy is compared with it
+    ct, april, jan1 = _april_type_in_use()
+    january = make_policy(ct, effective_from=jan1.replace(year=jan1.year - 1), year_start_month=1)
+    resp = _add(admin_client, ct, jan1, days_per_year="25")
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    assert set(ct.policies.exclude(pk__in=(april.pk, january.pk)).values_list("effective_from", flat=True)) == {jan1}
+
+
+def test_moving_the_only_policy_s_effective_from_is_not_refused_against_itself(admin_client, db):
+    ct, april, jan1 = _april_type_in_use()
+    # saved from 1 Jan 2020, so on 31 May 2020 the policy in force is this one itself
+    resp = _save(admin_client, april, fields={"effective_from": "2020-06-01"})
+    assert escape(YEAR_ADD_LOCKED) not in resp.content.decode()
+    april.refresh_from_db()
+    assert april.effective_from == date(2020, 6, 1)

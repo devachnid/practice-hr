@@ -11,10 +11,12 @@ contract type on its change page, both inputs on the add page until a
 contract type is chosen and saved. PolicyAdmin.get_fields reads the same
 `mode`, so the fields rendered are the fields the form has."""
 
+from datetime import timedelta
 from decimal import Decimal
 
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.forms.models import BaseInlineFormSet
 from unfold.widgets import UnfoldAdminDecimalFieldWidget
 
@@ -105,7 +107,15 @@ def _hours_chosen(mode_, contract_type, absence_type):
 YEAR_FIELDS = ("leave_year_basis", "year_start_month", "year_start_day")
 YEAR_LOCKED = ("This type has leave pots on the current year. End this policy and add a new one from the "
                "new year's first day instead (see the admin guide).")
+YEAR_ADD_LOCKED = ("This type has leave pots under another leave year. Start a policy with a new leave year "
+                   "on that year's first day, the day after the old policy ends (see the admin guide).")
 NOT_FOR_SESSIONS = "Days are for hours contracts: enter a sessions contract's entitlement in weeks."
+
+
+def _year(basis, month, day):
+    """A policy's leave year, for comparing: an anniversary year ignores the
+    year start month and day."""
+    return (basis,) if basis == Policy.Basis.ANNIVERSARY else (basis, month, day)
 
 
 class PolicyForm(_Stores, forms.ModelForm):
@@ -141,7 +151,7 @@ class PolicyForm(_Stores, forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        self._check_year_unchanged()
+        self._check_year()
         if self.mode in (WEEKS, BANK_HOLIDAY):
             return data
         absence_type = data.get("absence_type")
@@ -155,20 +165,63 @@ class PolicyForm(_Stores, forms.ModelForm):
             self._clean_weeks(data)
         return data
 
-    def _check_year_unchanged(self):
+    def _check_year(self):
         """A pot keeps the leave year it was opened with, and a day counts only
         towards the pot of the year its policy puts it in (accrual): moving a
         policy's year while its type has pots would leave those pots earning
         nothing and open overlapping ones. Such a policy is ended and a new one
         added from the new year's first day instead (docs: moving a type in use
-        to a January year). A policy whose type has no pots of its absence type
-        is edited freely. Checked against the saved contract and absence type,
-        before anything is saved, so a refused save writes nothing."""
-        if self.instance.pk is None or not set(YEAR_FIELDS) & set(self.changed_data):
+        to a January year). A type with no pots of its absence type for the
+        contract type is edited and added to freely.
+
+        With pots, a saved policy's year is never changed (YEAR_LOCKED), and a
+        policy added, or moved by its effective from, must keep the year of
+        the pair's other policy governing that day (the newest in force, as
+        policies.policy_for), and of the one governing the day before unless
+        it starts on its own year's first day (YEAR_ADD_LOCKED). An
+        anniversary year has no first day, so a change to or from one is
+        refused. Checked before anything is saved, so a
+        refused save writes nothing: an edit against its saved contract and
+        absence type, an add against the ones chosen."""
+        data, saved = self.cleaned_data, self.instance
+        adding = saved.pk is None
+        year_moved = not adding and bool(set(YEAR_FIELDS) & set(self.changed_data))
+        if not (adding or year_moved or "effective_from" in self.changed_data):
             return
-        if Pot.objects.filter(absence_type_id=self.instance.absence_type_id,
-                              employment__contracts__contract_type_id=self.instance.contract_type_id).exists():
+        if adding:
+            contract_type, absence_type = data.get("contract_type"), data.get("absence_type")
+            if contract_type is None or absence_type is None:
+                return                                    # the field's own error says so
+            pair = {"contract_type_id": contract_type.pk, "absence_type_id": absence_type.pk}
+        else:
+            pair = {"contract_type_id": saved.contract_type_id, "absence_type_id": saved.absence_type_id}
+        if not Pot.objects.filter(absence_type_id=pair["absence_type_id"],
+                                  employment__contracts__contract_type_id=pair["contract_type_id"]).exists():
+            return
+        if year_moved:
             raise ValidationError(YEAR_LOCKED)
+        start, basis, month, day = (data.get(f) for f in ("effective_from", *YEAR_FIELDS))
+        if None in (start, basis, month, day):
+            return
+        mine = _year(basis, month, day)
+        others = Policy.objects.filter(**pair).exclude(pk=saved.pk)
+
+        def in_force(on):
+            return others.filter(Q(effective_to__isnull=True) | Q(effective_to__gte=on), effective_from__lte=on)
+
+        def governing(on):                     # as policies.policy_for: the newest in force
+            policy = in_force(on).order_by("-effective_from").first()
+            return policy, policy and _year(policy.leave_year_basis, policy.year_start_month, policy.year_start_day)
+
+        overlapped, year = governing(start)
+        if overlapped is not None and year != mine:
+            raise ValidationError(YEAR_ADD_LOCKED)
+        before, year = governing(start - timedelta(days=1))
+        if before is None or year == mine:
+            return
+        first_day = basis == Policy.Basis.FIXED and (start.month, start.day) == (month, day)
+        if before.leave_year_basis == Policy.Basis.ANNIVERSARY or not first_day:
+            raise ValidationError(YEAR_ADD_LOCKED)
 
     def _clean_days(self, data):
         if "days_per_year" not in self.errors:

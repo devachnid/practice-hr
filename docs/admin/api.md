@@ -29,6 +29,25 @@ A missing or wrong token is `401 {"error": "unauthorised"}` with
 `Cache-Control: no-store` (it is people's names and when they are away).
 Dates are ISO (`YYYY-MM-DD`).
 
+## The rate limit
+
+Each client address may make **`API_RATE_LIMIT_PER_MINUTE`** requests in a
+minute (default **600**; **`0`** turns the limit off), set in
+`/etc/practice-hr.env` like the tokens. Every request counts, including one
+with a missing or wrong token, and it is counted before the token is checked,
+so a client guessing tokens is slowed as much as any other. The address is the
+client's own, as seen through the Cloudflare tunnel. Over the limit, the
+response is `429 {"error": "too many requests"}` with `Retry-After: <seconds>`
+(the time left in that minute) and `Cache-Control: no-store`, and the service
+logs one warning for that address per minute. The count is kept in each
+gunicorn worker's memory, so the effective limit is the setting times the
+number of workers; it exists to slow a guessing client, not to meter a good one.
+
+A full poll of the API costs **2 + the number of people in `/people`** requests: one to
+`/people`, one to `/patterns` for each person listed (leavers included), and one to
+`/absences`. The rota does this every 15 minutes, so keep the limit above that number.
+A client should honour `Retry-After` on a 429 and wait that long before trying again.
+
 ## Matching people: `id`, not `email`
 
 The rota should match people by the **`id`** field, which is the employee
@@ -68,7 +87,8 @@ none); `positions` are today's.
 Oldest first; each holds from its date. Weekday 0 is Monday. `am` and `pm`
 are units in the contract's unit, as strings. Patterns of every employment
 the person has had are included, so a rehire's earlier spell is there too.
-A missing or unknown `employee` is a 400.
+A missing or unknown `employee` is a 400. A full poll makes one `/patterns` request per
+person in `/people`; see [the rate limit](#the-rate-limit).
 
 ## `GET /api/v1/absences?from=YYYY-MM-DD&to=YYYY-MM-DD`
 

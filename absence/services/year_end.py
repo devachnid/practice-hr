@@ -134,7 +134,7 @@ def _toil_lots(pot):
     for line in earned.order_by("date", "id"):
         marker = _toil_marker(line)
         lots.append({"line": line, "marker": marker, "expired": marker in already,
-                     "deadline": line.date + timedelta(days=days) if days else None,
+                     "deadline": line.date + timedelta(days=days) if days is not None else None,
                      "left": line.units - already.get(marker, ZERO), "used": ZERO})
     taken = _bookings(pot) + [(timezone.localdate(line.created_at), ZERO - line.units, (line.created_at, line.pk))
                               for line in manual.filter(units__lt=0)]
@@ -262,7 +262,7 @@ def expire_carry_in(pot, today, actor=None):
     if carried <= 0 or pot.entries.filter(kind=K.EXPIRY, note=CARRY_IN_EXPIRED).exists():
         return None
     days = policies.policy_for(pot.employment, pot.absence_type, pot.year_start).carry_over_expires_after_days
-    if not days:
+    if days is None:
         return None
     deadline = pot.year_start + timedelta(days=days)
     if today <= deadline or _undecided_by(pot, deadline):

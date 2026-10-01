@@ -121,7 +121,7 @@ class ToilClaimForm(forms.Form):
         if today is not None:
             self.fields["day"].widget.attrs["max"] = today.isoformat()
         self.fields["day"].help_text = ("Today or earlier" + (f", up to {window} days ago: older TOIL would "
-                                                              f"already have expired." if window else "."))
+                                                              f"already have expired." if window is not None else "."))
         sessions = unit == "sessions"
         step = "0.5" if sessions else "0.25"
         self.fields["units"].widget.attrs.update(step=step, min=step)

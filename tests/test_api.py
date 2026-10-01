@@ -1,7 +1,9 @@
 import logging
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
+from django.core.cache import cache
 from django.test import Client
 
 from absence.models import Absence, AbsenceType
@@ -9,6 +11,16 @@ from absence.services import bookings
 from hr.checks import api_tokens
 from people.services import positions
 from tests.factories import absence_type, hours_employee, make_team
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_counts(monkeypatch):
+    """Empty counts, and the clock held thirty seconds into a minute so a test
+    never straddles the end of a rate-limit window."""
+    cache.clear()
+    monkeypatch.setattr("api.auth.time", SimpleNamespace(time=lambda: 1_800_000_030.0))
+    yield
+    cache.clear()
 
 
 @pytest.fixture
@@ -258,3 +270,62 @@ def test_patterns_of_an_earlier_spell_are_included_oldest_first(api, db):
     make_pattern(second)
     data = api(f"/api/v1/patterns?employee={employee.pk}").json()["patterns"]
     assert [v["effective_from"] for v in data] == ["2026-04-01", "2026-09-01"]
+
+
+def _hit(client, token="t0k", addr="10.0.0.1"):
+    return client.get("/api/v1/people", HTTP_AUTHORIZATION=f"Bearer {token}", REMOTE_ADDR=addr)
+
+
+def test_over_the_limit_is_a_429_with_retry_after(client, settings, db):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 3
+    assert [_hit(client).status_code for _ in range(3)] == [200, 200, 200]
+    r = _hit(client)
+    assert r.status_code == 429
+    assert r.json() == {"error": "too many requests"}
+    assert r.headers["Retry-After"] == "30"
+    assert "no-store" in r.headers["Cache-Control"]
+
+
+def test_the_count_includes_unauthorised_requests(client, settings, db):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 3
+    assert [_hit(client, "guess").status_code for _ in range(3)] == [401, 401, 401]
+    assert _hit(client, "guess").status_code == 429
+    assert _hit(client).status_code == 429                      # the right token is throttled too
+
+
+def test_another_address_is_counted_separately(client, settings, db):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 3
+    for _ in range(4):
+        _hit(client)
+    assert _hit(client).status_code == 429
+    assert _hit(client, addr="10.0.0.2").status_code == 200
+
+
+def test_the_forwarded_address_is_the_one_counted(client, settings, db):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 3
+    for _ in range(4):
+        client.get("/api/v1/people", HTTP_AUTHORIZATION="Bearer t0k", REMOTE_ADDR="127.0.0.1",
+                   HTTP_CF_CONNECTING_IP="203.0.113.7")
+    r = client.get("/api/v1/people", HTTP_AUTHORIZATION="Bearer t0k", REMOTE_ADDR="127.0.0.1",
+                   HTTP_CF_CONNECTING_IP="203.0.113.8")
+    assert r.status_code == 200
+
+
+def test_zero_disables_the_limit(client, settings, db):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 0
+    assert {_hit(client).status_code for _ in range(10)} == {200}
+
+
+def test_the_warning_is_logged_once_per_window(client, settings, db, caplog):
+    settings.HR_API_TOKENS = frozenset({"t0k"})
+    settings.API_RATE_LIMIT_PER_MINUTE = 2
+    with caplog.at_level(logging.WARNING, logger="hr.api"):
+        for _ in range(6):
+            _hit(client)
+    limited = [r for r in caplog.records if "rate limit" in r.getMessage()]
+    assert len(limited) == 1 and "10.0.0.1" in limited[0].getMessage()

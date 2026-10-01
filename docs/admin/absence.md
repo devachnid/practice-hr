@@ -87,7 +87,9 @@ earned. Leave it ticked on every other type.
 
 Only for a type that does not accrue (the page refuses it otherwise): how
 many days after the day it was earned each amount of TOIL may still be
-used. TOIL is seeded with **365**, twelve months. Blank means never. See
+used. TOIL is seeded with **365**, twelve months. Blank means never, and 0
+is not accepted: it would expire the TOIL the day it was earned (a 0
+entered before this version is read as blank). See
 [Year end](year-end.md#toil).
 
 ### Needs approval
@@ -139,6 +141,13 @@ person has that day. If none covers a day the person needs, the error says
 "No Annual leave policy for … Add one under Absence › Policies", and the
 nightly lists it. A gap between one policy ending and the next starting is
 that same error.
+
+Once the contract type has pots of that absence type, a policy added (or
+moved by its **Effective from**) with a different leave year is refused
+unless it starts on its own leave year's first day, the day after the old
+policy ends ("This type has leave pots under another leave year…"); a
+change to or from **Anniversary of start** is refused either way (see
+[Moving a type in use to a January year](#moving-a-type-in-use-to-a-january-year)).
 
 Saving a policy immediately recalculates the entitlement of every open pot it
 can change, as you, and reports "N pot(s) revised". Changes therefore reach
@@ -226,7 +235,8 @@ start of its policy **cannot be changed**: saving is refused with "This
 type has leave pots on the current year. End this policy and add a new one
 from the new year's first day instead (see the admin guide)", and nothing
 is saved. Follow the next section instead. A policy whose type has no pots
-yet can be changed freely. A leave request that runs across the end of the leave
+yet can be changed freely. A policy added, or moved, after pots exist follows the
+add-page rule described in [Policies](#policies). A leave request that runs across the end of the leave
 year is refused ("book the two leave years separately").
 
 #### Moving a type in use to a January year
@@ -259,7 +269,8 @@ full. See [Year end](year-end.md).
 
 How long carried-in leave may be *booked* for, counted from the start of
 the new year. Leave carried in and still unbooked after that many days
-expires. Blank means it never expires. Setting a cap but no expiry lets
+expires. Blank means it never expires, and 0 is not accepted (a 0 entered before this version is read as
+blank). Setting a cap but no expiry lets
 carried leave sit forever.
 
 ### Rounding (`rounding`)
@@ -333,9 +344,16 @@ the standard contract.
 ## Bank holidays and closed days
 
 `/admin/absence/bankholiday/` holds the England and Wales calendar, seeded
-for 2026 to 2028. Add each later year's dates before that year starts: a
+for 2026 to 2030. Add each later year's dates before that year starts: a
 year with none charges nothing and gives the bank-holiday pot no
-entitlement. Only `EW` entries count. `/admin/absence/closedday/`
+entitlement. The nightly's log warns when the last one entered is about a
+year away; add the next year's from gov.uk here, under Absence › Bank
+holidays. Only `EW` entries count. An HR admin's cancellation of an
+automatic bank-holiday row (Absence › Absences, open the row, **Cancel
+absence**) stands: the nightly will not re-create it. To charge the day
+again, open the cancelled row and choose **Charge again**: its automatic
+row comes back at once if the pattern and policy still charge that day.
+`/admin/absence/closedday/`
 holds practice closures that are not bank holidays. **Closed days are never
 charged.** Bank holidays are charged only by the automation above: an
 ordinary booking skips them, so a Monday-to-Friday week off across a bank
@@ -377,6 +395,10 @@ falls outside the employment, or (pot-backed) crosses the end of the leave
 year. Types that need no approval are recorded as approved straight away;
 otherwise the approver is emailed and the request shows as Requested.
 
+*My absences* lists what is coming up, then what came earlier this leave
+year. A request still waiting is always listed, whatever its dates, so the
+employee can cancel it even when it has passed or is from an earlier leave year.
+
 ## Recording leave for someone else
 
 A manager records a report's absence on the day (a phone call saying they
@@ -387,8 +409,8 @@ two-step form, at `/absence/request/<employee>/`, showing *their* balances.
 Only the person the employee's requests go to (their line manager) and HR
 admins may use it; anyone else gets "forbidden". Because the person
 recording it is the one who would have approved it, it is **approved at
-once** (audited as requested and approved by you, with the comment
-"Recorded by …"), and the employee is emailed the decision. Your own
+once** (audited as requested and approved by you, with the decision comment
+"Recorded by <name>"), and the employee is emailed the decision. Your own
 absences go through the ordinary request.
 
 ## Deciding a request
@@ -416,9 +438,14 @@ absence **until it starts**; after that only an HR admin can, at any time.
 An HR admin's own absences follow the employee's rule: another HR admin
 cancels one that has started.
 Cancelling an approved pot-backed absence puts its cost back with a
-cancellation line. **Automatic bank-holiday rows can never be cancelled** (the
-nightly would only recreate them; change the policy or the pattern
-instead). The approver is emailed.
+cancellation line. The approver is emailed (not for an automatic
+bank-holiday row). An HR admin cancels someone
+else's absence in Absence › Absences: open the row, then **Cancel
+absence** (never their own there). **Only an HR admin cancels an automatic
+bank-holiday row**, and only someone else's, that way: not the person
+themselves, not a manager (to change every such row, change the policy or
+the pattern instead; see
+[Bank holidays and closed days](#bank-holidays-and-closed-days)).
 
 ## TOIL
 
@@ -437,7 +464,9 @@ and rounding.
    **half sessions**; there is no cap. A claim for a day in a leave year
    that has already ended (2 January for 30 December, say) is fine: it is
    added to the current year's pot, still dated the day worked, just as the
-   year end carries unused TOIL forward, so it expires on the same day.
+   year end carries unused TOIL forward, so it expires on the same day. A
+   leaver's late claim is added to the pot of their last day instead, and is
+   refused if that pot is already closed.
 2. **Approve.** The claim goes to the same person a leave request would
    ([routing](#deciding-a-request): the line manager, or the HR admins when
    there is none, never the claimant), who is emailed a link to the decide
@@ -468,6 +497,9 @@ cancelled or edited: an HR admin corrects the pot with an adjustment
 ([Adjusting a balance](year-end.md#adjusting-a-balance)). **The Adjust
 balance form is for corrections only**, not for recording TOIL earned: use
 Record TOIL so the claim, its day and its reason are kept.
+
+*Absence › TOIL claims* in the admin lists every claim, decided ones
+included, read-only: decisions are made on the decide page.
 
 The **TOIL card** on *My absences* shows the person's TOIL remaining now,
 earned this leave year, their claims waiting (with Cancel) and anything

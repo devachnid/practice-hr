@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 
-from absence.models import PolicyTier
+from absence.models import Policy, PolicyTier
 from absence.services import policies
 from tests.factories import (absence_type, make_contract, make_contract_type, make_employment,
                              make_policy)
@@ -260,6 +260,33 @@ def test_an_earned_expiry_is_only_for_a_type_that_does_not_accrue(db):
     al.full_clean()
 
 
+ZERO_EXPIRY = "Leave blank for no expiry; 0 would expire it the day it was earned."
+
+
+def test_an_earned_expiry_of_zero_is_refused(db):
+    toil = absence_type("TOIL")
+    toil.earned_expires_after_days = 0
+    with pytest.raises(ValidationError) as e:
+        toil.full_clean()
+    assert e.value.message_dict["earned_expires_after_days"] == [ZERO_EXPIRY]
+    toil.earned_expires_after_days = None
+    toil.full_clean()                                   # blank: never
+    toil.earned_expires_after_days = 1
+    toil.full_clean()
+
+
+def test_a_carry_over_expiry_of_zero_is_refused(db):
+    p = Policy(contract_type=make_contract_type(), absence_type=absence_type("AL"),
+               effective_from=date(2026, 4, 1), weeks_per_year=Decimal("5.6"), carry_over_expires_after_days=0)
+    with pytest.raises(ValidationError) as e:
+        p.full_clean()
+    assert e.value.message_dict["carry_over_expires_after_days"] == [ZERO_EXPIRY]
+    p.carry_over_expires_after_days = None
+    p.full_clean()
+    p.carry_over_expires_after_days = 1
+    p.full_clean()
+
+
 def _state_before_0013_data():
     """Historical models as 0013's data step sees them (the type's new fields
     added, the policy's TOIL expiry not yet dropped), on a database already
@@ -310,3 +337,22 @@ def test_0013_gives_toil_a_year_when_no_policy_said(db):
     import_module("absence.migrations.0013_toil_is_earned").forward(apps, None)
     toil = AbsenceType.objects.get(code="TOIL")
     assert (toil.accrues, toil.earned_expires_after_days) == (False, 365)
+
+
+def test_the_zero_expiry_migration_blanks_a_stored_zero_and_nothing_else(db):
+    import importlib
+
+    from django.apps import apps
+    migration = importlib.import_module("absence.migrations.0017_zero_expiry_to_blank")
+    toil = absence_type("TOIL")
+    type(toil).objects.filter(pk=toil.pk).update(earned_expires_after_days=0)
+    ct = make_contract_type()
+    zero = make_policy(ct, carry_over_expires_after_days=0)
+    ninety = make_policy(make_contract_type("Other"), carry_over_expires_after_days=90)
+    migration.zero_to_blank(apps, None)
+    migration.zero_to_blank(apps, None)                       # idempotent
+    toil.refresh_from_db()
+    zero.refresh_from_db()
+    ninety.refresh_from_db()
+    assert toil.earned_expires_after_days is None
+    assert (zero.carry_over_expires_after_days, ninety.carry_over_expires_after_days) == (None, 90)

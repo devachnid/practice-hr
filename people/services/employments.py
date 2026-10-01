@@ -77,27 +77,33 @@ def _cancel_after(actor, employment, end_date):
     (requested or approved) that start after its last day, so they leave the
     calendar, the rota's feed and the balances. One that cannot be cancelled
     (its pot's leave year has closed) is left as it is. Returns the audit
-    note saying which were cancelled and which were not, or ""."""
+    note, the ones not cancelled first (the part HR must act on), then a count
+    and list of those cancelled, or ""."""
     if end_date is None:
         return ""
     from absence.models import Absence
-    from absence.services import bookings
+    from absence.services import bank_holidays, bookings
     done, left = [], []
     live = (Absence.objects.filter(employment=employment, status__in=bookings.LIVE, start_date__gt=end_date)
             .select_related("employment__employee", "absence_type").order_by("start_date", "id"))
     for absence in live:
         try:
-            bookings.cancel(actor, absence)       # its own savepoint: a refusal leaves the rest
+            # its own savepoint: a refusal leaves the rest. An automatic bank
+            # holiday is no longer implied: back again if the date is moved.
+            reason = bank_holidays.NOT_IMPLIED if absence.auto_bank_holiday else ""
+            bookings.cancel(actor, absence, reason=reason)
         except ValidationError as e:
             left.append(f"{absence} ({'; '.join(e.messages)})")
         else:
             done.append(f"{absence.absence_type} {absence.start_date:%d %b %Y}")
     parts = []
-    if done:
-        parts.append(f"cancelled {len(done)} absence(s) after the leaving date: {', '.join(done)}")
     if left:
         parts.append(f"not cancelled: {'; '.join(left)}")
-    return "; ".join(parts)[:200]
+    if done:
+        parts.append(f"cancelled {len(done)} absence(s) after the leaving date: {', '.join(done)}")
+    note = "; ".join(parts)
+    # AuditEntry.note holds 200 characters: show a cut, never drop the end silently
+    return note if len(note) <= 200 else note[:199] + "…"
 
 
 @transaction.atomic

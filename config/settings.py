@@ -268,6 +268,17 @@ TRUSTED_PROXY_IPS = frozenset(
 # the API refuses every request; hr/checks.py warns about that.
 HR_API_TOKENS = frozenset(t.strip() for t in os.environ.get("HR_API_TOKENS", "").split(",") if t.strip())
 
+# The most requests one client address may make to the read API in a minute,
+# counted before the token is checked so guesses are slowed too. `0` turns the
+# limit off. See api/auth.py.
+API_RATE_LIMIT_PER_MINUTE = int(os.environ.get("API_RATE_LIMIT_PER_MINUTE", "600"))
+
+# Where the API's request counts live. In the process's memory, so the count is
+# per gunicorn worker and the effective limit is API_RATE_LIMIT_PER_MINUTE times
+# the number of workers: fine for a limit that only exists to slow a guessing
+# client. Nothing else depends on the cache.
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
+
 # Outgoing mail: invitations and password-reset links, and nothing else.
 # Standard Django keys, every one from the environment. EMAIL_HOST being set
 # is what "email is configured" means (accounts/mail.py): without it every

@@ -31,12 +31,15 @@ def _my_employment(request, today):
 def _may_cancel(user, absence, today):
     """The employee cancels a request any time and an approved absence until
     it starts; an HR admin cancels anyone else's live absence at any time,
-    but their own by the employee's rule. Nobody cancels an automatic
-    bank-holiday row: the nightly would only make it again."""
-    if absence.auto_bank_holiday or absence.status not in bookings.LIVE:
+    but their own by the employee's rule. An automatic bank-holiday row is
+    cancelled only by an HR admin, never their own: with no reason given it
+    stands, and the nightly does not make it again (bank_holidays)."""
+    if absence.status not in bookings.LIVE:
         return False
     if absence.employment.employee.user_id != user.pk:
         return access.can_view_restricted(user)
+    if absence.auto_bank_holiday:
+        return False
     return absence.status == S.REQUESTED or absence.start_date > today
 
 
@@ -123,10 +126,9 @@ def request_for(request, pk):
                                                         "for_employee": employee})
     if not access.may_record_for(request.user, employment, today):
         raise PermissionDenied
-    recorder = me.name if me is not None else request.user.email
 
     def submit(fields):
-        a = bookings.record(request.user, comment=f"Recorded by {recorder}", **fields)
+        a = bookings.record(request.user, **fields)
         # after the service's transaction has committed, never inside it
         if not notify.request_decided(a):
             messages.warning(request, f"Saved, but the email to {employee.name} did not go. Let them know yourself.")
@@ -187,7 +189,8 @@ def _toil(employment, today):
 def mine(request):
     """The employee's absences in three parts: coming up (requested or
     approved, not yet over, soonest first), earlier this leave year (newest
-    first, declined and cancelled ones too), and the automatic bank-holiday
+    first, declined and cancelled ones too, and any request still waiting
+    whatever its dates), and the automatic bank-holiday
     rows of this leave year and the next, folded away under their counts
     and totals."""
     today = timezone.localdate()
@@ -205,7 +208,7 @@ def mine(request):
                     bank.append({"a": a})
                 continue
             upcoming = a.status in bookings.LIVE and a.end_date >= today
-            if not (upcoming or in_view):
+            if not (upcoming or in_view or a.status == S.REQUESTED):    # a request waiting is always listed
                 continue
             over = False
             if a.absence_type.uses_pot and a.status == S.REQUESTED and a.cost_units:
@@ -249,7 +252,8 @@ def cancel(request, pk):
     except ValidationError as e:
         messages.error(request, " ".join(e.messages))
         return redirect("absence:mine")
-    notify.absence_cancelled(a)
+    if not a.auto_bank_holiday:
+        notify.absence_cancelled(a)
     messages.success(request, "Cancelled.")
     return redirect("absence:mine")
 

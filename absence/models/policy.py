@@ -6,7 +6,7 @@ from django.db import models
 
 from people.models import ContractType
 
-from .types import AbsenceType
+from .types import ZERO_EXPIRY, AbsenceType
 
 
 class Policy(models.Model):
@@ -61,6 +61,8 @@ class Policy(models.Model):
         if self.absence_type_id and not self.absence_type.accrues:
             raise ValidationError({"absence_type": f"{self.absence_type} is earned, not accrued; it needs no "
                                                    f"policy — set its expiry on the absence type."})
+        if self.carry_over_expires_after_days == 0:
+            raise ValidationError({"carry_over_expires_after_days": ZERO_EXPIRY})
         if self.effective_to and self.effective_to < self.effective_from:
             raise ValidationError({"effective_to": "Ends before it starts."})
         if not 1 <= (self.year_start_month or 0) <= 12:

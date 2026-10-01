@@ -1,7 +1,10 @@
 """Unfold admin over the absence models. Policy set-up is edited here; pots
 and their ledger are read-only, and their two actions (recalculate on the
 list, "Adjust balance" on a pot's page) go through the ledger service. Absences are read-only but for a family-leave absence's
-three dates, which an HR admin sets through bookings.set_family_dates."""
+three dates, which an HR admin sets through bookings.set_family_dates, and
+"Cancel absence" and "Charge again" on an absence's page, through
+bookings.cancel and bank_holidays.charge_again. TOIL claims are listed
+read-only: they are decided on the decide page."""
 
 from django import forms
 from django.contrib import admin, messages
@@ -16,8 +19,8 @@ from unfold.widgets import UnfoldAdminDecimalFieldWidget, UnfoldAdminTextInputWi
 
 from absence import admin_forms
 from absence.models import (Absence, AbsenceType, BankHoliday, ClosedDay, EmailFailure, LedgerEntry,
-                            Policy, PolicyTier, Pot)
-from absence.services import bookings, ledger, year_end
+                            Policy, PolicyTier, Pot, ToilClaim)
+from absence.services import bank_holidays, bookings, ledger, notify, year_end
 from people.models import ContractType
 from people.services import access, audit
 
@@ -255,6 +258,80 @@ class AbsenceAdmin(ModelAdmin):
                     "auto_bank_holiday")
     list_filter = ("status", "absence_type", "auto_bank_holiday")
     date_hierarchy = "start_date"
+    actions_detail = ["cancel_absence", "charge_again"]
+
+    def _for_hr(self, request, object_id):
+        """The absence an HR admin's detail action is about, or None: never
+        their own."""
+        if object_id is None or not access.can_view_restricted(request.user):
+            return None
+        absence = Absence.objects.filter(pk=object_id).select_related("employment__employee").first()
+        if absence is None or absence.employment.employee.user_id == request.user.pk:
+            return None
+        return absence
+
+    def has_cancel_permission(self, request, object_id=None):
+        # an HR admin, on a live absence that is not their own
+        absence = self._for_hr(request, object_id)
+        return absence is not None and absence.status in bookings.LIVE
+
+    def has_charge_again_permission(self, request, object_id=None):
+        # an HR admin, on someone else's automatic bank-holiday row that was
+        # cancelled on purpose (an opt-out), not by the sync
+        absence = self._for_hr(request, object_id)
+        return (absence is not None and absence.auto_bank_holiday and absence.status == Absence.Status.CANCELLED
+                and absence.cancel_reason != bank_holidays.NOT_IMPLIED)
+
+    def _confirm(self, request, absence, template, title):
+        """A detail action's confirmation page: shown on GET, writing nothing
+        but the audit of a health-sensitive absence shown (as change_view)."""
+        if absence.absence_type.health_sensitive:
+            audit.viewed(request.user, absence, "health")
+        return render(request, template, {**self.admin_site.each_context(request), "title": f"{title}: {absence}",
+                                          "absence": absence, "opts": self.model._meta})
+
+    def _absence(self, object_id):
+        return get_object_or_404(Absence.objects.select_related("employment__employee", "absence_type"),
+                                 pk=object_id)
+
+    @action(description="Cancel absence", url_path="cancel", permissions=["cancel"])
+    def cancel_absence(self, request, object_id):
+        """A confirmation page, then bookings.cancel as the admin, with no
+        reason: an automatic bank-holiday row cancelled here stays cancelled
+        (bank_holidays) until "Charge again". The approver is emailed, as by
+        the page's own cancel, but not for an automatic row (it has none)."""
+        absence = self._absence(object_id)
+        if request.method != "POST":
+            return self._confirm(request, absence, "absence/admin/cancel_absence.html", "Cancel absence")
+        try:
+            bookings.cancel(request.user, absence)
+        except ValidationError as e:
+            messages.error(request, " ".join(e.messages))
+        else:
+            if not absence.auto_bank_holiday:
+                notify.absence_cancelled(absence)
+            messages.success(request, f"{absence}: cancelled.")
+        return HttpResponseRedirect(reverse("admin:absence_absence_change", args=[absence.pk]))
+
+    @action(description="Charge again", url_path="charge-again", permissions=["charge_again"])
+    def charge_again(self, request, object_id):
+        """A confirmation page, then bank_holidays.charge_again as the admin:
+        the day's automatic row comes back if the pattern and policy still
+        imply it."""
+        absence = self._absence(object_id)
+        if request.method != "POST":
+            return self._confirm(request, absence, "absence/admin/charge_again.html", "Charge again")
+        try:
+            result = bank_holidays.charge_again(request.user, absence)
+        except ValidationError as e:
+            messages.error(request, " ".join(e.messages))
+        else:
+            if result["created"]:
+                messages.success(request, f"{absence}: charged again.")
+            else:
+                messages.warning(request, f"{absence}: no longer cancelled on purpose, but the pattern or policy "
+                                          f"does not imply a charge that day, so nothing was charged.")
+        return HttpResponseRedirect(reverse("admin:absence_absence_change", args=[absence.pk]))
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         # A health-sensitive absence shown is one viewed: audited like NI and
@@ -299,6 +376,28 @@ class AbsenceAdmin(ModelAdmin):
         if getattr(request, "_absence_not_saved", False):
             return HttpResponseRedirect(request.path)
         return super().response_change(request, obj)
+
+
+@admin.register(ToilClaim)
+class ToilClaimAdmin(ModelAdmin):
+    """Every TOIL claim, decided ones included: listed and viewed, never
+    added to, changed or deleted (they are decided by absence.services.toil,
+    from the decide page). No change permission makes the page a view page."""
+    list_display = ("employment", "day", "units", "status", "requested_by", "decided_by", "decided_at")
+    list_filter = ("status", "day")
+    list_select_related = ("employment__employee", "requested_by", "decided_by")
+    search_fields = ("employment__employee__first_name", "employment__employee__last_name")
+    date_hierarchy = "day"
+    readonly_fields = tuple(f.name for f in ToilClaim._meta.fields if f.name != "id")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(EmailFailure)

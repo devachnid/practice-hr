@@ -42,6 +42,7 @@ class Absence(models.Model):
     decision_comment = models.CharField(max_length=300, blank=True, default="")
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    cancel_reason = models.CharField(max_length=60, blank=True, default="")
     category = models.CharField(max_length=9, choices=Category.choices, blank=True, default="")
     self_certified = models.BooleanField(default=False)
     expected_start = models.DateField(null=True, blank=True)

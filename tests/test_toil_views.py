@@ -294,6 +294,16 @@ def test_the_claim_page_says_how_far_back_a_claim_may_go(employee_client, employ
     assert not ToilClaim.objects.exists()
 
 
+def test_the_claim_page_reads_only_a_blank_expiry_as_no_limit(employee_client, employee_user):
+    _people(employee_user)
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=None)
+    body = employee_client.get("/absence/toil/claim/").content.decode()
+    assert "days ago" not in body and "days after the day you worked it" not in body
+    AbsenceType.objects.filter(code="TOIL").update(earned_expires_after_days=0)       # as the day itself
+    body = employee_client.get("/absence/toil/claim/").content.decode()
+    assert "up to 0 days ago" in body and "0 days after the day you worked it" in body
+
+
 def test_the_dashboard_counts_requests_and_claims_apart(employee_user, admin_client):
     emp, _, _ = _people(employee_user)
     c = _claim(employee_user, emp)

@@ -14,6 +14,17 @@ def test_seeded_bank_holidays(db):
     assert BankHoliday.objects.filter(date=date(2027, 3, 26)).exists()
 
 
+def test_bank_holidays_are_seeded_to_the_end_of_2030(db):
+    for year in (2029, 2030):
+        days = BankHoliday.objects.filter(date__year=year, nation="EW")
+        assert days.count() == 8, year
+    assert BankHoliday.objects.get(date=date(2029, 3, 30), nation="EW").name == "Good Friday"
+    assert BankHoliday.objects.get(date=date(2030, 4, 22), nation="EW").name == "Easter Monday"
+    assert set(BankHoliday.objects.filter(date__year=2030).values_list("date", flat=True)) == {
+        date(2030, 1, 1), date(2030, 4, 19), date(2030, 4, 22), date(2030, 5, 6), date(2030, 5, 27),
+        date(2030, 8, 26), date(2030, 12, 25), date(2030, 12, 26)}
+
+
 def test_for_day_creates_once_with_unit(db):
     emp = hours_employee()
     pot = pots.for_day(emp, absence_type("AL"), date(2026, 6, 1))

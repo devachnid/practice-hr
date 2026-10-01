@@ -111,7 +111,9 @@ cancellation line. The [audit log](#audit-log) entry for the end date lists
 them. An absence that started on or before the last day is left for you to
 shorten or cancel, and one whose leave year has already been
 [closed](year-end.md#adjusting-a-balance) is left as it is and listed as
-not cancelled.
+not cancelled. The audit note lists the absences that could not be
+cancelled first, then those that were, and is cut with an ellipsis if it is
+longer than the log allows.
 
 ### Continuous service date
 

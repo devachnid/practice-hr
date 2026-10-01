@@ -7,8 +7,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from absence.models import Absence, AbsenceType, BankHoliday, Policy
-from absence.services import bookings, costing, policies
-from people.services import patterns
+from absence.services import bookings, costing, policies, pots
+from people.services import audit, patterns
 
 
 def _target_type(handling):
@@ -18,6 +18,13 @@ def _target_type(handling):
         return AbsenceType.objects.get(code="AL")
     return None
 
+
+# The reason on an automatic row cancelled because the pattern or policy no
+# longer implies it (or the employment has ended before it). A row cancelled
+# for any other reason was cancelled on purpose: the sync leaves that day
+# alone, so it stays uncharged until an HR admin uses Charge again
+# (charge_again).
+NOT_IMPLIED = "no longer implied by the pattern or policy"
 
 _running = ContextVar("bank_holiday_sync_running", default=False)
 
@@ -34,7 +41,9 @@ def sync_auto_absences(employment, year_start, year_end, actor=None, today=None)
     imply, cancel the ones they no longer imply, and re-cost the ones from
     `today` on whose pattern has changed (a past charge stands). Idempotent.
     A day the person has booked off still gets its row: their booking
-    skipped the bank holiday (costing), so this row is what charges it."""
+    skipped the bank holiday (costing), so this row is what charges it. A
+    day whose latest automatic row was cancelled other than by the sync
+    (NOT_IMPLIED) is not charged again ("kept_cancelled")."""
     token = _running.set(True)
     try:
         return _sync(employment, year_start, year_end, actor, today or timezone.localdate())
@@ -43,7 +52,7 @@ def sync_auto_absences(employment, year_start, year_end, actor=None, today=None)
 
 
 def _sync(employment, year_start, year_end, actor, today):
-    created = removed = recosted = 0
+    created = removed = recosted = kept_cancelled = 0
     al = AbsenceType.objects.get(code="AL")
     existing = {a.start_date: a for a in Absence.objects.filter(
         employment=employment, auto_bank_holiday=True, status=Absence.Status.APPROVED,
@@ -68,10 +77,16 @@ def _sync(employment, year_start, year_end, actor, today):
             wanted[bh.date] = target
     for day, absence in list(existing.items()):
         if wanted.get(day) != absence.absence_type:
-            bookings.cancel(actor, absence)
+            bookings.cancel(actor, absence, reason=NOT_IMPLIED)
             removed += 1
             del existing[day]
+    cancelled = {a.start_date: a for a in Absence.objects.filter(      # the latest per day wins
+        employment=employment, auto_bank_holiday=True, status=Absence.Status.CANCELLED,
+        start_date__range=(year_start, year_end)).order_by("cancelled_at", "pk")}
     for day, target in wanted.items():
+        if day not in existing and day in cancelled and cancelled[day].cancel_reason != NOT_IMPLIED:
+            kept_cancelled += 1
+            continue
         if day in existing:
             kept = existing[day]
             if day >= today and costing.cost(kept) != kept.cost_units:
@@ -84,4 +99,28 @@ def _sync(employment, year_start, year_end, actor, today):
         a.save()
         bookings.approve(actor, a, comment="bank holiday")
         created += 1
-    return {"created": created, "removed": removed, "recosted": recosted}
+    return {"created": created, "removed": removed, "recosted": recosted, "kept_cancelled": kept_cancelled}
+
+
+@transaction.atomic
+def charge_again(actor, absence):
+    """HR undoes an opt-out: the cancelled automatic row's day is charged
+    again. Its cancel reason (and that of any other cancelled automatic row
+    of the same person and day, so the latest cannot still hold the day) is
+    set to NOT_IMPLIED, audited, and the row's leave year is synced at once
+    as `actor`: the day comes back as a new automatic row if the pattern and
+    policy still imply it, and stays uncharged if they do not. Returns the
+    sync's counts."""
+    if not (absence.auto_bank_holiday and absence.status == Absence.Status.CANCELLED):
+        raise ValidationError("Only a cancelled automatic bank-holiday row can be charged again.")
+    employment, day = absence.employment, absence.start_date
+    rows = (Absence.objects.select_for_update()
+            .filter(employment=employment, auto_bank_holiday=True, status=Absence.Status.CANCELLED, start_date=day)
+            .exclude(cancel_reason=NOT_IMPLIED))
+    for row in rows:
+        audit.record(actor, row, {"cancel_reason": (row.cancel_reason, NOT_IMPLIED)}, note="charged again")
+        row.cancel_reason = NOT_IMPLIED
+        row.save(update_fields=["cancel_reason"])
+    absence.refresh_from_db(fields=["cancel_reason"])
+    year_start, year_end = pots.bounds(employment, AbsenceType.objects.get(code="AL"), day)
+    return sync_auto_absences(employment, year_start, year_end, actor=actor)

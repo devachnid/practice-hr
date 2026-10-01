@@ -25,7 +25,7 @@
   {% if earlier %}
   <section class="card">
     <h2>Earlier</h2>
-    <p class="muted">{% if year_start %}Since {{ year_start|date:"j M Y" }}, the start of this leave year, newest first.{% else %}Newest first.{% endif %}</p>
+    <p class="muted">{% if year_start %}Since {{ year_start|date:"j M Y" }}, the start of this leave year, newest first, and any request still waiting.{% else %}Newest first.{% endif %}</p>
     <div class="table-scroll">
     <table class="list absences">
       <thead><tr><th scope="col">Type</th><th scope="col">When</th><th scope="col">Status</th><th scope="col">Cost</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>

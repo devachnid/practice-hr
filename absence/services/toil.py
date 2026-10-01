@@ -99,12 +99,15 @@ def _pot_day(employment, day, today):
     """The day whose TOIL pot a claim for `day` is written to: `day` itself,
     unless its leave year has ended (or its pot has been closed) by
     `today`; then `today`, so the line lands on the pot open now instead of
-    a closed or stranded one."""
+    a closed or stranded one. For someone whose employment has ended, the
+    fallback is no later than their last day, never a pot for a year they were not employed
+    in (a closed pot is then refused by earn)."""
+    fallback = today if employment.end_date is None else min(today, employment.end_date)
     _, end = pots.bounds(employment, _toil(), day)
     if end < today:
-        return today
+        return fallback
     pot = pots.lookup(employment, _toil(), day)
-    return today if pot is not None and year_end.is_closed(pot) else day
+    return fallback if pot is not None and year_end.is_closed(pot) else day
 
 
 def _own(actor, claim):
@@ -163,7 +166,8 @@ def _decidable(actor, claim):
 def approve(actor, claim, comment=""):
     """Approve a waiting claim: one TOIL-earned line through earn(), dated
     the day worked and noted with the reason, linked as `earned`; on the
-    pot open today when the day's leave year has ended (_pot_day)."""
+    pot open today when the day's leave year has ended (a leaver's: the pot
+    of their last day; _pot_day)."""
     caller, claim = claim, _lock(claim)
     _decidable(actor, claim)
     today = timezone.localdate()

@@ -194,20 +194,53 @@ def test_cannot_cancel_someone_elses(employee_client, employee_user, hr_admin):
     assert Absence.objects.get(pk=a.pk).status == "requested"
 
 
-def test_automatic_bank_holiday_rows_are_listed_and_never_cancelled(employee_client, employee_user,
-                                                                     admin_client):
+def _auto_row(emp):
     from tests.factories import current_leave_year
-    emp = _me(employee_user)
     day = current_leave_year()[0] + timedelta(days=14)                 # in the leave year the page shows
-    auto = Absence.objects.create(employment=emp, absence_type=absence_type("BH"),
-                                  start_date=day, end_date=day,
+    return Absence.objects.create(employment=emp, absence_type=absence_type("BH"), start_date=day, end_date=day,
                                   status=Absence.Status.APPROVED, auto_bank_holiday=True)
+
+
+def test_automatic_bank_holiday_rows_are_listed_and_not_cancelled_by_their_owner(employee_client, employee_user):
+    auto = _auto_row(_me(employee_user))
     body = employee_client.get("/absence/mine/").content.decode()
     folded = body.split('<details class="card bank-holidays">')[1].split("</details>")[0]
     assert "1 day this leave year," in folded and f"{auto.start_date:%-d %b %Y}" in folded
     assert f"/absence/{auto.pk}/cancel/" not in body
     assert employee_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
+    assert Absence.objects.get(pk=auto.pk).status == "approved"
+
+
+def test_an_hr_admin_cancels_another_persons_automatic_row_as_an_opt_out(admin_client, employee_user):
+    from absence.services import bank_holidays
+    auto = _auto_row(_me(employee_user))
+    assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 302
+    auto.refresh_from_db()
+    assert (auto.status, auto.cancel_reason) == ("cancelled", "")         # an opt-out, not NOT_IMPLIED
+    assert auto.cancel_reason != bank_holidays.NOT_IMPLIED
+
+
+def test_an_hr_admin_cancelling_an_automatic_row_page_side_emails_no_one(admin_client, employee_user, configured):
+    auto = _auto_row(_me(employee_user))
+    mail.outbox.clear()
+    assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 302
+    assert Absence.objects.get(pk=auto.pk).status == "cancelled"
+    assert not mail.outbox
+
+
+def test_an_hr_admin_does_not_cancel_their_own_automatic_row(admin_client, hr_admin):
+    auto = _auto_row(hours_employee(employee=make_employee(first="Hana", user=hr_admin)))
     assert admin_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
+    assert Absence.objects.get(pk=auto.pk).status == "approved"
+
+
+def test_a_manager_does_not_cancel_a_reports_automatic_row(employee_client, employee_user):
+    from tests.factories import make_position
+    me = _me(employee_user)
+    report = hours_employee(employee=make_employee(first="Other"))
+    make_position(report, manager=me.employee)
+    auto = _auto_row(report)
+    assert employee_client.post(f"/absence/{auto.pk}/cancel/").status_code == 403
     assert Absence.objects.get(pk=auto.pk).status == "approved"
 
 
@@ -512,3 +545,23 @@ def test_a_part_day_is_accepted_for_a_potless_type(employee_client, employee_use
     assert r.status_code == 302
     a = Absence.objects.get()
     assert a.absence_type.code == "DEP" and a.hours == Decimal("1.5") and a.start_time == time(9)
+
+
+def test_a_request_still_waiting_from_before_this_leave_year_is_listed_to_cancel(employee_client, employee_user,
+                                                                                hr_admin):
+    from tests.factories import current_leave_year
+    emp = _me(employee_user, start=date(2025, 1, 6))
+    before = _weekday(current_leave_year()[0] - timedelta(days=60), -1)
+    al = absence_type("AL")
+    waiting = bookings.request(employee_user, emp, al, before)
+    declined = bookings.request(employee_user, emp, al, _weekday(before - timedelta(days=7), -1))
+    bookings.decline(hr_admin, declined)
+    body = employee_client.get("/absence/mine/").content.decode()
+    earlier = body.split("<h2>Earlier</h2>")[1].split("</section>")[0]
+    assert f"{waiting.start_date:%-d %b %Y}" in earlier
+    assert '<span class="badge badge-warning">Requested</span>' in earlier
+    assert f"/absence/{waiting.pk}/cancel/" in earlier
+    assert f"{declined.start_date:%-d %b %Y}" not in body
+    assert employee_client.post(f"/absence/{waiting.pk}/cancel/").status_code == 302
+    waiting.refresh_from_db()
+    assert waiting.status == Absence.Status.CANCELLED

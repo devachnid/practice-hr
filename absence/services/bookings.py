@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from absence.models import Absence, KitDay, LedgerEntry
 from absence.services import costing, leave_year, ledger, policies, pots, year_end
-from people.services import audit, contracts
+from people.services import access, audit, contracts
 
 LIVE = (Absence.Status.REQUESTED, Absence.Status.APPROVED)
 SELF_CERT_DAYS = 7
@@ -101,7 +101,7 @@ def preview(employment, absence_type, start_date, end_date=None, start_half="", 
 @transaction.atomic
 def request(actor, employment, absence_type, start_date, end_date=None, start_half="", end_half="",
             start_time=None, end_time=None, hours=None, category="", requested_by=None,
-            expected_start=None, expected_return=None):
+            expected_start=None, expected_return=None, approve_comment=""):
     a = preview(employment, absence_type, start_date, end_date, start_half, end_half, start_time,
                 end_time, hours, category, requested_by=requested_by or actor,
                 expected_start=expected_start, expected_return=expected_return)
@@ -112,7 +112,7 @@ def request(actor, employment, absence_type, start_date, end_date=None, start_ha
             changes[field] = ("", getattr(a, field))
     audit.record(actor, a, changes)
     if not absence_type.needs_approval:
-        return approve(actor, a)
+        return approve(actor, a, approve_comment)
     return a
 
 
@@ -121,8 +121,13 @@ def record(actor, employment, absence_type, start_date, end_date=None, comment="
     """An absence recorded for someone by the person who would approve it
     (their routed manager) or an HR admin: requested in the employee's name
     by `actor` and approved at once, in one transaction, so it is never left
-    waiting on the person who recorded it. Takes request()'s arguments."""
-    a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor, **fields)
+    waiting on the person who recorded it. Takes request()'s arguments. With
+    no comment given it is approved with "Recorded by <name>"."""
+    if not comment:
+        recorder = access.employee_for(actor)
+        comment = f"Recorded by {recorder.name if recorder else actor.email}"
+    a = request(actor, employment, absence_type, start_date, end_date, requested_by=actor,
+                approve_comment=comment, **fields)
     if a.status == Absence.Status.REQUESTED:
         a = approve(actor, a, comment)
     return a
@@ -169,7 +174,7 @@ def decline(actor, absence, comment=""):
 
 
 @transaction.atomic
-def cancel(actor, absence):
+def cancel(actor, absence, reason=""):
     caller, absence = absence, _lock(absence)
     if absence.status not in LIVE:
         raise ValidationError("Only a requested or approved absence can be cancelled.")
@@ -181,6 +186,7 @@ def cancel(actor, absence):
     absence.status = Absence.Status.CANCELLED
     absence.cancelled_at = timezone.now()
     absence.cancelled_by = actor
+    absence.cancel_reason = reason[:60]
     absence.save()
     if pot is not None:
         ledger.write(pot, LedgerEntry.Kind.CANCELLATION, absence.cost_units, actor, absence=absence,
