@@ -571,6 +571,7 @@ def test_the_toil_claim_changelist_lists_a_decided_claim_and_searches_by_name(ad
     assert claim.status == "approved"
     body = admin_client.get("/admin/absence/toilclaim/").content.decode()
     assert "Sam Okafor" in body and "Approved" in body
+    assert "TOIL claims" in body and "Toil claims" not in body      # the name the user guides quote
     assert "Sam Okafor" in admin_client.get("/admin/absence/toilclaim/?q=okafor").content.decode()
     assert "Sam Okafor" not in admin_client.get("/admin/absence/toilclaim/?q=nobody").content.decode()
 

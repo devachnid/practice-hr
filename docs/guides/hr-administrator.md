@@ -1,8 +1,8 @@
 # Practice HR: a guide for HR administrators
 
-This guide is for the people who run Practice HR for the practice: setting
-staff up, keeping their jobs and hours up to date, looking after leave
-rules, and producing the monthly payroll file. You are an HR admin when your
+This guide is for the people who run Practice HR for the practice. That
+means setting staff up, keeping their jobs and hours up to date, looking
+after leave rules, and producing the monthly payroll file. You are an HR admin when your
 login has **Admin status** ticked.
 
 - [What you can do](#what-you-can-do)
@@ -31,13 +31,15 @@ Everything a line manager can do, you can do for anyone. Read the
 recording leave and sickness, balances and the calendar. The differences
 for you are:
 
-- **Approvals** shows every request and TOIL claim waiting in the practice,
-  not just your team's. You can decide any of them except your own. Your own
-  requests go to the other HR admins.
+- **Approvals** shows every request and TOIL claim (a claim for time off in
+  lieu; see [TOIL](#toil)) waiting in the practice, not just your team's.
+  You can decide any of them except your own. Your own requests go to your
+  line manager, or to the other HR admins if you do not have one, and any
+  other HR admin can decide them too.
 - **Balances**, then **Team balances**, lists everyone, so you can open
   anyone's balances and record leave or TOIL for anyone.
-- The **Calendar** shows you the kind of leave too, such as "Leave · Study
-  leave", where everyone else sees only "Leave".
+- The **Calendar** shows you the kind of leave too, such as "Away · Study
+  leave", where everyone else sees only "Away".
 - **Admin** in the menu opens the admin, where everything in the rest of this
   guide is done.
 
@@ -46,8 +48,11 @@ for you are:
 Work through this in order. The rest of this guide explains each step.
 
 1. **Check the contract types and policies.** Under **People**, open
-   **Contract types**, and under **Absence**, open **Policies**. Make sure
-   they match your contracts (see [Leave policies in plain words](#leave-policies-in-plain-words)).
+   **Contract types** and check each kind of staff you employ is there, with
+   the right full-time week. Under **Absence**, open **Policies**. For
+   each contract type, compare the policy with your contracts. Check the days
+   a year, when the leave year starts, how bank holidays are handled, and the
+   steps for length of service (see [Leave policies in plain words](#leave-policies-in-plain-words)).
    Set **Carry over max days** now if your staff can carry leave into the
    next year: as delivered, nothing carries.
 2. **Add your teams** under **People**, **Teams**.
@@ -64,11 +69,11 @@ Work through this in order. The rest of this guide explains each step.
    for this leave year and next have opened, and bank holidays have been
    charged.
 8. **Enter opening balances.** For each person and each kind of leave,
-   compare **Remaining** on their **Balances** page with the figure from your old system, and
-   [adjust the balance](#adjusting-a-balance) by the difference, with a note
-   such as "Opening balance from previous system".
-9. **Check the first Balances pages.** Open a few people of different kinds
-   (full time, part time, a GP, someone who started this year) and check the
+   compare **Remaining** on their **Balances** page with the figure from your
+   old system. [Adjust the balance](#adjusting-a-balance) by the difference,
+   with a note such as "Opening balance from previous system".
+9. **Check the first Balances pages.** Open a few people of different kinds:
+   full time, part time, a GP, and someone who started this year. Check the
    **Entitlement**, the bank holiday row and **Remaining** look right.
 10. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
     everyone and choose **Send invitation or reset link**. Tell them to look
@@ -84,15 +89,18 @@ Choose **Admin** in the menu. The menu down the left has three groups:
   Absences, Payroll, Retention.
 - **Access**: Login accounts.
 
-A few pages are not in that menu. Find them on the admin home page, the
-page that opens when you choose **Admin**. It lists everything, including
-**Working patterns**, **TOIL claims** and **Email failures**.
+A pot is one person's balance of one kind of leave for one leave year.
+
+Three pages are not in that menu: **Working patterns**, **TOIL claims** and
+**Email failures**. Find them on the admin home page, the page that opens
+when you choose **Admin**. It lists pages by group: **Working patterns** is
+under **People**, and the other two are under **Absence**.
 
 The admin home page also shows **Leave requests and TOIL claims waiting**
 (anything undecided for more than three working days) and **Emails that did
 not go**.
 
-Nothing in People can be deleted. When something changes, you end the old
+People's records, employments, positions and contracts cannot be deleted. When something changes, you end the old
 row and add a new one, so the record always shows what was true on any day.
 If a page refuses to save, the message is shown beside the row that is
 wrong, and nothing on the page has been saved. Fix that row and save again.
@@ -112,9 +120,10 @@ What you will see: their page with a **State** such as "Invited 4 Sep, link
 expires 11 Sep". They are emailed a link to choose their own password. You
 never see or set anyone's password.
 
-If something goes wrong: "Email isn't set up — copy this link and send it to
-… yourself" means the email could not be sent. Copy the link shown and email
-it to them yourself. It is shown only once.
+If something goes wrong: if you see "Email isn't set up — copy this link…" or
+"Sending to … failed … — copy this link and send it yourself", the email did
+not go. Copy the link shown and email it to them yourself. It is shown only
+once.
 
 ### How to add their employee record
 
@@ -181,7 +190,7 @@ contracts only end; add a new row for a change."
 
 Their entitlement is recalculated as soon as you save the new contract.
 
-Bank holidays from the change on are re-costed overnight. Other leave
+Bank holidays from the change on (but not ones already past) are re-costed overnight. Other leave
 already approved keeps the cost it had when it was approved. If that matters,
 cancel it (see [Cancelling someone's absence](#cancelling-someones-absence))
 and record it again.
@@ -223,12 +232,13 @@ What happens:
   listing what was cancelled, and anything that could not be. Leave that
   started on or before their last day is left for you to deal with.
 - Their entitlement is reduced at once to the part of the year they worked.
-- Their login stops working overnight.
+- Their login is switched off automatically the night after their last day.
 - Their final balance appears on the payroll report's **Leavers** sheet for
   that month. A minus figure is leave taken beyond what they earned; a plus
   figure is leave unused.
-- A TOIL claim still waiting can be decided as normal. Decide it before you
-  run their final payroll.
+- A TOIL claim still waiting can still be decided. After their last day it
+  appears only in the HR admins' **Approvals**. Decide it before you run
+  their final payroll.
 
 If someone comes back, add a new employment for them, and tick **Active** on
 their login account again.
@@ -236,8 +246,8 @@ their login account again.
 ## Leave policies in plain words
 
 A **policy** sets the leave rules for one kind of contract and one kind of
-leave: how much, when the leave year starts, what carries over, and how bank
-holidays are charged. You find them under **Absence**, **Policies**.
+leave. It says how much, when the leave year starts, what carries over, and
+how bank holidays are charged. You find them under **Absence**, **Policies**.
 
 **The standard contract** (practice nurses, HCAs, reception,
 administration and management staff, who work in hours):
@@ -285,12 +295,13 @@ A change saved this way applies to the whole leave year. For new terms from a
 date, set **Effective to** on the old policy and add a new policy with
 **Effective from** the day after.
 
-If something goes wrong: you cannot change the leave year's start of a
-policy once people have balances under it. To move to a different leave
-year, end the old policy and add a new one that starts on the first day of
-its new leave year, the day after the old policy ends. Otherwise you see
-"This type has leave pots under another leave year…". Ask for help before
-doing this: it is rarely needed.
+If something goes wrong: you cannot change when a policy's leave year
+starts once people have balances under it. If you try, you see "This type
+has leave pots on the current year…". Instead, end the old policy and add a
+new one. The new one must start on the first day of its new leave year. That
+is the day after the old policy ends. If it does not, adding it shows "This
+type has leave pots under another leave year…". Ask for help before doing
+this: it is rarely needed.
 
 ## Bank holidays and closed days
 
@@ -306,8 +317,8 @@ Bank holidays for England and Wales are already entered up to the end of
 Do this well before each year starts, from 2031 onwards. A year with no bank
 holidays entered charges nothing and gives nobody a bank holiday allowance.
 The system warns in its overnight log when fewer than about 400 days of bank
-holidays are left, but that log is seen by whoever looks after the system,
-not by you, so put a reminder in your diary.
+holidays are left. Only whoever looks after the system sees that log, not
+you, so put a reminder in your diary.
 
 ### How to add a closed day
 
@@ -337,9 +348,9 @@ does not charge it again. Nobody is emailed.
 
 What you will see: "charged again." The day is charged at once, as a new row.
 
-If something goes wrong: if you see "…nothing was charged", their working
-pattern or policy no longer charges them for that day (for example, they do
-not work that day now). Nothing more is needed.
+If something goes wrong: "…nothing was charged" means their working pattern
+or policy no longer charges them for that day. For example, they no longer
+work that day. Nothing more is needed.
 
 ## Adjusting a balance
 
@@ -350,7 +361,7 @@ adjustment, make another one.
 
 ### How to adjust a balance
 
-1. Under **Absence**, open **Pots**. Find the person's pot for that kind of leave and the current leave year, and open it.
+1. Under **Absence**, open **Pots**. A pot is one person's balance of one kind of leave for one leave year. Filter by the kind of leave, find the row with their name and this leave year's dates, and open it.
 2. Choose **Adjust balance**.
 3. In **Units**, type the amount: a plus number gives leave back, a minus number takes it away.
 4. In **Note**, say why. The person sees this note.
@@ -474,8 +485,9 @@ Each month you produce a spreadsheet of changes for the payroll bureau.
 What you will see: a spreadsheet downloads, named after the month. It is also
 listed under **Earlier runs**.
 
-If something goes wrong: "Not a month." means the month was not typed as year,
-dash, month.
+If something goes wrong: "Enter a valid value." means the month was not
+typed as year, dash, month, for example 2026-09. "Not a month." means the
+month number is not 01 to 12.
 
 The sheets are: **Starters**, **Leavers** (with each leaver's final balance),
 **Contract changes**, **Pay changes**, **Sickness** (dates and whether
@@ -503,9 +515,9 @@ can rerun it after late changes.
 ## Retention
 
 Under **Absence**, choose **Retention**. It lists people whose records are
-past the time the practice keeps them: by default six years after their last
-employment ended for their personal, pay and health records, and seven years
-for the audit log. It only lists them. Nothing is deleted automatically, and
+past the time the practice keeps them. By default that is six years after
+their last employment ended for personal, pay and health records, and seven
+years for the audit log. It only lists them. Nothing is deleted automatically, and
 there is no delete button: talk to whoever looks after the system about
 removing records.
 
@@ -544,8 +556,8 @@ logins are switched off automatically overnight.
 ## When emails do not go
 
 Practice HR emails approvers, staff and HR. If an email fails, nothing is
-lost: the request or decision is still saved, and the person is shown a
-message with a link to pass on by hand, such as "Saved and waiting for
+lost: the request or decision is still saved. The person is shown a message
+with a link to pass on by hand, such as "Saved and waiting for
 approval. The email to your approver did not go: send your approver this link
 to decide it".
 

@@ -19,7 +19,7 @@ There is nothing else to switch on: from that day you see **Approvals** and
 ### How to sign in
 
 1. Open the Practice HR address your practice gave you. The **Log in** page opens.
-2. Type your **Email address** and **Password**, then choose **Log in**.
+2. Type your **Email** and **Password**, then choose **Log in**.
 
 Your first login comes from an email called "Set up your Practice HR login".
 Open its link, choose a password of at least 12 characters, and choose **Set
@@ -37,6 +37,11 @@ of a password. Your password still works.
 Next time, choose **Sign in with a passkey** on the **Log in** page. You are
 emailed whenever a passkey is added to your login. If you did not add it,
 tell an HR admin.
+
+If something goes wrong: if there is no **Add a passkey** button, this
+browser cannot use passkeys; use your password. "Cancelled, or no passkey was
+offered." means the device prompt was closed; try again. "This device already
+has a passkey here." means you have one already and can use it.
 
 ### If you have forgotten your password
 
@@ -56,15 +61,15 @@ link by email**. If the wrong passwords were not yours, tell an HR admin.
 
 ## Your own leave
 
-You book your own leave in the same way as everyone else: choose **Leave**,
+Your own details are on **My record**. You book your own leave in the same way as everyone else: choose **Leave**,
 then **Request leave**. Your requests go to your own line manager, or to the
 HR admins if you do not have one. You never decide your own requests.
 
 ## Deciding requests
 
 **Approvals** in the menu shows a number in brackets, such as "Approvals (2)".
-That is how many leave requests and TOIL claims are waiting for you to
-decide. You are also emailed each one, with a link straight to it.
+That is how many leave requests and TOIL claims (claims for time off in
+lieu, explained below) are waiting for you to decide. You are also emailed each one, with a link straight to it.
 
 ### How to approve or decline a leave request
 
@@ -97,8 +102,9 @@ they can take as leave later.
 3. Check the **Day worked**, **Amount** and **Reason**, add a **Comment** if you want to, then choose **Approve** or **Decline**.
 
 Approving adds the time to their TOIL, dated the day they worked it. It can
-then be used for a set time from that day, usually twelve months. Once approved, a claim cannot
-be undone; if it was a mistake, ask HR.
+then be used for a set time from that day, usually twelve months. Once
+approved, a claim cannot be undone; if it was a mistake, ask HR. The employee
+is emailed your decision, with your comment.
 
 ## Recording leave or sickness for your team
 
@@ -132,8 +138,15 @@ cancel it, then record it again.
 
 1. Choose **Balances**, then **Team balances**.
 2. Beside the person, choose **Record TOIL for** and their name.
-3. Fill in **Day worked**, the hours (in quarter hours: 1.25 is an hour and a quarter) or sessions (in half sessions), and **What for**.
+3. Fill in **Day worked**, **Hours worked in lieu** (in quarter hours: 1.25 is an hour and a quarter; for a GP, **Sessions worked in lieu**, in half sessions), and **What for**.
 4. Choose **Record and approve**.
+
+What you will see: "TOIL for Sam Patel: recorded and approved." They are
+emailed.
+
+If something goes wrong: "A claim is for time already worked: the day cannot
+be after today." means the day is in the future. A message ending "so it
+would already have expired" means the day is too long ago to claim.
 
 ## Your team's balances
 
@@ -146,12 +159,16 @@ What you will see: a row for each kind of leave, for this leave year and the
 next. Choose any figure to see the entries behind it (the "ledger"), or
 choose **Ledger** for all of them.
 
-The words on that page mean:
+If something goes wrong: "Not opened yet: it opens overnight." is normal for
+someone new: the balance appears the next morning. "… has no current
+employment, so there are no balances to show." means they have left or not
+started yet; ask HR.
+
+Each row is a pot: one person's allowance of one kind of leave for one leave
+year. Their pot is their balance for that year. The words on that page mean:
 
 - **Leave year**: the twelve months a balance covers. For most staff it runs
   from 1 January; for GPs it may start on 1 April.
-- **Pot**: one person's allowance of one kind of leave for one leave year.
-  Their pot is their balance for that year.
 - **Entitlement**: what they earn this leave year.
 - **Carried in**: leave brought forward from last year.
 - **Taken**: leave that has already happened.
@@ -161,27 +178,30 @@ The words on that page mean:
 - **Adjustments**: changes HR has made by hand, and TOIL earned.
 - **Remaining**: what is left. It shows in red if it is below zero.
 
-"Not opened yet: it opens overnight." is normal for someone new: the
-balance appears the next morning.
-
 **My team** in the menu lists the people who report to you, with their
 position, contracted hours or sessions, and the hours in their weekly
 pattern. You cannot change anything there.
 
 ## The calendar
 
-Choose **Calendar** to see who is off this month. Choose a **Team** and
-**Show** to see one team; each day then shows how many are in, for example
-"4 of 6". Use **Previous** and **Next** to change month.
+### How to see who is off
+
+1. Choose **Calendar**. It opens on this month, for the whole practice.
+2. To see one team, choose it under **Team**, then choose **Show**.
+3. To change month, choose **Previous** or **Next**.
+
+What you will see: each person who is off, by day. With a team chosen, each
+day also shows how many are in, for example "4 of 6".
 
 Only approved absences appear. Everyone, you included, sees each person's
 name and a plain label such as "Leave", "Sick" or "Away", never the reason.
 
 ## Reminders when a request waits
 
-If a request or TOIL claim has not been decided after three working days
-(weekends, bank holidays and practice closures do not count), the HR admins
-are emailed about it once, and it is listed on their admin home page. You are
+Sometimes a request or TOIL claim is not decided within three working days.
+Weekends, bank holidays and practice closures do not count. When that
+happens, the HR admins are emailed about it once, and it is listed on their
+admin home page. You are
 not sent a second email, so check **Approvals** regularly. HR may chase you,
 or decide it themselves.
 
