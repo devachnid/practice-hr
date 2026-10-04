@@ -436,3 +436,37 @@ def test_a_superuser_with_no_employee_record_is_treated_as_the_hr_admin_is(hr_ad
     assert superuser_client.get(SIGN.format(v.pk)).status_code == 404
     assert superuser_client.post(SIGN.format(v.pk), {"confirm": "on", "password": "pw"}).status_code == 404
     assert Signature.objects.count() == 0
+
+
+
+def test_the_manager_guides_own_section_names_what_the_pages_show(hr_admin, employee_user, employee_client):
+    """Final review I7: every bold label in the guide's "Your own policies,
+    checks and documents" section is text the pages produce."""
+    import re
+    from pathlib import Path
+
+    from checks.models import CheckType
+    from checks.services import checks
+    from people.services import employments, positions
+    from tests.factories import make_team
+    guide = (Path(__file__).resolve().parent.parent / "docs" / "guides" / "manager.md").read_text()
+    section = guide.split("## Your own policies, checks and documents", 1)[1].split("\n## ", 1)[0]
+    labels = set(re.findall(r"\*\*([^*]+)\*\*", section))
+    assert {"Policies", "Sign with my password", "Checks", "Upload"} <= labels
+    today = timezone.localdate()
+    e = make_employee(user=employee_user)
+    emp = employments.start(hr_admin, e, today - timedelta(days=25))        # a starter: Your checklist
+    positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), make_team(), None, emp.start_date)
+    late = Policy.objects.create(title="Chaperoning")
+    policies.issue(hr_admin, late, "v1", SimpleUploadedFile("c.pdf", PDF, content_type="application/pdf"),
+                   today - timedelta(days=30), 7)                           # overdue
+    version = _policy(hr_admin).versions.get()                              # awaiting signature
+    checks.ask(hr_admin, e, CheckType.objects.get(code="right_to_work"))
+    files.add(hr_admin, e, File.Category.CONTRACT, "Contract", SimpleUploadedFile("c.pdf", PDF))
+    _enrol(employee_client)                                                 # offers Sign with a passkey
+    pages = "".join(employee_client.get(url).content.decode() for url in (
+        "/documents/policies/", f"/documents/policies/{version.pk}/sign/", "/people/me/", "/onboarding/"))
+    policies.sign(employee_user, version, Signature.Method.PASSWORD, "127.0.0.1")
+    pages += employee_client.get("/documents/policies/").content.decode()
+    for label in labels:
+        assert label in pages, label

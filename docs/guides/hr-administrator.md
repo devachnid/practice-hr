@@ -74,17 +74,24 @@ Work through this in order. The rest of this guide explains each step.
    and line manager, and a **contract**. Finish step 4 for everyone first,
    so every manager is there to choose.
 6. **Add each person's working pattern.**
-7. **Wait for the overnight run.** The next morning, everyone's balances
+7. **Record everyone's existing checks first, then assign position titles
+   to the check types.** Record each check people already have (see
+   [How to record a check](#how-to-record-a-check)), and only then, under
+   **Compliance**, **Check types**, add the titles that need each check
+   (see [How to say which titles need a check](#how-to-say-which-titles-need-a-check)).
+   Done the other way round, the next morning's reminder email tells every
+   member of staff their checks are missing.
+8. **Wait for the overnight run.** The next morning, everyone's balances
    for this leave year and next have opened, and bank holidays have been
    charged.
-8. **Enter opening balances.** For each person and each kind of leave,
+9. **Enter opening balances.** For each person and each kind of leave,
    compare **Remaining** on their **Balances** page with the figure from your
    old system. [Adjust the balance](#adjusting-a-balance) by the difference,
    with a note such as "Opening balance from previous system".
-9. **Check the first Balances pages.** Open a few people of different kinds:
-   full time, part time, a GP, and someone who started this year. Check the
-   **Entitlement**, the bank holiday row and **Remaining** look right.
-10. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
+10. **Check the first Balances pages.** Open a few people of different kinds:
+    full time, part time, a GP, and someone who started this year. Check the
+    **Entitlement**, the bank holiday row and **Remaining** look right.
+11. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
     everyone and choose **Send invitation or reset link**. Tell them to look
     for an email called "Set up your Practice HR login", and that their
     requests now go to their line manager through Practice HR.
@@ -220,6 +227,9 @@ started**, and nothing else. It says when they start and lists their part:
   bank details and emergency contacts.
 - **Upload** for their right-to-work document.
 - **Read and sign** for the practice policies.
+- **Checks**, when you have asked them for evidence (see
+  [Asking someone for evidence](#asking-someone-for-evidence)), with an
+  upload form for each.
 
 The rest of Practice HR opens for them on their first day. They are emailed
 a reminder of anything of theirs that is coming up or overdue.
@@ -227,7 +237,9 @@ a reminder of anything of theirs that is coming up or overdue.
 ### How to check their details
 
 When they save the details form they see "Saved. HR will check your details
-and tick them off your list." The item stays open until you have checked them.
+and tick them off your list." and the item on their list says "Sent – HR
+will check it". The item stays open until you have checked them, and from
+then on the reminders for it come to you, not to them.
 
 1. Under **Compliance**, open **Starters and leavers** and choose their name.
 2. Beside **Complete your details**, choose **their details**. Their record opens on the **Details** tab.
@@ -254,7 +266,7 @@ You do not need to tick these off. They close by themselves when:
 - **Read and sign the practice policies**: they have signed every policy they
   have to.
 - **DBS check recorded** and **Occupational health clearance**: you record a
-  clear check of that kind.
+  clear check of that kind that has not already expired.
 - **Contract issued**: you add their contract under **Compliance**,
   **Files**, with the category **Contract**.
 
@@ -372,7 +384,8 @@ person needs depends on their job title.
 ### How to say which titles need a check
 
 Do this once for each check, before anyone is chased for it. Until you do,
-nobody needs anything.
+nobody needs anything. When going live, record the checks people already
+have first (step 7 of [Going live](#going-live-your-first-month)).
 
 1. Under **Compliance**, open **Check types** and choose a check, such as **DBS**.
 2. In **Positions**, move each title that needs it across to the chosen side.
@@ -385,7 +398,7 @@ nobody needs anything.
 3. Fill in **Done on** (the date of the check) and the **Outcome**: **Clear**, **Clear with notes** or **Not clear**.
 4. Leave **Expires on** empty: it is worked out for you. Fill it in only if the certificate says a different date.
 5. For a check with a number, such as DBS or professional registration, type it in **Reference**. For DBS, also choose the **DBS disclosure level**, and tick **On the DBS update service** if they subscribe.
-6. For a check with a document, such as right to work, choose the copy in **Evidence file**.
+6. For a check with a document, such as right to work, choose the copy in **Evidence file**. A clear check of this kind needs it.
 7. Choose **Save**.
 
 **Do not keep a copy of a DBS certificate.** Record its number, date and
@@ -399,8 +412,9 @@ again: the newest one counts.
 
 If something goes wrong: the form shows what to fix and nothing is saved.
 "A DBS check needs its disclosure level." or "DBS needs its reference
-number." means a box in step 5 is empty. "The date done cannot be after
-today." means **Done on** is in the future.
+number." means a box in step 5 is empty. "Right to work needs its evidence
+file." (or another check's name) means step 6 is missing. "The date done
+cannot be after today." means **Done on** is in the future.
 
 ## Asking someone for evidence
 

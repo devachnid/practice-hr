@@ -98,7 +98,9 @@ a contact detail that is wrong is simply wrong, not history.
 ### The Compliance tab
 
 Read-only: a summary of where the person stands, with a link beside each
-row to act on it. Nothing on it is saved, and opening it writes nothing.
+row to act on it. Nothing on it is saved. Opening it writes a *Viewed*
+entry (*checks*) to the [audit log](#audit-log) when it lists any check,
+as opening a check does; nothing else.
 
 - **Checks** — one row per check type their title needs, plus any other
   type they have a check of, with its [status](compliance.md#what-each-status-means)
@@ -394,7 +396,8 @@ deleted here by hand. One row is written automatically for every field a
 service function changes (a **Change** entry, with the before and after
 values) and for every view of a restricted section (a **Viewed** entry —
 opening an Employment page with pay records, see [Pay record](#pay-record),
-or an Employee page with an NI number, see [NI number](#ni-number)). Filter
+or an Employee page with an NI number, see [NI number](#ni-number), or
+with checks on its [Compliance tab](#the-compliance-tab)). Filter
 by kind or model, or search the actor's email, the field, before/after and
 note columns.
 

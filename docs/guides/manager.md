@@ -7,6 +7,7 @@ There is nothing else to switch on: from that day you see **Approvals** and
 
 - [Signing in](#signing-in)
 - [Your own leave](#your-own-leave)
+- [Your own policies, checks and documents](#your-own-policies-checks-and-documents)
 - [Deciding requests](#deciding-requests)
 - [Recording leave or sickness for your team](#recording-leave-or-sickness-for-your-team)
 - [Your team's balances](#your-teams-balances)
@@ -66,6 +67,58 @@ link by email**. If the wrong passwords were not yours, tell an HR admin.
 Your own details are on **My record**. You book your own leave in the same way as everyone else: choose **Leave**,
 then **Request leave**. Your requests go to your own line manager, or to the
 HR admins if you do not have one. You never decide your own requests.
+
+## Your own policies, checks and documents
+
+This part is about you as a member of staff, the same as for everyone else.
+
+### How to read and sign a policy
+
+1. Choose **Policies**. Each policy that applies to you is listed with its
+   **Version** and a **Status**: **Awaiting signature** (with the date to sign
+   by), **Overdue**, or **Signed on** and the date.
+2. Choose **Read** to download the policy and read it.
+3. Choose **Sign**. On the next page, tick the box to confirm you have read it.
+4. Type **Your password** and choose **Sign with my password**, or, if you
+   have a passkey on this device, choose **Sign with a passkey** instead.
+
+What you will see: "Signed:" and the policy's name, and its status becomes
+**Signed on** today's date. Signing always asks for your password or a
+passkey, even though you are signed in, so nobody else can sign for you at
+a computer you left signed in. When a policy is updated you are asked to
+sign the new version.
+
+If something goes wrong: "That password is not right." means the password
+was mistyped; try again. "Tick the box to confirm you have read it." means
+the box was not ticked.
+
+### What My record shows
+
+Choose **My record**. As well as your details, it has:
+
+- **Your checklist**, while you are a new starter: the things to do before
+  and after your first day. Each is ticked off when it is done, some by
+  themselves, some by HR once they have checked.
+- **Checks**: the checks your job needs, such as a DBS check, each with its
+  status (the same words as for your team, under
+  [What you can see of a report's checks](#what-you-can-see-of-a-reports-checks)),
+  when it was done, when it expires and the outcome. You never see HR's notes.
+- **Documents**: the files HR keeps for you that you may see, such as your
+  contract. Choose **Download** to open one.
+
+### How to upload evidence when HR asks
+
+When HR asks you for evidence of a check, such as your passport for right
+to work, the check shows as **Awaiting** under **Checks** on **My record**
+(before your first day, on **Getting started** instead).
+
+1. Under the check, choose the file (a PDF, JPEG, PNG or DOCX).
+2. Choose **Upload**.
+
+What you will see: "Uploaded. HR will record your" and the check's name,
+and the check says "Sent. HR will record it." You can upload once; if you
+sent the wrong file, tell HR. A check that needs no file says "HR will
+record this with you."
 
 ## Deciding requests
 

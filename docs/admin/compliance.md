@@ -207,8 +207,20 @@ files are stored under `MEDIA_ROOT/documents/` with names that say nothing
 about the person or the document; the web server never serves that folder,
 and the nightly backup archives it with the database.
 
-A file is never changed or deleted here. If the wrong one was added, add the
-right one; both stay on the record.
+If the file's bytes are missing from the server (a database restored
+without its files, say), the download answers *not found* and the server
+log notes the stored path; nothing is written to the audit log.
+
+The list's **By employee** filter shows one person's files (beside the
+filters by category and HR only).
+
+A file is never changed or deleted here. If the wrong one was added, or a
+newer version replaces it, add the right one, then open the old one and
+choose **Supersede**: pick the replacement (**Replaced by**, one of the
+same person's current files) and say why (**Note**). Both stay on the
+record; the person's own record shows only the replacement. A file that
+has been superseded cannot be chosen as a replacement, so a file is never
+replaced by an older one.
 
 ## Policies
 
@@ -307,8 +319,10 @@ change it.
   new date. **Clearing the leaving date closes the leaver checklist:** its
   open items become *not needed*, noted *leaving date cleared*, so nobody
   is chased for a leaving that is not happening; items already done stay
-  done. Setting a leaving date again later makes the leaver checklist
-  afresh from the template, every item open, due by the new date.
+  done. Setting a leaving date again later adds a fresh set of items from
+  the template to the same checklist, every one open and due by the new
+  date; the old items are kept below as they were (not needed, or done),
+  and none of them is reopened.
 
 Moving an employment's start date moves its starter checklist's open items
 with it. Items already closed keep their dates.
@@ -384,7 +398,7 @@ The default leaver items:
 | `details` | Not by itself: the person fills in their details form, and HR marks the item done once they have checked it. |
 | `upload:<category>` | A file of that category is added for the person, by anyone (`upload:identity`, `upload:contract`; the categories are those under Files, except *Policy*). |
 | `sign_policies` | The person signs a policy and has nothing left to sign. |
-| `check:<code>` | A clear check of that type is recorded for the person (`check:dbs`, `check:right_to_work`; the codes are on the check types). |
+| `check:<code>` | A clear check of that type, not already expired, is recorded for the person (`check:dbs`, `check:right_to_work`; the codes are on the check types). |
 | blank | Never: the owner or HR marks it done. |
 
 A link the app does not recognise is refused when the template is saved.
@@ -435,6 +449,10 @@ set-up, so it can be made with **gaps**, listed on it:
   any.
 - *the template for … was not applied* — the title's template arrived after
   work on the checklist had begun; add any missing items by hand.
+- *checklist could not be built: …* — something went wrong making or
+  updating the checklist (the name is the kind of error; the server log
+  has the same line). The employment or position was saved all the same;
+  add the items by hand, and tell whoever looks after the server.
 - *the leaving date was cleared* — the leaver checklist was closed when its
   leaving date was cleared ([above](#when-a-checklist-is-made)); setting a
   date again makes it afresh.
@@ -447,8 +465,10 @@ set-up, so it can be made with **gaps**, listed on it:
   three emergency contacts); an upload item takes the file there and then;
   the policies item opens their Policies page; a check item says HR will
   record it; an item with no link has **Done**. Saving the details form
-  does not tick that item off: check the details on their record in the
-  admin, then mark it done on the checklist page below. The form is there
+  does not tick that item off: it shows *Sent – HR will check it*, and its
+  reminders go to HR from then on (the checklist page shows when it was
+  sent). Check the details on their record in the admin, then mark it done
+  on the checklist page below. The form is there
   only while that item is open: once you have marked it done (or not
   needed) the person can no longer change their bank or NI details
   themselves, so any later change comes to you. After the start
@@ -457,9 +477,11 @@ set-up, so it can be made with **gaps**, listed on it:
 - **Before the start date** a starter who signs in sees Getting started and
   nothing else: no navigation, and every other page sends them back to it.
   They can still reach their details form, their policies (to read and
-  sign) and their account (password and passkeys). It opens up on their
-  first day. Anyone with a current employment, and an HR admin with no
-  employee record, is never held back.
+  sign), the evidence you have asked them for (a **Checks** card on
+  Getting started, with its upload form) and their account (password and
+  passkeys). It opens up on their
+  first day. Anyone with a current employment, and any HR admin (whatever
+  their own record says), is never held back.
 - **To do** on My team — a line manager's open items across their starters
   and leavers, with **Done**. It is there from the moment the checklist is
   made, before the starter is one of their team.
@@ -555,7 +577,7 @@ The admin home page shows four numbers:
 | **Lapsed checks** | Checks with the status *Lapsed*, across everyone employed today. |
 | **Missing checks** | Checks with the status *Missing*, across everyone employed today, and checks asked for (*Awaiting*) that the person has not answered yet. |
 | **Overdue signatures** | Policies someone employed today has not signed by the sign-by date. |
-| **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date. |
+| **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date, leaving out those of an employment that ended more than 90 days ago (as the reminders do). |
 
 Each counts things, not people: someone with two lapsed checks adds two.
 Choose a number to open **Employees** filtered to the people it counts (the
@@ -568,8 +590,10 @@ Each person's page under **People › Employees** has a **Compliance** tab
 beside **Details**: their checks with each status, their policies with each
 signature or sign-by date, and the open items of their checklists, each
 with a link to the page that deals with it. Someone not started yet is
-shown as they will stand on their first day. It is read-only, and opening it
-writes nothing. See [The Compliance tab](people.md#the-compliance-tab) for
+shown as they will stand on their first day. It is read-only. Opening it
+writes one thing: when it lists any check, a *Viewed* entry (*checks*) in
+the [audit log](people.md#audit-log), as opening a check does. The Checks
+list itself is not audited, like any other list. See [The Compliance tab](people.md#the-compliance-tab) for
 each column and link.
 
 ## Retention
