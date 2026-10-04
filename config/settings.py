@@ -70,6 +70,7 @@ INSTALLED_APPS = [
     "accounts",
     "people",
     "absence",
+    "documents",
 ]
 
 MIDDLEWARE = [
@@ -232,6 +233,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # code tree is read-only there; backup.sh archives it.
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT") or BASE_DIR / "media")
 MEDIA_URL = "media/"
+# Uploaded documents (documents.services.files): PDF, JPEG, PNG or DOCX, at
+# most this size. They live under MEDIA_ROOT/documents and are streamed only
+# by files.open, which checks access and audits the view.
+DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     # The manifest storage requires a collectstatic run, which the test suite

@@ -47,7 +47,9 @@ def me(request):
     else:
         form = PersonalDetailsForm(instance=employee)
     emp = employments.current(employee, today)
-    ctx = {"employee": employee, "employment": emp, "form": form}
+    ctx = {"employee": employee, "employment": emp, "form": form,
+           # listing titles is not opening a file: no audit until files.open
+           "files": employee.files.filter(hr_only=False, superseded_by__isnull=True)}
     if emp:
         ctx.update({
             "position": positions.primary_on(emp, today),

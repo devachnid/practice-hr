@@ -112,6 +112,9 @@ def navigation(request):
             _nav_item("Payroll", "payments", "absence:payroll"),
             _nav_item("Retention", "auto_delete", "people:retention"),
         ]},
+        {"title": "Compliance", "separator": True, "items": [
+            _nav_item("Files", "folder", "admin:documents_file_changelist"),
+        ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),
             _nav_item("Sign-in clients", "link", "admin:oauth2_provider_application_changelist",

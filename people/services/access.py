@@ -67,3 +67,12 @@ def may_record_for(user, employment, day):
     if can_view_restricted(user):
         return True
     return me is not None and route_for(employment, day) == me
+
+
+def can_view_file(user, file):
+    """HR always; the person their own unless HR-only; nobody else (managers
+    never see documents)."""
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    return me is not None and file.employee_id == me.pk and not file.hr_only

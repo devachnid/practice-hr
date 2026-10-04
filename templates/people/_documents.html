@@ -1,0 +1,25 @@
+{% comment %}My record's Documents card: the person's own files that are not
+HR-only and not superseded, newest first. Expects files. Each link is the
+audited download (documents:download).{% endcomment %}
+<section class="card">
+  <h2>Documents</h2>
+  {% if files %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Document</th><th scope="col">Category</th><th scope="col">Added</th><th scope="col"><span class="visually-hidden">Download</span></th></tr></thead>
+    <tbody>
+    {% for f in files %}
+      <tr>
+        <th scope="row">{{ f.title }}</th>
+        <td>{{ f.get_category_display }}</td>
+        <td>{{ f.uploaded_at|date:"j M Y" }}</td>
+        <td class="row-actions"><a href="{% url 'documents:download' f.pk %}" class="btn btn-quiet" download>Download</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No documents yet.</p>
+  {% endif %}
+</section>
