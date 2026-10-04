@@ -16,14 +16,14 @@ def normalise(value):
 
 
 def normalise_ni_numbers(apps, schema_editor, out=print):
-    """Rewrite each non-blank NI number that normalises to a valid one;
-    leave the rest. Returns (number changed, pks still not valid) and
+    """Rewrite each non-blank NI number that normalises to a valid one (or
+    to blank, when it was only whitespace); leave the rest. Returns (number changed, pks still not valid) and
     prints the same: counts and pks only."""
     Employee = apps.get_model("people", "Employee")
     changed, bad = 0, []
     for pk, value in Employee.objects.exclude(ni_number="").order_by("pk").values_list("pk", "ni_number"):
         fixed = normalise(value)
-        if not NI.match(fixed):
+        if fixed and not NI.match(fixed):          # whitespace only becomes blank, which is allowed
             bad.append(pk)
         elif fixed != value:
             Employee.objects.filter(pk=pk).update(ni_number=fixed)

@@ -209,7 +209,11 @@ def leave(actor, employment, previous_end=None):
         existing.gaps = "\n".join(_gaps(Kind.LEAVER, pos, template, manager))
         existing.save(update_fields=["template", "completed_at", "gaps"])
         _fill(existing, template, manager)
-        _finish_if_done(existing)
+        if existing.items.count() > kept:
+            # only fresh items can finish it: with none (no template), the
+            # kept "leaving date cleared" items would complete it at once and
+            # hide an empty leaver checklist from Starters and leavers
+            _finish_if_done(existing)
         audit.record(actor, existing, {"rebuilt": ("", f"leaving date set again, "
                                                        f"{existing.items.count() - kept} items added")})
         return existing
@@ -246,11 +250,13 @@ def _by_hand(item):
 
 
 def _untouched(checklist):
-    """Nothing closed, added or removed by hand since it was built (items
-    closed automatically are re-derived by a rebuild)."""
+    """Nothing closed, added or removed by hand since it was built, and no
+    details sent (items closed automatically are re-derived by a rebuild;
+    a sent details item would lose its submitted_at)."""
     items = list(checklist.items.all())
     expected = checklist.template.items.count() if checklist.template else 0
-    return len(items) == expected and not any(_by_hand(i) or not i.due_rule for i in items)
+    return len(items) == expected and not any(_by_hand(i) or not i.due_rule or i.submitted_at is not None
+                                              for i in items)
 
 
 @transaction.atomic
@@ -476,6 +482,7 @@ def _record_failure(actor, employment, kind, name):
     cl = Checklist.objects.filter(employment=employment, kind=kind).first()
     if cl is None:
         cl = Checklist.objects.create(employment=employment, kind=kind, created_by=actor)
+        audit.record(actor, cl, {"created": ("", f"{kind} checklist, 0 items")})
     gap = FAILED_GAP.format(name)
     if gap not in gaps(cl):
         before = cl.gaps

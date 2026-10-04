@@ -514,6 +514,8 @@ def test_a_failing_checklist_build_is_a_gap_and_a_log_line_not_a_failed_save(hr_
     assert checklists.gaps(cl) == ["checklist could not be built: RuntimeError"] and cl.items.count() == 0
     assert "RuntimeError" in caplog.text and "Sam Patel" not in caplog.text and "broken" not in caplog.text
     assert cl in checklists.for_hr()
+    assert AuditEntry.objects.filter(model="onboarding.checklist", object_id=cl.pk, field="created",
+                                     after="starter checklist, 0 items").exists()
 
 
 def test_a_failing_position_hook_still_saves_the_position(hr_admin, monkeypatch):
@@ -553,3 +555,35 @@ def test_a_check_recorded_already_expired_does_not_close_its_item(hr_admin):
     checks.record(hr_admin, emp.employee, dbs, today, Check.Outcome.CLEAR, reference="2", dbs_level="basic")
     item.refresh_from_db()
     assert item.state == "done" and item.note == "done automatically"
+
+
+# ---- final review, round 2 -----------------------------------------------------------------
+
+def test_a_reset_leaving_date_with_no_leaver_template_stays_on_hrs_list(hr_admin):
+    emp = _starter(hr_admin, days_ahead=-200)
+    employments.end(hr_admin, emp, timezone.localdate() + timedelta(days=20), "resigned")
+    employments.end(hr_admin, emp, None, "")
+    ChecklistTemplate.objects.filter(kind="leaver").update(active=False)
+    employments.end(hr_admin, emp, timezone.localdate() + timedelta(days=40), "resigned")
+    cl = Checklist.objects.get(employment=emp, kind="leaver")
+    assert cl.completed_at is None and not cl.items.filter(state="open").exists()
+    assert "no leaver checklist template" in " ".join(checklists.gaps(cl))
+    assert cl in checklists.for_hr()
+
+
+def test_sent_details_count_as_work_begun_so_a_title_template_does_not_rebuild(hr_admin):
+    e = make_employee()
+    start = timezone.localdate() + timedelta(days=10)
+    emp = employments.start(hr_admin, e, start)
+    cl = Checklist.objects.get(employment=emp)
+    assert checklists.details_submitted(hr_admin, e) == 1
+    sent = cl.items.get(link="details")
+    t = ChecklistTemplate.objects.create(kind="starter", name="Nurse starter")
+    t.positions.add(titles.get_or_create("Practice Nurse"))
+    t.items.create(order=1, title="Hep B status", owner="hr", due_rule="after_start", due_days=7, link="check:hep_b")
+    positions.add(hr_admin, emp, titles.get_or_create("Practice Nurse"), Team.objects.first() or make_team(), None,
+                  start)
+    cl.refresh_from_db()
+    kept = cl.items.get(link="details")
+    assert kept.pk == sent.pk and kept.submitted_at == sent.submitted_at and kept.state == "open"
+    assert cl.template != t and "was not applied" in " ".join(checklists.gaps(cl))

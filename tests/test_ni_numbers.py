@@ -171,3 +171,31 @@ def test_my_record_with_a_stale_bad_ni_number_shows_an_error_not_a_500(
     body = r.content.decode()
     assert "NI number: Enter the NI number" in body and "Ask HR to correct it." in body
     assert Employee.objects.get(pk=e.pk).phone == ""  # nothing saved
+
+
+def test_a_whitespace_only_ni_number_becomes_blank_and_is_not_reported():
+    e = make_employee(email="ws@example.com")
+    _store(e, "   ")
+    lines = []
+    assert migration.normalise_ni_numbers(apps, None, out=lines.append) == (1, [])
+    assert _ni(e) == ""
+    assert lines == ["\n  NI numbers normalised: 1; still not valid: 0"]
+
+
+@pytest.mark.parametrize(
+    "field,valid",
+    [
+        ("ni_number", "AB123456C"),
+        ("bank_sort_code", "12-34-56"),
+        ("bank_account_number", "12345678"),
+    ],
+)
+def test_the_format_validators_refuse_a_trailing_newline(field, valid):
+    """The RegexValidator itself (it has no length check), so only the \\Z rule
+    can refuse the newline: with $ it would match."""
+    (validator,) = [
+        v for v in Employee._meta.get_field(field).validators if hasattr(v, "regex")
+    ]
+    validator(valid)
+    with pytest.raises(ValidationError):
+        validator(valid + "\n")
