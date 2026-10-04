@@ -53,6 +53,9 @@ def me(request):
            "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
            "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else []}
     if emp:
+        from onboarding.services import checklists   # onboarding imports people's services
+        ctx["checklist_items"] = [i for i in checklists.own_items(employee, today)
+                                  if i.checklist.employment_id == emp.pk]
         ctx.update({
             "position": positions.primary_on(emp, today),
             "contracts": list(contracts.active_on(emp, today)),
@@ -67,7 +70,10 @@ def me(request):
 def team(request):
     me_ = access.employee_for(request.user)
     today = timezone.localdate()
-    if not (me_ and access.is_approver(request.user, today)):
+    from onboarding.services import checklists    # onboarding imports people's services
+    # a manager whose starter has not started yet has no report today, but has their items
+    todo = checklists.items_owned_by(me_, today) if me_ else []
+    if not (me_ and (todo or access.is_approver(request.user, today))):
         raise PermissionDenied
     rows = []
     for emp in access.direct_reports(me_, today):
@@ -81,7 +87,7 @@ def team(request):
             # counts and the next expiry only: a manager never sees which checks
             "checks": checks.summary(emp.employee, today),
         })
-    return render(request, "people/team.html", {"rows": rows})
+    return render(request, "people/team.html", {"rows": rows, "todo": todo, "today": today})
 
 
 CATEGORY_LABELS = {

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% comment %}onboarding:hr_list — HR's Starters and leavers: every checklist
+not yet complete, soonest date first, with its progress (checklists.summary)
+and its gaps (checklists.gaps).{% endcomment %}
+{% block title %}Starters and leavers{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Starters and leavers</h1><a href="{% url 'admin:onboarding_checklist_changelist' %}">All checklists</a></div>
+<p class="muted">Every starter and leaver checklist not yet complete. Open one to tick items off, mark them not needed, or add and remove items.</p>
+<section class="card">
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Person</th><th scope="col">Checklist</th><th scope="col">Date</th><th scope="col">Done</th><th scope="col">Overdue</th><th scope="col">Gaps</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <th scope="row"><a href="{% url 'onboarding:hr_detail' r.checklist.pk %}">{{ r.employee.name }}</a></th>
+        <td>{{ r.checklist.get_kind_display }}</td>
+        <td>{% if r.checklist.kind == "starter" %}Starts{% else %}Leaves{% endif %} {{ r.date|date:"j M Y" }}</td>
+        <td>{{ r.summary.done }} of {{ r.summary.total }}</td>
+        <td>{% if r.summary.overdue %}<span class="badge badge-warning">{{ r.summary.overdue }}</span> <span class="muted">since {{ r.summary.oldest_overdue.due_on|date:"j M Y" }}</span>{% else %}none{% endif %}</td>
+        <td>{% for g in r.gaps %}<span class="muted">{{ g }}</span>{% if not forloop.last %}<br>{% endif %}{% empty %}none{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No starter or leaver checklists open.</p>
+  {% endif %}
+</section>
+</div>
+{% endblock %}

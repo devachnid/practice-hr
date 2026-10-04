@@ -14,9 +14,11 @@ position_added(): a starter checklist nobody has worked on yet is rebuilt
 from the title's template, and open manager items get the line manager.
 
 Linked items close themselves (linked_done) when the linked thing happens:
-"details" (Task 7's form), "upload:<file category>" (files.ADDED_HOOKS),
+"upload:<file category>" (files.ADDED_HOOKS),
 "sign_policies" (policies.SIGNED_HOOKS, once nothing is owed) and
-"check:<check type code>" (checks.RECORDED_HOOKS). The hooks run inside the
+"check:<check type code>" (checks.RECORDED_HOOKS). "details" never closes
+itself: HR marks it done once they have checked what the person entered on
+their details form (onboarding.views.details). The hooks run inside the
 caller's transaction, so linked_done never raises for an ordinary case: no
 matching item is a no-op."""
 from datetime import timedelta
@@ -434,6 +436,20 @@ def open_items(employee, today):
     return list(ChecklistItem.objects.filter(checklist__employment__employee=employee, owner=Owner.PERSON,
                                              state=ChecklistItem.State.OPEN)
                 .select_related("checklist").order_by("due_on", "order"))
+
+
+def own_items(employee, today):
+    """The person's own items to show them (Getting started, My record's
+    Your checklist): every open one (open_items) and the closed ones of the
+    same checklists, and of any checklist of theirs not yet complete, in
+    due order."""
+    open_ = open_items(employee, today)
+    ids = {i.checklist_id for i in open_}
+    ids |= set(Checklist.objects.filter(employment__employee=employee, completed_at__isnull=True)
+               .values_list("pk", flat=True))
+    closed = (ChecklistItem.objects.filter(checklist_id__in=ids, owner=Owner.PERSON)
+              .exclude(state=ChecklistItem.State.OPEN).select_related("checklist"))
+    return sorted([*open_, *closed], key=lambda i: (i.due_on, i.order, i.pk))
 
 
 def items_owned_by(manager_employee, today):

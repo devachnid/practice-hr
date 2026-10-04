@@ -28,6 +28,12 @@
       <p>No current employment.</p>
     {% endif %}
   </section>
+  {% if checklist_items %}
+  <section class="card">
+    <h2>Your checklist</h2>
+    {% include "onboarding/_checklist.html" with items=checklist_items back="me" %}
+  </section>
+  {% endif %}
   {% include "people/_checks.html" %}
   {% include "people/_documents.html" %}
   <section class="card">

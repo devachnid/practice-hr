@@ -21,6 +21,9 @@
 <body{% block body_attrs %}{% endblock %}>
 <nav class="nav">
   <span class="nav-brand">Practice HR</span>
+  {% if pre_start %}
+  <a href="{% url 'onboarding:getting_started' %}" class="nav-link{% if '/onboarding/' in request.path %} is-active{% endif %}">Getting started</a>
+  {% else %}
   <a href="{% url 'people:me' %}" class="nav-link{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
   <a href="{% url 'absence:mine' %}" class="nav-link{% if request.path == '/absence/mine/' or request.path == '/absence/request/' or '/absence/toil/claim/' in request.path %} is-active{% endif %}">Leave</a>
   <a href="{% url 'absence:calendar' %}" class="nav-link{% if request.path == '/absence/calendar/' %} is-active{% endif %}">Calendar</a>
@@ -29,11 +32,12 @@
   {% if can_approve %}
     <a href="{% url 'absence:queue' %}" class="nav-link{% if request.path == '/absence/queue/' or '/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
   {% endif %}
-  {% if is_approver %}
+  {% if is_approver or has_todo %}
     <a href="{% url 'people:team' %}" class="nav-link{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
   {% endif %}
   {% if user.is_hr_admin or user.is_superuser %}
     <a href="{% url 'admin:index' %}" class="nav-link">Admin</a>
+  {% endif %}
   {% endif %}
   <button type="button" id="theme-toggle" class="btn btn-quiet">Theme</button>
   <span class="nav-spacer"></span>
@@ -71,22 +75,28 @@ no password (accounts/recent_auth.py).{% endcomment %}
 {% endif %}
 <main class="main">{% block content %}{% endblock %}</main>
 <nav class="tabbar" aria-label="Sections">
+  {% if pre_start %}
+  <a href="{% url 'onboarding:getting_started' %}" class="tabbar-item{% if '/onboarding/' in request.path %} is-active{% endif %}">Getting started</a>
+  {% else %}
   <a href="{% url 'people:me' %}" class="tabbar-item{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
   <a href="{% url 'absence:mine' %}" class="tabbar-item{% if request.path == '/absence/mine/' or request.path == '/absence/request/' or '/absence/toil/claim/' in request.path %} is-active{% endif %}">Leave</a>
   {% if can_approve %}
     <a href="{% url 'absence:queue' %}" class="tabbar-item{% if request.path == '/absence/queue/' or '/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
   {% endif %}
-  {% if is_approver %}
+  {% if is_approver or has_todo %}
     <a href="{% url 'people:team' %}" class="tabbar-item{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
+  {% endif %}
   {% endif %}
   <details class="tabbar-more">
     <summary class="tabbar-item">More</summary>
     <div class="tabbar-sheet">
+      {% if not pre_start %}
       <a href="{% url 'absence:balances' %}" class="tabbar-link">Balances</a>
       <a href="{% url 'documents:policies' %}" class="tabbar-link">Policies</a>
       <a href="{% url 'absence:calendar' %}" class="tabbar-link">Calendar</a>
       {% if user.is_hr_admin or user.is_superuser %}
         <a href="{% url 'admin:index' %}" class="tabbar-link">Admin</a>
+      {% endif %}
       {% endif %}
       <button type="button" id="theme-toggle-mobile" class="tabbar-link">Theme</button>
       {% if user.is_authenticated %}

@@ -44,3 +44,31 @@ def update(actor, employee, **fields):
     employee.save()
     audit.record(actor, employee, changes)
     return employee
+
+
+def _contacts_summary(rows):
+    return "; ".join(f"{r['name']} ({r['relationship']}) {r['phone']}" if r["relationship"]
+                     else f"{r['name']} {r['phone']}" for r in rows)
+
+
+@transaction.atomic
+def set_emergency_contacts(actor, employee, rows):
+    """Replace the person's emergency contacts with `rows` (dicts of name,
+    relationship, phone), in that order of priority. Every row is checked
+    before anything is written; the audit row holds before and after."""
+    from people.models import EmergencyContact
+    new = [EmergencyContact(employee=employee, name=(r.get("name") or "").strip(),
+                            relationship=(r.get("relationship") or "").strip(),
+                            phone=(r.get("phone") or "").strip(), priority=i)
+           for i, r in enumerate(rows, start=1)]
+    for contact in new:
+        contact.full_clean()
+    existing = employee.emergency_contacts.all()
+    before = _contacts_summary(existing.values("name", "relationship", "phone"))
+    after = _contacts_summary({"name": c.name, "relationship": c.relationship, "phone": c.phone} for c in new)
+    if before == after:
+        return list(existing)
+    existing.delete()
+    EmergencyContact.objects.bulk_create(new)
+    audit.record(actor, employee, {"emergency_contacts": (before, after)})
+    return list(employee.emergency_contacts.all())

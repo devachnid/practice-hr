@@ -91,3 +91,13 @@ def can_view_checks(user, employee):
         return True
     me = employee_for(user)
     return me is not None and me.pk == employee.pk
+
+
+def is_pre_start(user, day):
+    """A starter before their first day: a login linked to an employee with
+    no current employment and one that starts after `day`."""
+    me = employee_for(user)
+    if me is None:
+        return False
+    return (employments.current(me, day) is None
+            and me.employments.filter(start_date__gt=day).exists())

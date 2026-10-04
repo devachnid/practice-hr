@@ -120,6 +120,7 @@ def navigation(request):
             _nav_item("Signatures", "draw", "admin:documents_signature_changelist"),
             _nav_item("Checklist templates", "checklist", "admin:onboarding_checklisttemplate_changelist"),
             _nav_item("Checklists", "task_alt", "admin:onboarding_checklist_changelist"),
+            _nav_item("Starters and leavers", "how_to_reg", "onboarding:hr_list"),
         ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),

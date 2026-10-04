@@ -1,0 +1,29 @@
+{% comment %}My team's To do card: the open line-manager checklist items this
+person owns (checklists.items_owned_by), each with Done. Expects todo.{% endcomment %}
+<section class="card">
+  <h2>To do</h2>
+  {% if todo %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">For</th><th scope="col">To do</th><th scope="col">By</th><th scope="col"><span class="visually-hidden">Done</span></th></tr></thead>
+    <tbody>
+    {% for item in todo %}
+      <tr>
+        <td>{{ item.checklist.employment.employee.name }} <span class="muted">({{ item.checklist.get_kind_display|lower }})</span></td>
+        <th scope="row">{{ item.title }}{% if item.instruction %}<br><span class="muted">{{ item.instruction }}</span>{% endif %}</th>
+        <td>{% if item.due_on < today %}<span class="badge badge-warning">Overdue</span> {% endif %}{{ item.due_on|date:"j M Y" }}</td>
+        <td class="row-actions">{% if item.link %}<span class="muted">Ticks itself off</span>{% else %}
+          <form method="post" action="{% url 'onboarding:complete' item.pk %}">{% csrf_token %}
+            <input type="hidden" name="next" value="team">
+            <button type="submit" class="btn btn-primary">Done</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Nothing to do for starters or leavers.</p>
+  {% endif %}
+</section>

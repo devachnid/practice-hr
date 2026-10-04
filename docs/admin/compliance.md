@@ -1,7 +1,7 @@
 # Compliance
 
 **Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
-Checklist templates / Checklists.
+Checklist templates / Checklists / Starters and leavers.
 
 ## Checks
 
@@ -361,3 +361,29 @@ set-up, so it can be made with **gaps**, listed on it:
   leaving date was cleared ([above](#when-a-checklist-is-made)); setting a
   date again makes it afresh.
 
+### Pages
+
+- **Getting started** (`/onboarding/`) — the person's own items, in the
+  order they are due, each with what it needs: *Your details* opens their
+  details form (contact details, address, NI number, bank details and up to
+  three emergency contacts); an upload item takes the file there and then;
+  the policies item opens their Policies page; a check item says HR will
+  record it; an item with no link has **Done**. Saving the details form
+  does not tick that item off: check the details on their record in the
+  admin, then mark it done on the checklist page below. After the start
+  date the same items are on My record as **Your checklist** until the
+  checklist is complete.
+- **Before the start date** a starter who signs in sees Getting started and
+  nothing else: no navigation, and every other page sends them back to it.
+  They can still reach their details form, their policies (to read and
+  sign) and their account (password and passkeys). It opens up on their
+  first day. Anyone with a current employment, and an HR admin with no
+  employee record, is never held back.
+- **To do** on My team — a line manager's open items across their starters
+  and leavers, with **Done**. It is there from the moment the checklist is
+  made, before the starter is one of their team.
+- **Starters and leavers** (sidebar › Compliance, `/onboarding/all/`) — every
+  checklist not yet complete, soonest date first, with how many items are
+  done, how many are overdue and its gaps. Open one to mark any item
+  **Done** (with an optional note) or **Not needed** (a reason is
+  required), to **Remove** an item, or to **Add** one for this person only.

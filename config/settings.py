@@ -88,6 +88,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
+    # after authentication and axes: request.user is set (onboarding/middleware.py)
+    "onboarding.middleware.PreStartGate",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -104,6 +106,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "people.context_processors.roles",
                 "accounts.context_processors.signed_in_recently",
+                "onboarding.context_processors.pre_start",
             ],
             # hr/ is admin-site wiring, not an installed app (see hr/admin_site.py's
             # own docstring), so its {% load design %} tag library needs this
