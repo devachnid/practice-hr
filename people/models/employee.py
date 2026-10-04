@@ -22,7 +22,11 @@ class Employee(models.Model):
     address_line2 = models.CharField(max_length=120, blank=True, default="")
     town = models.CharField(max_length=60, blank=True, default="")
     postcode = models.CharField(max_length=10, blank=True, default="")
-    ni_number = models.CharField("NI number", max_length=9, blank=True, default="")
+    ni_number = models.CharField(
+        "NI number", max_length=9, blank=True, default="",
+        validators=[RegexValidator(r"^[A-Z]{2}\d{6}[A-D]$",
+                                   "Enter the NI number as two letters, six digits and A, B, C or D, "
+                                   "in capitals and without spaces.")])
     bank_account_name = models.CharField(max_length=60, blank=True, default="")
     bank_sort_code = models.CharField(
         max_length=8, blank=True, default="",

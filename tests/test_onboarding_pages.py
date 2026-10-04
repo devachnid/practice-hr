@@ -153,22 +153,114 @@ def test_getting_started_shows_each_person_only_their_own_items(cast, who, expec
     assert "Induction completed" not in body and "Contract issued" not in body
 
 
-@pytest.mark.parametrize("who,expected", [("own", 200), ("other", 200), ("manager", 200), ("hr", 200),
+DETAILS_POST = {"preferred_name": "Sam", "bank_sort_code": "12-34-56", "bank_account_number": "12345678",
+                "contacts-TOTAL_FORMS": "0", "contacts-INITIAL_FORMS": "0", "contacts-MIN_NUM_FORMS": "0",
+                "contacts-MAX_NUM_FORMS": "3"}
+
+
+@pytest.mark.parametrize("who,expected", [("own", 200), ("other", 404), ("manager", 404), ("hr", 404),
                                           ("anonymous", "login")])
-def test_the_details_page_is_always_your_own(cast, who, expected):
-    employees.update(None, cast["emp"].employee, bank_account_number="12345678")
-    r = cast["clients"][who].get("/onboarding/details/")
+def test_the_details_page_is_only_for_a_person_with_an_open_details_item(cast, who, expected):
+    """HR here has no employee record; the other employee and the manager
+    have no details item of their own."""
+    client = cast["clients"][who]
+    r = client.get("/onboarding/details/")
     if expected == "login":
-        assert _is_login(r)
+        assert _is_login(r) and _is_login(client.post("/onboarding/details/", DETAILS_POST))
         return
-    assert r.status_code == 200
-    assert ("12345678" in r.content.decode()) is (who == "own")
+    assert r.status_code == expected
+    r = client.post("/onboarding/details/", DETAILS_POST)
+    assert r.status_code == (302 if who == "own" else 404)
+    e = cast["emp"].employee
+    e.refresh_from_db()
+    assert (e.bank_account_number == "12345678") is (who == "own")
 
 
-def test_hr_with_no_employee_record_is_told_so_on_the_details_page(admin_client):
-    body = admin_client.get("/onboarding/details/").content.decode()
-    assert "no employee record" in body
-    assert admin_client.post("/onboarding/details/", {"preferred_name": "X"}).status_code == 200
+def test_the_details_page_closes_once_hr_has_checked_them(cast, hr_admin):
+    item = cast["checklist"].items.get(link="details")
+    checklists.complete(hr_admin, item, "checked")
+    own = cast["clients"]["own"]
+    assert own.get("/onboarding/details/").status_code == 404
+    assert own.post("/onboarding/details/", DETAILS_POST).status_code == 404
+    e = cast["emp"].employee
+    e.refresh_from_db()
+    assert e.bank_account_number == ""
+    assert "/onboarding/details/" not in own.get("/onboarding/").content.decode()
+
+
+def test_a_bad_ni_number_is_refused_on_the_form_and_by_the_service(cast, hr_admin):
+    from django.core.exceptions import ValidationError
+    r = cast["clients"]["own"].post("/onboarding/details/", {**DETAILS_POST, "ni_number": "QQ12345C"})
+    assert r.status_code == 200 and "two letters, six digits" in r.content.decode()
+    e = cast["emp"].employee
+    e.refresh_from_db()
+    assert e.ni_number == "" and e.bank_account_number == ""
+    for bad in ("qq123456c", "QQ123456E", "Q1123456C"):
+        with pytest.raises(ValidationError):
+            employees.update(hr_admin, e, ni_number=bad)
+    employees.update(hr_admin, e, ni_number="QQ123456C")
+    employees.update(hr_admin, e, ni_number="")
+
+
+# ---- an employee-own column apart from pre-start: a starter whose first day has come ----------
+
+
+@pytest.fixture
+def started(hr_admin, cast):
+    """A second starter, whose start date is today: past the gate, their
+    checklist still open."""
+    user = User.objects.create_user(email="kit@example.com", password="pw")
+    e = make_employee(first="Kit", last="Moss", user=user)
+    today = timezone.localdate()
+    emp = employments.start(hr_admin, e, today)
+    positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), Team.objects.first(), cast["manager"], today)
+    c = Client()
+    c.force_login(user)
+    assert not access.is_pre_start(user, today)
+    return {"emp": emp, "checklist": Checklist.objects.get(employment=emp), "client": c}
+
+
+def test_a_started_starter_closes_their_own_unlinked_item_but_no_one_elses(started, cast, hr_admin):
+    mine = checklists.add_item(hr_admin, started["checklist"], "Bring your smartcard", "", "person",
+                               timezone.localdate())
+    theirs = checklists.add_item(hr_admin, cast["checklist"], "Bring your badge", "", "person",
+                                 timezone.localdate())
+    c = started["client"]
+    assert c.post(f"/onboarding/item/{mine.pk}/done/", {"next": "me"})["Location"] == "/people/me/"
+    assert c.post(f"/onboarding/item/{theirs.pk}/done/", {}).status_code == 403
+    details = started["checklist"].items.get(link="details")
+    assert c.post(f"/onboarding/item/{details.pk}/done/", {}).status_code == 403
+    mine.refresh_from_db(); theirs.refresh_from_db(); details.refresh_from_db()
+    assert (mine.state, theirs.state, details.state) == ("done", "open", "open")
+
+
+def test_a_started_starter_uploads_to_their_own_item_but_no_one_elses(started, cast):
+    c = started["client"]
+    mine = started["checklist"].items.get(link="upload:identity")
+    theirs = cast["checklist"].items.get(link="upload:identity")
+    assert c.post(f"/onboarding/item/{mine.pk}/upload/", {"file": SimpleUploadedFile("p.pdf", PDF)}).status_code == 302
+    assert c.post(f"/onboarding/item/{theirs.pk}/upload/",
+                  {"file": SimpleUploadedFile("p.pdf", PDF)}).status_code == 403
+    mine.refresh_from_db(); theirs.refresh_from_db()
+    assert (mine.state, theirs.state) == ("done", "open")
+    assert not File.objects.filter(employee=cast["emp"].employee).exists()
+
+
+def test_a_started_starter_fills_in_their_details(started, cast):
+    c = started["client"]
+    assert c.get("/onboarding/details/").status_code == 200
+    assert c.post("/onboarding/details/", DETAILS_POST).status_code == 302
+    e = started["emp"].employee
+    e.refresh_from_db()
+    assert e.bank_account_number == "12345678"
+    other = cast["emp"].employee
+    other.refresh_from_db()
+    assert other.bank_account_number == ""
+
+
+def test_my_record_links_a_started_starter_to_their_details(started):
+    body = started["client"].get("/people/me/").content.decode()
+    assert "Your checklist" in body and "/onboarding/details/" in body
 
 
 @pytest.mark.parametrize("who,expected", [("own", 403), ("other", 403), ("manager", 403), ("hr", 302),
@@ -344,6 +436,18 @@ def test_an_upload_that_is_not_a_document_is_refused_with_a_message(cast):
     assert item.state == "open"
     r = cast["clients"]["own"].post(f"/onboarding/item/{item.pk}/upload/", {}, follow=True)
     assert "Choose a file" in r.content.decode()
+
+
+def test_an_upload_to_a_closed_item_is_refused_but_hr_may(cast, hr_admin):
+    item = cast["checklist"].items.get(link="upload:identity")
+    checklists.not_needed(hr_admin, item, "seen the original")
+    r = cast["clients"]["own"].post(f"/onboarding/item/{item.pk}/upload/",
+                                    {"file": SimpleUploadedFile("passport.pdf", PDF)}, follow=True)
+    assert "already closed" in r.content.decode()
+    assert not File.objects.exists()
+    r = cast["clients"]["hr"].post(f"/onboarding/item/{item.pk}/upload/",
+                                   {"file": SimpleUploadedFile("passport.pdf", PDF)})
+    assert r.status_code == 302 and File.objects.filter(employee=cast["emp"].employee).count() == 1
 
 
 def test_an_item_without_an_upload_link_takes_no_upload(cast):

@@ -1,15 +1,13 @@
 {% extends "base.html" %}
 {% comment %}onboarding:details — the person's own details and emergency
-contacts (employees.update, employees.set_emergency_contacts). Saving does
-not tick the item off: HR does, after checking.{% endcomment %}
+contacts (employees.update, employees.set_emergency_contacts), while the
+details item is open. Saving does not tick the item off: HR does, after
+checking, and then the page is gone.{% endcomment %}
 {% block title %}Your details{% endblock %}
 {% block content %}
 <div class="stack">
 <div class="page-head"><h1>Your details</h1><a href="{% url 'onboarding:getting_started' %}">Getting started</a></div>
-{% if employee is None %}
-  <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
-{% else %}
-  <p class="muted">What the practice needs to pay you and to reach you and your contacts in an emergency. Only you and HR see these. You can come back and change them; HR checks them and ticks this off your list.</p>
+  <p class="muted">What the practice needs to pay you and to reach you and your contacts in an emergency. Only you and HR see these. You can come back and change them until HR has checked them and ticked this off your list.</p>
   <form method="post">{% csrf_token %}
     <section class="card">
       <h2>About you</h2>
@@ -29,6 +27,5 @@ not tick the item off: HR does, after checking.{% endcomment %}
     </section>
     <div class="form-actions"><button type="submit" class="btn btn-primary">Save</button></div>
   </form>
-{% endif %}
 </div>
 {% endblock %}

@@ -1,6 +1,7 @@
 """The checklist pages: Getting started (the person's own items, before
-and after their first day), their details form, the Done / Not needed /
-Add / Remove / Upload posts, and HR's Starters and leavers list and
+and after their first day), their details form (while its item is open), the Done / Not needed /
+Add / Remove / Upload posts (an upload only to an open item, but for
+HR), and HR's Starters and leavers list and
 checklist page. Every write is a service's (checklists, employees, files);
 a GET writes nothing. Done is checklists.may_complete's (the item's owner,
 or HR), but an item with a link is never closed by its owner's Done: it
@@ -63,12 +64,21 @@ def getting_started(request):
     return render(request, "onboarding/getting_started.html", ctx)
 
 
+def _details_open(employee):
+    return ChecklistItem.objects.filter(checklist__employment__employee=employee, owner=Owner.PERSON,
+                                        link="details", state=ChecklistItem.State.OPEN).exists()
+
+
 @login_required
 def details(request):
-    """Your own details, always: there is no way to name someone else."""
+    """Your own details (there is no way to name someone else), and only
+    while your checklist's details item is open: once HR has checked them
+    and ticked it off, the form is gone (404), so bank and NI details are
+    never changed here unseen. Anyone without such an item, an HR admin with
+    no employee record included, gets 404."""
     me = access.employee_for(request.user)
-    if me is None:
-        return render(request, "onboarding/details_form.html", {"employee": None})
+    if me is None or not _details_open(me):
+        raise Http404
     data = request.POST if request.method == "POST" else None
     form = DetailsForm(data, instance=Employee.objects.get(pk=me.pk))
     contacts = contact_formset(me, data)
@@ -162,6 +172,9 @@ def upload(request, pk):
     own = item.owner == Owner.PERSON and me is not None and item.owner_employee_id == me.pk
     if not (own or access.can_view_restricted(request.user)):
         raise PermissionDenied
+    if item.state != ChecklistItem.State.OPEN and not access.can_view_restricted(request.user):
+        messages.error(request, f"{item.title} is already closed: nothing was uploaded.")
+        return _back(request, item)
     upload_ = request.FILES.get("file")
     if upload_ is None:
         messages.error(request, "Choose a file to upload.")

@@ -370,7 +370,10 @@ set-up, so it can be made with **gaps**, listed on it:
   the policies item opens their Policies page; a check item says HR will
   record it; an item with no link has **Done**. Saving the details form
   does not tick that item off: check the details on their record in the
-  admin, then mark it done on the checklist page below. After the start
+  admin, then mark it done on the checklist page below. The form is there
+  only while that item is open: once you have marked it done (or not
+  needed) the person can no longer change their bank or NI details
+  themselves, so any later change comes to you. After the start
   date the same items are on My record as **Your checklist** until the
   checklist is complete.
 - **Before the start date** a starter who signs in sees Getting started and
