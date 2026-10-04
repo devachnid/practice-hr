@@ -443,6 +443,15 @@ body.page-grid {
 .kit-form label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
 .kit-form .inline-input { flex: 0 1 11rem; }
 
+/* My record's Checks card: the evidence upload on an awaiting check. */
+.check-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.check-upload label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+
 /* The automatic bank-holiday rows, folded away under their count and
    total. The summary reads as the card's heading, with the figures after. */
 /* The two absence tables share their column widths, so Coming up and

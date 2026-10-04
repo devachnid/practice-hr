@@ -26,6 +26,7 @@ urlpatterns = [
     path("people/", include("people.urls")),
     path("absence/", include("absence.urls")),
     path("documents/", include("documents.urls")),
+    path("checks/", include("checks.urls")),
     path("api/v1/", include("api.urls")),
     path("", home, name="home"),
 ]

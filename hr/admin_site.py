@@ -113,6 +113,8 @@ def navigation(request):
             _nav_item("Retention", "auto_delete", "people:retention"),
         ]},
         {"title": "Compliance", "separator": True, "items": [
+            _nav_item("Check types", "fact_check", "admin:checks_checktype_changelist"),
+            _nav_item("Checks", "verified_user", "admin:checks_check_changelist"),
             _nav_item("Files", "folder", "admin:documents_file_changelist"),
         ]},
         {"title": "Access", "separator": True, "items": [

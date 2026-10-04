@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "people",
     "absence",
     "documents",
+    "checks",
 ]
 
 MIDDLEWARE = [

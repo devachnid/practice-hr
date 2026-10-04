@@ -76,3 +76,13 @@ def can_view_file(user, file):
         return True
     me = employee_for(user)
     return me is not None and file.employee_id == me.pk and not file.hr_only
+
+
+def can_view_checks(user, employee):
+    """A person's checks in detail: HR always, and the person themselves
+    (never HR's note: the page leaves it out). A line manager sees only a
+    per-report summary (checks.summary) on My team, never the detail."""
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    return me is not None and me.pk == employee.pk

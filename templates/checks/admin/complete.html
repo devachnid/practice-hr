@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% comment %}CheckAdmin.record_result: an awaiting check's result, through checks.complete.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:checks_check_change' check.pk %}" class="underline">{{ check }}</a>:
+    {% if check.evidence %}evidence <a href="{% url 'documents:download' check.evidence.pk %}" class="underline">{{ check.evidence.original_name }}</a>.{% else %}no evidence uploaded yet.{% endif %}</p>
+  <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">{% csrf_token %}
+    {% if form.non_field_errors %}<div role="alert" class="text-red-600">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    {% for field in form %}
+      <div class="flex flex-col gap-1">
+        <label for="{{ field.id_for_label }}" class="font-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% for e in field.errors %}<p role="alert" class="text-red-600">{{ e }}</p>{% endfor %}
+        <p class="text-font-subtle-light dark:text-font-subtle-dark">{{ field.help_text }}</p>
+      </div>
+    {% endfor %}
+    <p>Recorded as you. The check is no longer waiting on the person, and it counts from the date done.</p>
+    <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Record the result</button></div>
+  </form>
+</div>
+{% endblock %}

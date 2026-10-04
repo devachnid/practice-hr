@@ -14,6 +14,7 @@ there.
 | [Absence and leave](absence.md) | Absence types and their flags, policies and every field, tiers, bank holidays and closed days, how a request is costed, requesting, deciding and cancelling, TOIL claims, family leave, the calendar, balances |
 | [Year end](year-end.md) | What the nightly closes at the end of a leave year: carry cap, expiry, TOIL, leavers' debts; running it by hand; reversing a line |
 | [Payroll changes report](payroll.md) | The monthly spreadsheet for the payroll bureau: what each sheet holds, which absence types reach it, spanning months, leaver balances, where the files live |
+| [Compliance](compliance.md) | Check types and the titles that need them, recording a check, what each status means, asking the person for evidence, the DBS rule on not storing certificates |
 | [The read API](api.md) | The three JSON endpoints the rota polls, the token in `HR_API_TOKENS`, and the shapes they return |
 | [Login accounts and signing in](sign-in.md) | Login accounts, admin status, passkeys, invitations, nightly housekeeping, the OpenID Connect provider and who is an admin of each app, and migrating the rota's logins |
 

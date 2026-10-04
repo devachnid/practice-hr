@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_safe
 
+from checks.services import checks
 from people.models import Employee
 from people.services import access, contracts, employees, employments, patterns, positions, retention
 
@@ -49,7 +50,8 @@ def me(request):
     emp = employments.current(employee, today)
     ctx = {"employee": employee, "employment": emp, "form": form,
            # listing titles is not opening a file: no audit until files.open
-           "files": employee.files.filter(hr_only=False, superseded_by__isnull=True)}
+           "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
+           "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else []}
     if emp:
         ctx.update({
             "position": positions.primary_on(emp, today),
@@ -76,6 +78,8 @@ def team(request):
             "contracted": contracts.contracted_amount(emp, today),
             "unit": contracts.unit(emp, today),
             "pattern_total": patterns.weekly_total(pattern) if pattern else None,
+            # counts and the next expiry only: a manager never sees which checks
+            "checks": checks.summary(emp.employee, today),
         })
     return render(request, "people/team.html", {"rows": rows})
 
