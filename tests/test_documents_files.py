@@ -164,12 +164,16 @@ def test_download_for_a_starter_before_their_first_day_and_for_a_superuser(hr_ad
     assert AuditEntry.objects.filter(model="documents.file", kind="viewed").count() == 2
 
 
-def test_a_file_with_no_person_is_hr_only_until_a_later_rule_says_otherwise(hr_admin, employee_user):
+def test_a_file_with_no_person_is_hr_only_unless_it_is_a_policy(hr_admin, employee_user):
+    """A policy version's file (category Policy, no person) is read by every
+    employee from the policies page; any other file with no person stays HR's."""
     make_employee(user=employee_user)
-    f = files.add(hr_admin, None, File.Category.POLICY, "Policy", _upload())
+    other = files.add(hr_admin, None, File.Category.OTHER, "Minutes", _upload())
     with pytest.raises(PermissionDenied):
-        files.open(employee_user, f)
-    assert files.open(hr_admin, f).status_code == 200
+        files.open(employee_user, other)
+    assert files.open(hr_admin, other).status_code == 200
+    policy = files.add(hr_admin, None, File.Category.POLICY, "Policy", _upload())
+    assert files.open(employee_user, policy).status_code == 200
 
 
 def test_download_view_only_answers_get(employee_client, hr_admin, employee_user):

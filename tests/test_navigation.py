@@ -33,8 +33,9 @@ def _split(body):
 def test_an_employee_sees_leave_calendar_and_balances_but_not_approvals(employee_client, employee_user):
     _employee(employee_user)
     desktop, tabbar = _split(employee_client.get("/absence/mine/").content.decode())
-    for href in ("/absence/mine/", "/absence/calendar/", "/absence/balances/"):
+    for href in ("/absence/mine/", "/absence/calendar/", "/absence/balances/", "/documents/policies/"):
         assert f'href="{href}" class="nav-link' in desktop, href
+    assert 'href="/documents/policies/" class="tabbar-link"' in tabbar
     assert "/absence/queue/" not in desktop + tabbar
     assert "/people/team/" not in desktop + tabbar
     assert "/admin/" not in desktop + tabbar
@@ -62,7 +63,7 @@ def test_the_admin_navigation_has_payroll_and_retention_for_hr_admins(admin_clie
 
 
 def test_the_mobile_tab_bar_holds_at_most_five_items(employee_user, admin_client, hr_admin):
-    """Approver and HR admin are the fullest bars; Calendar and Balances live in More."""
+    """Approver and HR admin are the fullest bars; Calendar, Balances and Policies live in More."""
     _employee(hr_admin)
     approver = _approver_of(_employee(employee_user))
     for client in (approver, admin_client):
@@ -73,3 +74,4 @@ def test_the_mobile_tab_bar_holds_at_most_five_items(employee_user, admin_client
         assert "Calendar" not in outside_sheet and "Balances" not in outside_sheet
         sheet = tabbar.split('<div class="tabbar-sheet">')[1]
         assert 'href="/absence/calendar/"' in sheet and 'href="/absence/balances/"' in sheet
+        assert "Policies" not in outside_sheet and 'href="/documents/policies/"' in sheet

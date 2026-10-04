@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+{% comment %}documents:sign — one version: the Read link, the exact sentence as
+the label of a box that must be ticked, and the proof that it is the person
+signing: the password typed again, or (where the browser has passkeys) one
+of their own passkeys, whose assertion static/documents/sign.js puts in the
+hidden credential field. Expects version, form, error, due_on.{% endcomment %}
+{% block title %}Sign {{ version.policy.title }}{% endblock %}
+{% block scripts %}<script src="{% static 'documents/sign.js' %}" defer></script>{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Sign {{ version.policy.title }}</h1><a href="{% url 'documents:policies' %}">All policies</a></div>
+<section class="card">
+  <h2>{{ version.policy.title }} ({{ version.label }})</h2>
+  <p class="muted">Issued {{ version.issued_on|date:"j M Y" }}.{% if due_on %} Please sign by {{ due_on|date:"j M Y" }}.{% endif %}</p>
+  <div class="form-actions"><a href="{% url 'documents:download' version.file_id %}" class="btn" download>Read the policy</a></div>
+</section>
+<section class="card">
+  <h2>Sign</h2>
+  <p class="field-help">Read the policy first. Signing asks for your password again (or a passkey), so nobody else can sign for you at a computer you left signed in.</p>
+  <form method="post" id="sign-form">{% csrf_token %}
+    {% if error %}<p class="field-error" role="alert">{{ error }}</p>{% endif %}
+    {{ form.as_div }}
+    <input type="hidden" name="credential" id="sign-credential" value="">
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Sign with my password</button>
+      <button type="button" id="sign-passkey" class="btn" style="display:none"
+              data-options-url="{% url 'documents:passkey_options' %}">Sign with a passkey</button>
+    </div>
+    <p id="sign-passkey-error" class="field-error" style="display:none" role="alert"></p>
+  </form>
+</section>
+</div>
+{% endblock %}

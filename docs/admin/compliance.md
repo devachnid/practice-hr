@@ -1,6 +1,6 @@
 # Compliance
 
-**Where:** sidebar › Compliance › Check types / Checks / Files.
+**Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures.
 
 ## Checks
 
@@ -141,3 +141,77 @@ For a check the person supplies (their passport for right to work, say):
 | The person | My record › Checks: each type, its status, the dates and the outcome. Never the note or the reference. |
 | Their line manager | My team: per report, the counts (current, due soon, lapsed, missing, and awaiting when any) and the next expiry date. Never which checks. |
 | HR admins | Everything, here. |
+
+## Policies
+
+The practice's policies that staff must read and sign: information
+governance, chaperoning, safeguarding and the like. A policy has
+**versions**; people sign a version, and issuing a new one asks them to
+sign again.
+
+### Who must sign
+
+`/admin/documents/policy/`
+
+**Title** is what everyone sees, and it goes into the sentence people sign.
+**Positions** is the titles that must sign it: a person must while the
+title of their primary position is in the list. **Leave Positions empty for
+everyone.** A starter who has not started yet counts by the position they
+will start in. **Active** off stops a policy being asked of anyone; its
+versions and signatures stay. A policy cannot be deleted: make it inactive
+instead.
+
+### Issuing a version
+
+Open the policy and choose **Issue new version**:
+
+- **Label** — what this version is called, such as *v2* or *October
+  edition*. Each label is used once per policy.
+- **Issued on** — the date the version takes effect. It cannot be after
+  today, or before the current version's.
+- **Sign within (days)** — how long people have, from the issue date. A
+  starter who joins after the issue date has that many days from their
+  first day.
+- **File** — the policy itself, a PDF, JPEG, PNG or DOCX. It is stored
+  under Files with category *Policy* and no person, and anyone whose login
+  is linked to an employee record can read it, through the audited
+  download.
+
+**The newest version, by issue date, is the one people sign.** Issuing one
+asks everyone the policy applies to to sign it, including those who signed
+an earlier version; nobody is asked to sign an older version again. A
+version is never edited or deleted: put a mistake right by issuing another.
+
+Each person sees their policies under **Policies** in the menu, with each
+one's status:
+
+| Status | Meaning |
+|---|---|
+| **Signed on** *date* | They have signed the current version. |
+| **Awaiting signature** | Not signed yet, and the sign-by date has not passed. |
+| **Overdue** | Not signed, and the sign-by date has passed. |
+
+### What a signature records
+
+`/admin/documents/signature/`
+
+A signature records the person, the version, the date and time, how they
+proved it was them (*Password* or *Passkey*), the network address they
+signed from, and the exact sentence they ticked:
+
+> I confirm I have read and understood *title* (*label*).
+
+Signatures are read-only here. Nobody, HR included, can sign for someone
+else, change a signature or delete one.
+
+### Re-authentication
+
+Signing is the person's own act, so the sign page asks them to prove it is
+them every time, not just that their browser is signed in: **their password
+typed again**, or **one of their own passkeys** on a device that has one. A
+practice PC left signed in is not enough to sign, and neither is someone
+else's passkey. A wrong password signs nothing and counts towards the
+[sign-in lockout](sign-in.md#signing-in-and-lockouts) exactly as one typed at the sign-in page
+does. The password is checked and forgotten: it is never stored or written
+to any log.
+

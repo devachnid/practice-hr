@@ -1,6 +1,7 @@
 /* Passkeys: the browser half of WebAuthn, with no library.
  *
- * Loaded on every page (base.html). Three things it may find:
+ * Loaded on every page (base.html). Three things it may find (and the
+ * helpers it exposes as window.practicePasskeys, for the policy sign page):
  *   #passkey-login on the login page — arms conditional mediation on load,
  *     so a passkey is offered in the email field's autofill and nobody
  *     without one sees anything; the button is the explicit path, and the
@@ -121,6 +122,14 @@
     if (e.name === "InvalidStateError") { return "This device already has a passkey here."; }
     return e.message;
   }
+
+  // The plumbing, for the one other page that asks for a passkey: the
+  // policy sign page (static/documents/sign.js), which loads after this.
+  window.practicePasskeys = {
+    post: post, csrfToken: csrfToken, requestOptions: requestOptions,
+    credentialToJSON: credentialToJSON, show: show, explain: explain,
+    remember: function () { store(MARK, "1"); }
+  };
 
   // --- enrolling ------------------------------------------------------------
 

@@ -70,12 +70,17 @@ def may_record_for(user, employment, day):
 
 
 def can_view_file(user, file):
-    """HR always; the person their own unless HR-only; nobody else (managers
-    never see documents)."""
+    """HR always; the person their own unless HR-only; any employee a
+    policy version's file (category Policy, no person: the policies page's
+    Read link); nobody else (managers never see documents)."""
     if can_view_restricted(user):
         return True
     me = employee_for(user)
-    return me is not None and file.employee_id == me.pk and not file.hr_only
+    if me is None:
+        return False
+    if file.category == "policy" and file.employee_id is None and not file.hr_only:
+        return True
+    return file.employee_id == me.pk and not file.hr_only
 
 
 def can_view_checks(user, employee):
