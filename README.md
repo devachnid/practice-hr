@@ -241,9 +241,12 @@ locally.
        install -d -m 700 /etc/pbs-backup
        proxmox-backup-client key create /etc/pbs-backup/practice-hr.key --kdf none
        proxmox-backup-client key paperkey /etc/pbs-backup/practice-hr.key
-       ( umask 077; printf 'PBS_REPOSITORY=vps-hr@pbs!backup@10.88.0.1:8007:<datastore>\nPBS_PASSWORD=<token secret>\nPBS_FINGERPRINT=<fingerprint>\n' > /etc/pbs-backup/practice-hr.env )
+       ( umask 077
+       printf 'PBS_REPOSITORY=vps-hr@pbs!backup@10.88.0.1:8007:<datastore>\nPBS_FINGERPRINT=<fingerprint>\n' > /etc/pbs-backup/practice-hr.env
+       printf '%s' '<token secret>' > /etc/pbs-backup/practice-hr.token )
 
-   **Copy the key (or its paper print) somewhere off this host now.** Without
+   The token is a file, not a variable, so it is never in a process
+   environment where the web service could read it. **Copy the key (or its paper print) somewhere off this host now.** Without
    it every pushed backup is unreadable. Then install the units; the drop-in
    makes the push follow each successful backup:
 
