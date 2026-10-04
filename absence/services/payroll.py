@@ -54,7 +54,8 @@ from people.services import audit, contracts
 SHEETS = ["Starters", "Leavers", "Contract changes", "Pay changes", "Sickness", "Unpaid", "Family leave", "TOIL"]
 
 HEADERS = {
-    "Starters": ["Name", "Start", "Contract type", "Weekly amount", "Unit"],
+    "Starters": ["Name", "Start", "Contract type", "Weekly amount", "Unit",
+                 "Account name", "Sort code", "Account number"],
     "Leavers": ["Name", "Last day", "Reason", "Unit"],      # then a balance per pot-backed type
     "Contract changes": ["Name", "From", "To", "Weekly amount", "Unit", "Basis", "Notes"],
     "Pay changes": ["Name", "From", "Basis", "Amount", "Reason"],
@@ -95,7 +96,8 @@ def _starters(start, end):
     for e in Employment.objects.filter(start_date__range=(start, end)).select_related("employee"):
         c = contracts.active_on(e, e.start_date).first()
         yield [_name(e), e.start_date, c.contract_type.name if c else "",
-               float(contracts.contracted_amount(e, e.start_date)), c.contract_type.unit if c else ""]
+               float(contracts.contracted_amount(e, e.start_date)), c.contract_type.unit if c else "",
+               e.employee.bank_account_name, e.employee.bank_sort_code, e.employee.bank_account_number]
 
 
 def _leavers(start, end):

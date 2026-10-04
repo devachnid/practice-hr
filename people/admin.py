@@ -26,6 +26,9 @@ class EmploymentInline(TabularInline):
     can_delete = False
 
 
+BANK_FIELDS = ("bank_account_name", "bank_sort_code", "bank_account_number")
+
+
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
     form = admin_forms.EmployeeForm
@@ -36,7 +39,8 @@ class EmployeeAdmin(ModelAdmin):
     def get_fields(self, request, obj=None):
         fields = list(super().get_fields(request, obj))
         if not access.can_view_restricted(request.user):
-            fields.remove("ni_number")
+            for restricted in ("ni_number", *BANK_FIELDS):
+                fields.remove(restricted)
         return fields
 
     @admin.display(description="Position")
@@ -51,13 +55,16 @@ class EmployeeAdmin(ModelAdmin):
         return False
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
-        # An NI number shown is an NI number viewed: audited like pay. Only
-        # for someone the field is shown to (get_fields), and only when
-        # there is one to see.
+        # An NI number or bank details shown are viewed: audited like pay.
+        # Only for someone the fields are shown to (get_fields), and only
+        # when there is something to see.
         if access.can_view_restricted(request.user) and request.method == "GET":
             obj = self.get_object(request, object_id)
-            if obj is not None and self.has_view_permission(request, obj) and obj.ni_number:
-                audit.viewed(request.user, obj, "ni_number")
+            if obj is not None and self.has_view_permission(request, obj):
+                if obj.ni_number:
+                    audit.viewed(request.user, obj, "ni_number")
+                if obj.bank_account_number or obj.bank_sort_code:
+                    audit.viewed(request.user, obj, "bank")
         return super().change_view(request, object_id, form_url, extra_context)
 
     def save_model(self, request, obj, form, change):

@@ -6,6 +6,7 @@ from people.services import audit
 EDITABLE = {
     "first_name", "last_name", "preferred_name", "work_email", "personal_email", "phone",
     "date_of_birth", "address_line1", "address_line2", "town", "postcode", "ni_number", "user",
+    "bank_account_name", "bank_sort_code", "bank_account_number",
 }
 
 

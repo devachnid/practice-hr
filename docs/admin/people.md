@@ -59,6 +59,17 @@ Employee page that has an NI number, the audit log records the view (kind
 that depends on its format being checked, so a typo here has no effect
 beyond being wrong on a report that reads it.
 
+### Bank details
+
+Account name, sort code and account number, for the payroll
+[Starters sheet](payroll.md#the-sheets). **Visible to HR admins only**, like the
+NI number: anyone without [HR admin status](sign-in.md#admin-status) sees the
+page with the three fields absent. Each time an HR admin opens an Employee page
+that has a sort code or account number, the audit log records the view (kind
+*Viewed*, field `bank`). The starter can enter them in self-service, or HR
+can enter them here. They are checked: the sort code is stored as `NN-NN-NN`
+and the account number is eight digits, and anything else is refused.
+
 ### User
 
 Links this Employee to a **login account** — see
