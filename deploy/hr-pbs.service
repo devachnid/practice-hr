@@ -5,11 +5,12 @@ After=network-online.target wg-quick@wg0.service
 [Service]
 Type=oneshot
 # As the practice-hr user, like the backup it follows: the copies are
-# readable by nobody else. The PBS address, token and certificate
-# fingerprint are in /etc/pbs-backup/practice-hr.env (root, mode 600);
-# systemd reads it as root. The encryption key is handed in as a
-# credential, readable only by this unit, so the web service running as the
-# same user cannot reach either. See the README's "Off-site backup" section.
+# readable by nobody else. The PBS address and certificate fingerprint are
+# in /etc/pbs-backup/practice-hr.env. The API token and the encryption key
+# are credentials (root-owned files, handed to this unit only), kept out of
+# the environment because a process's environment is readable by every
+# other process running as practice-hr, the web service included. See the
+# README's "Off-site backup" section.
 User=practice-hr
 Group=practice-hr
 StateDirectory=practice-hr
@@ -17,6 +18,7 @@ StateDirectoryMode=0700
 ReadWritePaths=/var/lib/practice-hr
 UMask=0077
 EnvironmentFile=/etc/pbs-backup/practice-hr.env
+LoadCredential=pbs.token:/etc/pbs-backup/practice-hr.token
 LoadCredential=pbs.key:/etc/pbs-backup/practice-hr.key
 ExecStart=/srv/practice-hr/deploy/pbs-push.sh
 

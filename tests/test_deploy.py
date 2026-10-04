@@ -130,7 +130,8 @@ def test_the_pbs_secrets_stay_out_of_the_app_users_reach():
     either."""
     d = _service_directives("hr-pbs.service")
     assert d["EnvironmentFile"] == ["/etc/pbs-backup/practice-hr.env"]
-    assert d["LoadCredential"] == ["pbs.key:/etc/pbs-backup/practice-hr.key"]
+    assert d["LoadCredential"] == ["pbs.token:/etc/pbs-backup/practice-hr.token",
+                                   "pbs.key:/etc/pbs-backup/practice-hr.key"]
     assert d["ExecStart"] == ["/srv/practice-hr/deploy/pbs-push.sh"]
     assert d["User"] == ["practice-hr"] and d["Group"] == ["practice-hr"]
     assert d["StateDirectory"] == ["practice-hr"] and d["UMask"] == ["0077"]
@@ -159,7 +160,8 @@ def test_the_pbs_push_script_sends_the_copies_encrypted_to_its_own_namespace():
     assert "$state/backups" in live, "the finished copies, not the live database"
     assert "db.sqlite3" not in live
     assert "--ns practice-hr" in live and "--keyfile" in live
-    assert "PBS_PASSWORD" not in text, "the token belongs in the root-only env file"
+    assert "PBS_PASSWORD_FILE" in live, "the token goes by file, not by environment"
+    assert "PBS_PASSWORD=" not in text and "PBS_PASSWORD=" not in (DEPLOY / "hr-pbs.service").read_text()
 
 
 def test_the_pbs_dropin_runs_the_push_after_a_successful_backup():
