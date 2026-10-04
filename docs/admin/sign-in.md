@@ -154,7 +154,9 @@ any relying party is registered, and never changed once one is — rotating
 it invalidates every relying party's ability to verify a token it already
 trusted, until they are told the key changed.
 
-Generate it with `openssl genrsa 2048` straight into the file, as it is.
+Generate it with `openssl genrsa 2048` straight into the file, as it is,
+then `chmod 640` it: `openssl` writes a private key readable by its owner
+alone whatever the umask, and the app reads it as the `practice-hr` user.
 The key does **not** go in the environment file itself: systemd's
 environment-file parser turns an unquoted `\n` into a plain `n`, so a PEM
 key folded onto one line with `\n` for its newlines arrives broken. (That
