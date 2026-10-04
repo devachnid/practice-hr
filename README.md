@@ -180,6 +180,8 @@ relying party:
 See [Registering a relying party](docs/admin/sign-in.md#registering-a-relying-party)
 for `--rotate` and what the command prints.
 
+Then, once, `deploy/manage import_logins --file … --app rota` moves the rota's logins and admins here — see [Migrating logins from the rota](docs/admin/sign-in.md#migrating-logins-from-the-rota).
+
 Point the Cloudflare tunnel ingress at `http://127.0.0.1:8322` — gunicorn
 binds to loopback only, on purpose; see `deploy/gunicorn.service`.
 
