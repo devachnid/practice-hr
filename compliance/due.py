@@ -25,6 +25,12 @@ def link(path):
     return settings.SITE_URL.rstrip("/") + path
 
 
+def active_email(employee):
+    """The login address of `employee`, when they have a login that is switched on; else None."""
+    user = employee.user if employee is not None else None
+    return user.email if user is not None and user.is_active and user.email else None
+
+
 def state_by_date(today, due_on):
     """due_today on the day, overdue after it, due_soon before it."""
     if due_on == today:

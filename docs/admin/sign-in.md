@@ -139,7 +139,10 @@ It prints one line per app with what it did. **people:** `logins_disabled`.
 morning [reminders](compliance.md#reminders): `reminders_sent` (emails
 that went, one per recipient), `reminders_failed` (emails the relay
 refused, also listed as email failures) and `items` (lines in the emails
-that went). With no outgoing email configured all three are 0.
+that went). With no outgoing email configured all three are 0. Each line
+is printed as its step finishes; if the reminders step fails it prints
+`compliance: failed`, logs the kind of error, and the run exits with an
+error so the timer's status shows it.
 
 ## The OpenID Connect provider
 

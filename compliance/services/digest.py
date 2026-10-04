@@ -3,8 +3,9 @@ schedule and the sent log, one email per recipient with a section per
 person. Only what a recipient was given by a producer is in their email:
 their own items, their reports' (a manager), or everyone's (HR).
 
-With no relay configured nothing is sent and nothing is logged, so the
-first night with one sends what is due then. A send that fails is recorded
+It assumes one run a day (hr_nightly): a second run the same day sends
+only what the first did not. With no relay configured nothing is sent and
+nothing is logged, so the first night with one sends what is due then. A send that fails is recorded
 as an EmailFailure (absence.mail) and logs nothing, so the next night tries
 again."""
 import logging
@@ -33,7 +34,7 @@ def _when(item):
     if item.state == "overdue":
         return f"overdue since {item.due_on:%-d %b %Y}"
     if item.state == "lapsed":
-        return f"lapsed on {item.due_on:%-d %b %Y}"
+        return f"expired on {item.due_on:%-d %b %Y}"     # valid through that day
     return "missing"
 
 

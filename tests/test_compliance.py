@@ -1,13 +1,18 @@
 from datetime import date, timedelta
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
+from absence.models import EmailFailure
 from checks.models import Check, CheckType
 from checks.services import checks
 from compliance.models import ReminderSchedule, ReminderSent
-from compliance.services import digest, schedule
+from compliance.services import digest, nightly, schedule
+from documents.models import Policy
+from documents.services import policies
 from onboarding.models import ChecklistItem
 from people.services import employments, positions, titles
 from tests.factories import make_employee, make_team
@@ -110,14 +115,6 @@ def test_no_email_without_a_relay_and_nothing_logged(hr_admin, employee_user):
 
 
 # ---- beyond the brief's cases ------------------------------------------------
-
-from django.contrib.auth import get_user_model  # noqa: E402
-from django.core.files.uploadedfile import SimpleUploadedFile  # noqa: E402
-
-from absence.models import EmailFailure  # noqa: E402
-from compliance.services import nightly  # noqa: E402
-from documents.models import Policy  # noqa: E402
-from documents.services import policies  # noqa: E402
 
 PDF = b"%PDF-1.4\n1 0 obj<<>>endobj\n%%EOF\n"
 
@@ -323,6 +320,53 @@ def test_the_day_after_expiry_the_lapse_starts_afresh(hr_admin, configured, empl
     assert digest.run(today + timedelta(days=1))["reminders_sent"] == 2  # the expiry date: due today
     mail.outbox.clear()
     assert digest.run(today + timedelta(days=2))["reminders_sent"] == 2  # lapsed: a new cadence
-    assert all("DBS: lapsed on" in m.body for m in mail.outbox)
+    assert all("DBS: expired on" in m.body for m in mail.outbox)
     assert digest.run(today + timedelta(days=3))["reminders_sent"] == 0
     assert digest.run(today + timedelta(days=9))["reminders_sent"] == 2  # every Z days
+
+
+# ---- review fixes ------------------------------------------------------------
+
+def test_a_second_run_the_same_day_sends_nothing(hr_admin, configured, employee_user):
+    _dbs_for_receptionists()
+    _receptionist(hr_admin, user=employee_user)
+    today = timezone.localdate()
+    assert digest.run(today)["reminders_sent"] == 2 and digest.run(today)["reminders_sent"] == 0
+
+
+def test_hr_is_told_of_an_overdue_policy_for_someone_with_no_login(hr_admin, configured, media):
+    today = timezone.localdate()
+    e = _receptionist(hr_admin)
+    p = Policy.objects.create(title="Chaperoning")
+    policies.issue(hr_admin, p, "v1", SimpleUploadedFile("c.pdf", PDF, content_type="application/pdf"), today, 14)
+    assert digest.run(today)["reminders_sent"] == 0                    # nobody to tell before it is overdue
+    digest.run(today + timedelta(days=15))
+    [m] = mail.outbox
+    assert m.to == ["hr@example.com"] and e.name in m.body and "Sign Chaperoning (v1): overdue since" in m.body
+
+
+def test_a_persons_item_goes_to_hr_when_they_cannot_sign_in(hr_admin, configured):
+    today = timezone.localdate()
+    e = make_employee()
+    emp = employments.start(hr_admin, e, today + timedelta(days=3))
+    positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), make_team(), None, emp.start_date)
+    ChecklistItem.objects.filter(checklist__employment=emp, title="Complete your details").update(due_on=today)
+    digest.run(today)
+    [hr] = _to("hr@example.com")
+    assert "Complete your details: due today" in hr.body and "/onboarding/all/" in hr.body
+
+
+def test_a_failing_compliance_step_keeps_the_earlier_lines_and_fails_the_command(db, capsys, caplog, monkeypatch):
+    from django.core.management import CommandError, call_command
+
+    from compliance.services import nightly as compliance_nightly
+
+    def boom(today):
+        raise ValueError("Sam Patel sam@example.com")
+    monkeypatch.setattr(compliance_nightly, "run", boom)
+    with pytest.raises(CommandError):
+        call_command("hr_nightly")
+    out = capsys.readouterr().out
+    assert "people: {" in out and "absence: {" in out and "compliance: failed" in out
+    assert "ValueError" in caplog.text
+    assert "sam@example.com" not in caplog.text and "Sam Patel" not in caplog.text

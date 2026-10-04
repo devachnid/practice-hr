@@ -3,25 +3,20 @@
 
 Every open item of a checklist whose employment ended no more than 90 days
 ago (or has not ended): due soon inside the reminder window, due today,
-then overdue. Each goes to its owner: the person (with an active login),
-the line manager it was given to (with an active login), or every HR
-admin. A line manager item with no manager (or one whose login is off) is
-HR's to do, so HR is reminded of it."""
+then overdue. Each goes to its owner: the person, the line manager it was
+given to, or every HR admin. An item whose owner has no login that is
+switched on (or a line manager item with no manager) is HR's to do, so HR
+is reminded of it."""
 from datetime import timedelta
 
 from django.db.models import Q
 from django.urls import reverse
 
 from absence.services.notify import hr_admin_addresses
-from compliance.due import DueItem, link, state_by_date
+from compliance.due import DueItem, active_email, link, state_by_date
 from onboarding.models import ChecklistItem, Owner
 
 ENDED_WITHIN_DAYS = 90
-
-
-def _active_email(employee):
-    user = employee.user if employee is not None else None
-    return user.email if user is not None and user.is_active and user.email else None
 
 
 def due_items(today, sched):
@@ -37,12 +32,13 @@ def due_items(today, sched):
         e = item.checklist.employment.employee
         state = state_by_date(today, item.due_on)
         key = f"item:{item.pk}:{item.due_on.isoformat()}"
-        manager = _active_email(item.owner_employee) if item.owner == Owner.MANAGER else None
-        if item.owner == Owner.PERSON:
-            to, url = [_active_email(e)], reverse("onboarding:getting_started")
-        elif manager:
-            to, url = [manager], reverse("people:team")
-        else:                                   # HR's, or a manager's with no manager able to sign in
+        owner = {Owner.PERSON: e, Owner.MANAGER: item.owner_employee}.get(item.owner)
+        address = active_email(owner)
+        if address and item.owner == Owner.PERSON:
+            to, url = [address], reverse("onboarding:getting_started")
+        elif address:
+            to, url = [address], reverse("people:team")
+        else:                                   # HR's, or an owner who cannot sign in: HR does it
             to, url = hr, reverse("onboarding:hr_detail", args=[item.checklist_id])
         out.extend(DueItem(e, r, "item", item.title, item.due_on, state, link(url), key) for r in to if r)
     return out
