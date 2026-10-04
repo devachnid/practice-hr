@@ -1,0 +1,45 @@
+[Unit]
+Description=Push Practice HR's nightly backup to the Proxmox Backup Server
+After=network-online.target wg-quick@wg0.service
+
+[Service]
+Type=oneshot
+# As the practice-hr user, like the backup it follows: the copies are
+# readable by nobody else. The PBS address, token and certificate
+# fingerprint are in /etc/pbs-backup/practice-hr.env (root, mode 600);
+# systemd reads it as root. The encryption key is handed in as a
+# credential, readable only by this unit, so the web service running as the
+# same user cannot reach either. See the README's "Off-site backup" section.
+User=practice-hr
+Group=practice-hr
+StateDirectory=practice-hr
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/practice-hr
+UMask=0077
+EnvironmentFile=/etc/pbs-backup/practice-hr.env
+LoadCredential=pbs.key:/etc/pbs-backup/practice-hr.key
+ExecStart=/srv/practice-hr/deploy/pbs-push.sh
+
+# Sandbox: identical in every practice-hr unit (tests/test_deploy.py).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

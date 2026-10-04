@@ -199,6 +199,77 @@ year's and next year's leave pots, charges bank holidays and chases waiting leav
 the year-end part by hand, and `deploy/manage payroll_report --period
 2026-06` builds a month's [payroll report](docs/admin/payroll.md).
 
+### Off-site backup to a Proxmox Backup Server
+
+The nightly copy sits on the same machine as the database, and this app
+holds staff records and pay data. `hr-pbs.service` pushes
+`/var/lib/practice-hr/backups` (the database copies and the payroll-report
+archive) to a Proxmox Backup Server (PBS) with `proxmox-backup-client`,
+straight after `hr-backup.service` succeeds. It sends the finished copies,
+never the live WAL database, and encrypts them before they leave, so the PBS
+holds no plaintext. It is optional: a host without it still backs up
+locally.
+
+1. **Install the client** (Debian 13; for 12 use `bookworm` and Proxmox's
+   `proxmox-release-bookworm.gpg`, and check the key against the checksum on
+   Proxmox's docs page):
+
+       wget https://enterprise.proxmox.com/debian/proxmox-archive-keyring-trixie.gpg -O /usr/share/keyrings/proxmox-archive-keyring.gpg
+       printf 'Types: deb\nURIs: http://download.proxmox.com/debian/pbs-client\nSuites: trixie\nComponents: main\nSigned-By: /usr/share/keyrings/proxmox-archive-keyring.gpg\n' > /etc/apt/sources.list.d/pbs-client.sources
+       apt update && apt install proxmox-backup-client
+
+2. **Reach the PBS over a private link**, never over the internet: WireGuard
+   on the PBS host, so it answers on an address like `10.88.0.1`, with its
+   firewall allowing port 8007 only from this host's tunnel address. If the
+   host has an outbound firewall, allow the tunnel's UDP port to the PBS's
+   public address (and, if the handshake stalls, the replies back in).
+
+3. **On the PBS**: one namespace, user and token for this app, allowed only
+   to *back up* into that namespace. `DatastoreBackup` cannot prune or delete,
+   so a compromised host cannot erase its own history. Grant the role to the
+   user and to the token (a token never has more than its user), then add a
+   prune job for the namespace in the web UI (Datastore, Prune & GC).
+
+       proxmox-backup-client namespace create practice-hr --repository root@pam@localhost:<datastore>
+       proxmox-backup-manager user create vps-hr@pbs
+       proxmox-backup-manager user generate-token vps-hr@pbs backup
+       proxmox-backup-manager acl update /datastore/<datastore>/practice-hr DatastoreBackup --auth-id vps-hr@pbs
+       proxmox-backup-manager acl update /datastore/<datastore>/practice-hr DatastoreBackup --auth-id 'vps-hr@pbs!backup'
+
+   Keep the token secret it prints, and the certificate fingerprint from the
+   dashboard (Show Fingerprint). **Set the prune retention to match the
+   practice's retention policy** (see the
+   [retention report](docs/admin/people.md#retention-report)): a backup keeps
+   a person's records for as long as it is kept, including after the app has
+   stopped listing them, so do not keep snapshots indefinitely.
+
+4. **On this host**: the key and the secrets, root-only.
+
+       install -d -m 700 /etc/pbs-backup
+       proxmox-backup-client key create /etc/pbs-backup/practice-hr.key --kdf none
+       proxmox-backup-client key paperkey /etc/pbs-backup/practice-hr.key
+       ( umask 077; printf 'PBS_REPOSITORY=vps-hr@pbs!backup@10.88.0.1:8007:<datastore>\nPBS_PASSWORD=<token secret>\nPBS_FINGERPRINT=<fingerprint>\n' > /etc/pbs-backup/practice-hr.env )
+
+   **Copy the key (or its paper print) somewhere off this host now.** Without
+   it every pushed backup is unreadable. Then install the units; the drop-in
+   makes the push follow each successful backup:
+
+       cp deploy/hr-pbs.service /etc/systemd/system/
+       install -D deploy/hr-backup-pbs.conf /etc/systemd/system/hr-backup.service.d/pbs.conf
+       systemctl daemon-reload
+
+5. **Test it, including a restore.** Run a backup, check the snapshot appears
+   under the `practice-hr` namespace, then restore it on another machine with
+   only the key, and open the copy:
+
+       systemctl start hr-backup.service && journalctl -u hr-pbs -n 20 --no-pager
+       proxmox-backup-client snapshot list --ns practice-hr
+       proxmox-backup-client restore host/practice-hr/<timestamp> data.pxar ./restore-test --ns practice-hr --keyfile practice-hr.key
+       sqlite3 restore-test/db-<date>.sqlite3 'select count(*) from django_session'
+
+   A failed push shows in `journalctl -u hr-pbs` and `systemctl status
+   hr-pbs`; nothing else tells you, so look after the first night.
+
 `systemd-analyze security practice-hr` scores the sandbox.
 
 **Logs** go to the journal: `journalctl -u practice-hr`. There is one line

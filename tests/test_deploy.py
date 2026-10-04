@@ -107,3 +107,62 @@ def test_site_url_check_is_registered_for_deploy():
     from django.core import checks
     from hr.checks import site_url
     assert site_url in checks.registry.registry.deployment_checks
+
+
+# --- off-site backup to the Proxmox Backup Server --------------------------
+
+def _service_directives(name):
+    out = {}
+    in_service = False
+    for line in (DEPLOY / name).read_text().splitlines():
+        line = line.strip()
+        if line.startswith("["):
+            in_service = line == "[Service]"
+        elif in_service and "=" in line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            out.setdefault(key, []).append(value)
+    return out
+
+
+def test_the_pbs_secrets_stay_out_of_the_app_users_reach():
+    """The token comes from a root-read env file and the encryption key as a
+    credential, so the practice-hr user (and the web process) never reads
+    either."""
+    d = _service_directives("hr-pbs.service")
+    assert d["EnvironmentFile"] == ["/etc/pbs-backup/practice-hr.env"]
+    assert d["LoadCredential"] == ["pbs.key:/etc/pbs-backup/practice-hr.key"]
+    assert d["ExecStart"] == ["/srv/practice-hr/deploy/pbs-push.sh"]
+    assert d["User"] == ["practice-hr"] and d["Group"] == ["practice-hr"]
+    assert d["StateDirectory"] == ["practice-hr"] and d["UMask"] == ["0077"]
+
+
+def test_the_pbs_unit_carries_the_backup_units_sandbox():
+    """Everything from the Sandbox comment on is the same as hr-backup's."""
+    def sandbox(name):
+        text = (DEPLOY / name).read_text()
+        return text[text.index("# Sandbox"):].split("\n", 1)[1]
+    assert sandbox("hr-pbs.service") == sandbox("hr-backup.service")
+
+
+def test_the_pbs_push_script_is_executable_and_valid_shell():
+    script = DEPLOY / "pbs-push.sh"
+    assert os.access(script, os.X_OK)
+    try:
+        subprocess.run(["sh", "-n", str(script)], check=True, capture_output=True)
+    except FileNotFoundError:
+        pytest.skip("no sh")
+
+
+def test_the_pbs_push_script_sends_the_copies_encrypted_to_its_own_namespace():
+    text = (DEPLOY / "pbs-push.sh").read_text()
+    live = " ".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert "$state/backups" in live, "the finished copies, not the live database"
+    assert "db.sqlite3" not in live
+    assert "--ns practice-hr" in live and "--keyfile" in live
+    assert "PBS_PASSWORD" not in text, "the token belongs in the root-only env file"
+
+
+def test_the_pbs_dropin_runs_the_push_after_a_successful_backup():
+    live = [ln for ln in (DEPLOY / "hr-backup-pbs.conf").read_text().splitlines()
+            if ln.strip() and not ln.startswith("#")]
+    assert live == ["[Unit]", "OnSuccess=hr-pbs.service"]
