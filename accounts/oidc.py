@@ -1,7 +1,11 @@
-"""What the ID token and userinfo say about a person: their email and
-their employee id. Nothing else leaves this system through sign-in."""
+"""What the ID token and userinfo say about a person: their email, their
+employee id, and whether they are an admin of the app asking (`admin`,
+from their AppRole for that client; False with none). Nothing else leaves
+this system through sign-in."""
 
 from oauth2_provider.oauth2_validators import OAuth2Validator
+
+from .models import AppRole
 
 
 class Validator(OAuth2Validator):
@@ -16,6 +20,10 @@ class Validator(OAuth2Validator):
         return bool(request.user and request.user.is_active)
 
     def get_additional_claims(self, request):
+        # request.client is the Application the token is for: set by client
+        # authentication at the token endpoint (the ID token), and from the
+        # access token's application at the userinfo endpoint.
         user = request.user
         employee = getattr(user, "employee", None)
-        return {"email": user.email, "employee_id": employee.pk if employee else None}
+        admin = AppRole.objects.filter(user=user, application=request.client, is_admin=True).exists()
+        return {"email": user.email, "employee_id": employee.pk if employee else None, "admin": admin}

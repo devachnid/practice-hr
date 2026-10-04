@@ -2,6 +2,7 @@ from django.core.management import call_command
 from django.test import Client
 from oauth2_provider.models import Application
 
+from accounts.models import AppRole
 from accounts.oidc import Validator
 from tests.factories import make_employee
 
@@ -35,16 +36,45 @@ def test_reregister_keeps_secret_unless_rotate(db, capsys):
     assert "Secret rotated" in capsys.readouterr().out
 
 
+def _app(name="rota"):
+    return Application.objects.create(
+        name=name, redirect_uris=f"https://{name}.example/cb/",
+        client_type=Application.CLIENT_CONFIDENTIAL,
+        authorization_grant_type=Application.GRANT_AUTHORIZATION_CODE)
+
+
+def _claims(user, client):
+    """The oauthlib request as the provider hands it over: the signed-in
+    login, and the client (the Application) the token is for."""
+    return Validator().get_additional_claims(type("R", (), {"user": user, "client": client})())
+
+
 def test_claims_carry_email_and_employee_id(employee_user):
     e = make_employee(user=employee_user)
-    request = type("R", (), {"user": employee_user})()
-    claims = Validator().get_additional_claims(request)
-    assert claims == {"email": "sam@example.com", "employee_id": e.pk}
+    claims = _claims(employee_user, _app())
+    assert claims == {"email": "sam@example.com", "employee_id": e.pk, "admin": False}
 
 
 def test_claims_without_employee(employee_user):
-    request = type("R", (), {"user": employee_user})()
-    assert Validator().get_additional_claims(request) == {"email": "sam@example.com", "employee_id": None}
+    assert _claims(employee_user, _app()) == {
+        "email": "sam@example.com", "employee_id": None, "admin": False}
+
+
+def test_the_admin_claim_is_the_login_s_role_in_the_requesting_app(employee_user):
+    rota, other = _app("rota"), _app("other")
+    AppRole.objects.create(user=employee_user, application=rota, is_admin=True)
+    AppRole.objects.create(user=employee_user, application=other, is_admin=False)
+    assert _claims(employee_user, rota)["admin"] is True
+    assert _claims(employee_user, other)["admin"] is False
+    AppRole.objects.filter(application=rota).update(is_admin=False)
+    assert _claims(employee_user, rota)["admin"] is False
+
+
+def test_no_role_is_no_admin(employee_user, hr_admin):
+    """An HR admin is not thereby an admin of the rota: the role is per app."""
+    rota = _app()
+    AppRole.objects.create(user=employee_user, application=rota, is_admin=True)
+    assert _claims(hr_admin, rota)["admin"] is False
 
 
 # --- only the provider's endpoints are mounted (review C1) -------------------------
@@ -168,8 +198,13 @@ def _b64url_json(segment):
     return json.loads(base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)))
 
 
-def _signed_in_flow(capsys, client, user):
+def _signed_in_flow(capsys, client, user, is_admin=None):
+    """Sign `user` in to a freshly registered rota, to the tokens. With
+    `is_admin`, the login holds that role in the rota first."""
     client_id, secret = _register(capsys)
+    if is_admin is not None:
+        AppRole.objects.create(user=user, application=Application.objects.get(client_id=client_id),
+                               is_admin=is_admin)
     verifier = "v" * 64
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     r = client.get("/o/authorize/", {
@@ -190,18 +225,26 @@ def _signed_in_flow(capsys, client, user):
 PROTOCOL = {"iss", "aud", "exp", "iat", "auth_time", "jti", "nonce", "at_hash", "azp"}
 
 
-def test_the_code_flow_gives_exactly_sub_email_and_employee_id(capsys, employee_client, employee_user):
+@pytest.mark.parametrize("role, admin", [(None, False), (False, False), (True, True)],
+                         ids=["no-role", "user", "admin"])
+def test_the_code_flow_gives_exactly_sub_email_employee_id_and_admin(
+        capsys, employee_client, employee_user, role, admin):
+    """Both ways a claim leaves: the ID token from the token endpoint, and
+    the userinfo endpoint read with the access token. `admin` is read from
+    the client each request names, so this proves both paths carry it."""
     e = make_employee(user=employee_user)
-    client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user)
+    client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user, is_admin=role)
     claims = _b64url_json(tokens["id_token"].split(".")[1])
-    assert set(claims) - PROTOCOL == {"sub", "email", "employee_id"}
-    assert (claims["sub"], claims["email"], claims["employee_id"]) == (
-        str(employee_user.pk), "sam@example.com", e.pk)
+    assert set(claims) - PROTOCOL == {"sub", "email", "employee_id", "admin"}
+    assert isinstance(claims["admin"], bool)  # a JSON true/false, never 0 or 1
+    assert (claims["sub"], claims["email"], claims["employee_id"], claims["admin"]) == (
+        str(employee_user.pk), "sam@example.com", e.pk, admin)
     assert claims["aud"] == client_id and claims["nonce"] == "nn"
     info = Client().get("/o/userinfo/", HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
     assert info.status_code == 200
+    assert isinstance(info.json()["admin"], bool)
     assert info.json() == {"sub": str(employee_user.pk), "email": "sam@example.com",
-                           "employee_id": e.pk}
+                           "employee_id": e.pk, "admin": admin}
 
 
 def test_the_code_flow_needs_pkce(capsys, employee_client):

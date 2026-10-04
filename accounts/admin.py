@@ -1,15 +1,18 @@
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.utils import flatten_fieldsets
 from django.contrib.auth.admin import UserAdmin
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db.models import Prefetch
 from django.utils import timezone
 from django.utils.html import format_html
+from oauth2_provider.models import Application
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm
 
 from .mail import link_expires, send_password_link
-from .models import Passkey, User
+from .models import AppRole, Passkey, User
 
 
 class InviteForm(forms.ModelForm):
@@ -19,6 +22,44 @@ class InviteForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ("email", "is_hr_admin")
+
+
+APP_ADMIN = "app_admin_"
+
+
+def _registered_clients():
+    """The apps this system signs people in to: the ownerless clients
+    register_oidc_client makes. A client someone registered for themselves
+    is never one of them."""
+    return Application.objects.filter(user__isnull=True).order_by("name")
+
+
+class LoginChangeForm(UserChangeForm):
+    """The change form, plus one box per registered client: whether this
+    login is an admin of that app. The boxes are not model fields, so they
+    are added here rather than declared, one per client that exists now."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.clients = list(_registered_clients())
+        admin_of = set(AppRole.objects.filter(user=self.instance, is_admin=True)
+                       .values_list("application_id", flat=True)) if self.instance.pk else set()
+        for app in self.clients:
+            self.fields[f"{APP_ADMIN}{app.pk}"] = forms.BooleanField(
+                label=f"Admin of {app.name}", required=False, initial=app.pk in admin_of,
+                help_text="Whether this login is an admin of that app. Access to the app "
+                          "itself needs only an active login here.")
+
+    def save_app_roles(self):
+        """A ticked box makes (or keeps) the login an admin there; an
+        unticked one turns an existing role back to a user, and creates
+        nothing where there was none."""
+        for app in self.clients:
+            if self.cleaned_data[f"{APP_ADMIN}{app.pk}"]:
+                AppRole.objects.update_or_create(
+                    user=self.instance, application=app, defaults={"is_admin": True})
+            else:
+                AppRole.objects.filter(user=self.instance, application=app).update(is_admin=False)
 
 
 def _report(request, user, result, *, invite):
@@ -68,11 +109,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     invitation; the change page offers one send button, chosen by state;
     the direct set-password form stays for superusers only."""
 
-    form = UserChangeForm
+    form = LoginChangeForm
     add_form = InviteForm
     change_password_form = AdminPasswordChangeForm
     ordering = ("email",)
-    list_display = ("email", "is_hr_admin", "is_active", "is_set_up")
+    list_display = ("email", "is_hr_admin", "is_active", "is_set_up", "apps")
     list_filter = ("is_hr_admin", "is_active")
     search_fields = ("email",)
     readonly_fields = ("account_state",)
@@ -97,7 +138,8 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         permission/has_change_permission/has_delete_permission can turn
         it away with their own 403, rather than this filter making
         Django treat the row as not existing (a redirect instead)."""
-        qs = super().get_queryset(request)
+        qs = super().get_queryset(request).prefetch_related(Prefetch(
+            "app_roles", AppRole.objects.select_related("application").order_by("application__name")))
         if not request.user.is_superuser:
             qs = qs.filter(is_superuser=False)
         return qs
@@ -126,6 +168,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
                                "request, and see pay and health records.",
             }),
         ]
+        clients = _registered_clients().values_list("pk", flat=True)
+        if clients:
+            # LoginChangeForm adds these fields; get_form keeps them out of
+            # the model form's field list.
+            sets.append(("Apps", {"fields": [f"{APP_ADMIN}{pk}" for pk in clients]}))
         if request.user.is_superuser:
             # is_staff is derived on save (accounts/models.py), so it is
             # not offered here.
@@ -133,6 +180,15 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         else:
             sets.append(("Status", {"fields": ("is_active",)}))
         return sets
+
+    def get_form(self, request, obj=None, **kwargs):
+        # The admin builds the form from the fieldsets' field names, and a
+        # model form refuses a name the model does not have; the app boxes
+        # are LoginChangeForm's own. Django itself sometimes passes
+        # fields=None (_get_form_for_get_fields): read the fieldsets then.
+        fields = kwargs.get("fields") or flatten_fieldsets(self.get_fieldsets(request, obj))
+        kwargs["fields"] = [f for f in fields if not f.startswith(APP_ADMIN)]
+        return super().get_form(request, obj, **kwargs)
 
     def get_readonly_fields(self, request, obj=None):
         fields = super().get_readonly_fields(request, obj)
@@ -175,7 +231,9 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         # unfold's save_model runs whichever submit-line button was pressed,
         # after the save — so the two send_* methods below fire from here.
         super().save_model(request, obj, form, change)
-        if not change:
+        if change:
+            form.save_app_roles()
+        else:
             _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
 
     def get_actions_submit_line(self, request, object_id):
@@ -221,6 +279,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
                 copies += 1
                 _report(request, user, result, invite=invite)
         messages.info(request, f"{sent} sent, {copies} to copy.")
+
+    @admin.display(description="Apps")
+    def apps(self, obj):
+        return ", ".join(f"{role.application.name} (admin)" if role.is_admin else role.application.name
+                         for role in obj.app_roles.all())
 
     @admin.display(description="Set up?", boolean=True)
     def is_set_up(self, obj):

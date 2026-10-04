@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.db.models.functions import Lower
@@ -102,3 +103,23 @@ class Passkey(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.user.email})"
+
+
+class AppRole(models.Model):
+    """What a login is in one of the apps this system signs people in to
+    (the clients register_oidc_client makes — the rota). Access to the
+    app needs only an active login here; this row says whether the person
+    is an admin there too, which reaches the app as the `admin` claim
+    (accounts/oidc.py) at each sign-in."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="app_roles")
+    application = models.ForeignKey(
+        settings.OAUTH2_PROVIDER_APPLICATION_MODEL, on_delete=models.CASCADE, related_name="roles")
+    is_admin = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("user", "application")
+        verbose_name = "app role"
+
+    def __str__(self):
+        return f"{self.user.email} on {self.application.name}: {'admin' if self.is_admin else 'user'}"

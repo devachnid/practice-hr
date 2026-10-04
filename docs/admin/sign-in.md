@@ -139,7 +139,8 @@ This system is an OpenID Connect **provider** for the practice's other
 apps — currently the rota. Once a relying party (an app like the rota) is
 registered, that app's own login page can offer "sign in with the practice
 account": a person authenticates here, and the relying party trusts the
-`email` and `employee_id` claims this system returns (`accounts/oidc.py`).
+`email`, `employee_id` and `admin` claims this system returns
+(`accounts/oidc.py`).
 With no signing key set (`OIDC_RSA_PRIVATE_KEY_FILE`, below), the provider
 is switched off entirely —
 `/o/` answers 404 and nothing about ordinary sign-in changes.
@@ -203,8 +204,27 @@ its next sign-in.
 
 ### What a relying party gets
 
-The `openid` and `email` scopes only: an ID token carrying `email` and
-`employee_id`. Consent is skipped (`skip_authorization=True` on every
+The `openid` and `email` scopes only: an ID token, and the userinfo
+endpoint, carrying three claims about the person:
+
+- `email` — their login account's email.
+- `employee_id` — the Employee their login is linked to, or `null` with none.
+- `admin` — `true` if they are an admin of the app asking, `false`
+  otherwise. Each app gets its own answer.
+
+Who is an admin of which app is set on their login account's page, under
+**Apps**: one box per registered relying party, **Admin of rota** and so
+on, in name order. Tick it and save to make them an admin there; untick it
+to take that away. The rota reads the claim at each sign-in, so a change
+reaches it the next time that person signs in to it. Being an admin of an
+app is all **Apps** controls: anyone with an active login here can sign in
+to every registered app. The section is not on the add page (save the new
+account first), and is left out while no relying party is registered. The
+list of login accounts has an **Apps** column reading like "rota (admin)",
+"rota", or blank, so the admins are visible at a glance. An HR admin can
+set it on anyone's account but a superuser's, as everything else there.
+
+Consent is skipped (`skip_authorization=True` on every
 registration) — a relying party is a practice app the practice itself
 operates, not a third party a person needs to approve access for each
 time. PKCE is required on every authorization, and ID and access tokens
@@ -222,3 +242,74 @@ and signing out of the rota signs the person out here too (the rota sends
 them to this system's `/o/logout/`, which returns them to the rota's login
 page). On a shared surgery PC, the next person to press *Sign in with the
 practice account* is asked who they are rather than signed in as the last.
+
+## Migrating logins from the rota
+
+Before the rota signed everyone in through this system, it had its own
+passwords and its own admins. `import_logins` moves them here, once, so
+nobody has to choose a new password and the rota's admins stay admins.
+Register the rota first ([above](#registering-a-relying-party)), then, in
+this order:
+
+1. On the rota's box, write its logins to a file (the rota's own sign-in
+   guide has the details):
+
+       deploy/manage export_logins --file /var/lib/rota/logins.json
+
+2. Copy the file to this box as `/var/lib/practice-hr/rota-logins.json`
+   (`cp` instead of `scp` if both apps run on one box; `hr` here is this
+   box's name):
+
+       scp /var/lib/rota/logins.json hr:/var/lib/practice-hr/rota-logins.json
+
+   `deploy/manage` runs commands as the `practice-hr` user, which can read
+   that directory and nobody else can. Make the file that user's alone:
+
+       chown practice-hr:practice-hr /var/lib/practice-hr/rota-logins.json
+       chmod 600 /var/lib/practice-hr/rota-logins.json
+
+3. Import it here. `--dry-run` first prints the same counts and writes
+   nothing; then run it for real:
+
+       deploy/manage import_logins --file /var/lib/practice-hr/rota-logins.json --app rota --dry-run
+       deploy/manage import_logins --file /var/lib/practice-hr/rota-logins.json --app rota
+
+4. Delete the file on both boxes. It holds every rota login's password hash.
+
+`--app` names the registered relying party whose admins the file
+describes; it defaults to `rota`, and the command stops if no relying party
+of that name is registered. It also stops, before writing anything, on a
+file that is not a rota export; a password that is not a password hash is
+one of the things it refuses. One bad login stops the whole import, so
+nothing is half-done. It never prints a password or a hash.
+
+It prints one count per line:
+
+- **created** — logins that did not exist here and do now, with the rota's
+  email, active or not as they were in the rota. No invitation is sent.
+- **passwords_set** — logins here with no password yet (just created, or
+  invited and never set up) that now have their rota password. They sign
+  in here with it: both apps store a password as the same kind of hash, so
+  the hash moves and the password itself is never seen. That includes an
+  HR admin's login that was invited but never set up: their rota password
+  now opens this admin too, and with it pay and health records. It is the
+  same person, but worth knowing before you run it.
+- **password_kept** — logins that already had a password here. It is kept,
+  and the rota's is ignored.
+- **linked** — employee records whose work email matched (whatever its
+  case) and that had no login yet, now linked to this one.
+- **admins** — logins that are admins of the rota, from its own flag.
+  Every login gets its **Apps** row; this counts those ticked.
+
+Then it lists, by email, anyone with **no matching employee** (no Employee
+has that work email: link them by hand, from the Employee's
+[User](people.md#user) field, if they should have one), and anyone whose
+**employee is already linked to another login** (it is left alone: check
+which login is right).
+
+A login whose rota account had no password (a passkey only, or never set
+up) has none here either: send it an invitation from its page. A login that
+already existed here keeps its own Active setting. The rota's superuser
+flag is not read: superusers here are made with `createsuperuser`. Running
+the import again changes nothing for passwords, but it puts the rota's
+admin flags back over any **Apps** change made here since; so run it once.

@@ -15,7 +15,7 @@ there.
 | [Year end](year-end.md) | What the nightly closes at the end of a leave year: carry cap, expiry, TOIL, leavers' debts; running it by hand; reversing a line |
 | [Payroll changes report](payroll.md) | The monthly spreadsheet for the payroll bureau: what each sheet holds, which absence types reach it, spanning months, leaver balances, where the files live |
 | [The read API](api.md) | The three JSON endpoints the rota polls, the token in `HR_API_TOKENS`, and the shapes they return |
-| [Login accounts and signing in](sign-in.md) | Login accounts, admin status, passkeys, invitations, nightly housekeeping, and the OpenID Connect provider |
+| [Login accounts and signing in](sign-in.md) | Login accounts, admin status, passkeys, invitations, nightly housekeeping, the OpenID Connect provider and who is an admin of each app, and migrating the rota's logins |
 
 ## The mental model
 

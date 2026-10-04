@@ -432,6 +432,10 @@ def _oidc_private_key():
 
 
 OIDC_RSA_PRIVATE_KEY = _oidc_private_key()
+# django-oauth-toolkit's own default, named here because accounts.AppRole
+# points at the client model and that model is swappable: Django's
+# migration autodetector looks the setting up by name.
+OAUTH2_PROVIDER_APPLICATION_MODEL = "oauth2_provider.Application"
 OAUTH2_PROVIDER = {
     "OIDC_ENABLED": bool(OIDC_RSA_PRIVATE_KEY) or _TESTING,
     "OIDC_RSA_PRIVATE_KEY": OIDC_RSA_PRIVATE_KEY,

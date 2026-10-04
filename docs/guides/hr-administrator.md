@@ -548,6 +548,16 @@ password link: send one as above.
 
 They can add a new one from their **Account** page.
 
+### How to make someone an admin of the rota
+
+1. Open their login account.
+2. Under **Apps**, tick **Admin of rota**.
+3. Choose **Save**.
+
+It takes effect the next time they sign in to the rota. To take it away,
+untick the box and save. Anyone with a login can use the rota; this box
+only decides who is an admin there.
+
 ### How to stop someone signing in
 
 Open their login account, untick **Active**, and choose **Save**. Leavers'
