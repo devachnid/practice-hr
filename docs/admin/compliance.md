@@ -230,9 +230,13 @@ change it.
 - **Starter:** when an employment is added whose start date is in the
   future or in the last 30 days. An older spell (one being entered after
   the fact) gets none.
-- **Leaver:** when an employment's leaving date is set. Setting it again
+- **Leaver:** when an employment's leaving date is set. Changing the date
   keeps the same checklist and moves its open items' due dates with the
-  new date. Clearing the leaving date leaves the checklist as it is.
+  new date. **Clearing the leaving date closes the leaver checklist:** its
+  open items become *not needed*, noted *leaving date cleared*, so nobody
+  is chased for a leaving that is not happening; items already done stay
+  done. Setting a leaving date again later makes the leaver checklist
+  afresh from the template, every item open, due by the new date.
 
 Moving an employment's start date moves its starter checklist's open items
 with it. Items already closed keep their dates.
@@ -252,8 +256,10 @@ The title is the one on the start date (starter) or the leaving date
 (leaver). The admin saves an employment before its positions, so a starter
 checklist is made with the default first and **re-made from the title's
 template when the primary position is added**, as long as nobody has
-closed, added or removed an item on it yet. Once work on it has begun it is
-kept, and the gap is noted (below).
+closed, added or removed an item on it yet (items closed automatically do
+not count). Once work on it has begun it is kept, and the gap is noted
+(below). The line manager of that position takes the open line manager
+items either way.
 
 Each item has:
 
@@ -311,8 +317,17 @@ The default leaver items:
 
 A link the app does not recognise is refused when the template is saved.
 An item closed automatically shows *done automatically* and no person
-against it. Nothing that happened before the checklist was made closes an
-item: mark those done by hand.
+against it.
+
+**A checklist starts with what is already in place done.** When it is
+made (or re-made for the title), a linked item whose condition already
+holds is closed automatically straight away: `check:<code>` when the
+person has a clear check of that type that has not expired (a returner's
+DBS, say), `upload:<category>` when a file of that category is already
+stored for them, and `sign_policies` when they have nothing to sign. A
+starter with no position yet owes only the policies that apply to
+everyone, so when their position is added the signing item is opened
+again if their title brings policies to sign.
 
 ### Who closes what
 
@@ -336,8 +351,13 @@ set-up, so it can be made with **gaps**, listed on it:
 - *no starter (or leaver) checklist template* — no active template applies,
   so the checklist has no items. Add or switch on a default.
 - *no line manager on the primary position* — the line manager items have
-  no owner: HR does them, or adds a manager to the position, which hands
-  the open ones over.
+  no owner, and nobody but HR can close them: HR does them. The manager is
+  taken only from the primary position covering the start (or leaving)
+  date, when the checklist is made or that position is added; a manager
+  given to someone later does not take the items over.
 - *the template for … was not applied* — the title's template arrived after
   work on the checklist had begun; add any missing items by hand.
+- *the leaving date was cleared* — the leaver checklist was closed when its
+  leaving date was cleared ([above](#when-a-checklist-is-made)); setting a
+  date again makes it afresh.
 

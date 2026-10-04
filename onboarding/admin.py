@@ -63,6 +63,9 @@ class ChecklistAdmin(ModelAdmin):
     readonly_fields = fields
     inlines = [ChecklistItemInline]
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("items")   # summary() reads them per row
+
     @admin.display(description="Done")
     def progress(self, obj):
         s = checklists.summary(obj)

@@ -23,15 +23,18 @@ from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
-from onboarding.models import Checklist, ChecklistItem, ChecklistTemplate, DueRule, Kind, Owner
+from onboarding.models import Checklist, ChecklistItem, ChecklistTemplate, DueRule, Kind, Owner, link_problem
 from people.services import access, audit, positions
 
 RECENT_DAYS = 30
 START_RULES = (DueRule.BEFORE_START, DueRule.AFTER_START)
 END_RULES = (DueRule.BEFORE_END, DueRule.AFTER_END)
 AUTOMATIC = "done automatically"
+CLEARED = "leaving date cleared"
+CLEARED_GAP = "the leaving date was cleared: its open items were closed as not needed"
 
 
 def _template(kind, title):
@@ -88,11 +91,63 @@ def _copy_items(checklist, template, manager):
             due_on=_due(it.due_rule, it.due_days, employment.start_date, employment.end_date or employment.start_date))
 
 
+def _already_met(employee, link, today):
+    """Whether the condition behind `link` already holds for the person, so a
+    checklist built now starts with that item done: a current clear check of
+    the type (not one that has expired), a file of the category (not one
+    superseded), nothing left to sign."""
+    from checks.models import Check
+    from checks.services import checks
+    from documents.models import File
+    from documents.services import policies
+    kind, _, value = link.partition(":")
+    if kind == "check" and value:
+        return (Check.objects.filter(employee=employee, check_type__code=value, awaiting=False,
+                                     outcome__in=checks.CLEAR)
+                .filter(Q(expires_on__isnull=True) | Q(expires_on__gte=today)).exists())
+    if kind == "upload" and value:
+        return File.objects.filter(employee=employee, category=value, superseded_by__isnull=True).exists()
+    if link == "sign_policies":
+        return not policies.owed(employee, today)
+    return False
+
+
+def _close_already_met(checklist):
+    """Close "done automatically" the linked items whose condition holds
+    already (a returner's DBS, a passport on file, nothing to sign)."""
+    today = timezone.localdate()
+    employee = checklist.employment.employee
+    met = [item for item in checklist.items.filter(state=ChecklistItem.State.OPEN).exclude(link="")
+           if _already_met(employee, item.link, today)]
+    _auto_close(met)
+
+
+def _reopen_unmet(checklist):
+    """Reopen the items closed automatically whose condition no longer
+    holds. Returns how many."""
+    today = timezone.localdate()
+    employee = checklist.employment.employee
+    reopened = 0
+    for item in checklist.items.filter(state=ChecklistItem.State.DONE, done_by__isnull=True, note=AUTOMATIC):
+        if not _already_met(employee, item.link, today):
+            item.state, item.done_at, item.note = ChecklistItem.State.OPEN, None, ""
+            item.save(update_fields=["state", "done_at", "note"])
+            audit.record(None, item, {"state": (ChecklistItem.State.DONE, ChecklistItem.State.OPEN)},
+                         note="no longer met")
+            reopened += 1
+    return reopened
+
+
+def _fill(checklist, template, manager):
+    _copy_items(checklist, template, manager)
+    _close_already_met(checklist)
+
+
 def _build(actor, employment, kind):
     pos, template, manager = _resolve(employment, kind)
     cl = Checklist.objects.create(employment=employment, kind=kind, template=template, created_by=actor,
                                   gaps="\n".join(_gaps(kind, pos, template, manager)))
-    _copy_items(cl, template, manager)
+    _fill(cl, template, manager)
     audit.record(actor, cl, {"created": ("", f"{kind} checklist, {cl.items.count()} items")})
     return cl
 
@@ -127,22 +182,62 @@ def start(actor, employment):
 def leave(actor, employment, previous_end=None):
     """Called by employments.end when an end date is set. A leaver
     checklist already there is kept; when `previous_end` says the date
-    moved, its open items due by the leaving date move with it."""
+    moved, its open items due by the leaving date move with it. One closed
+    by leaving_cleared (the date was cleared, now set again) is made
+    afresh from the template for the new date."""
     if employment.end_date is None:
         return None
     existing = Checklist.objects.filter(employment=employment, kind=Kind.LEAVER).first()
-    if existing:
-        if previous_end is not None:
-            _shift(actor, existing, END_RULES, employment.end_date - previous_end)
+    if existing is None:
+        return _build(actor, employment, Kind.LEAVER)
+    if CLEARED_GAP in gaps(existing):
+        pos, template, manager = _resolve(employment, Kind.LEAVER)
+        existing.items.all().delete()
+        existing.template, existing.completed_at = template, None
+        existing.gaps = "\n".join(_gaps(Kind.LEAVER, pos, template, manager))
+        existing.save(update_fields=["template", "completed_at", "gaps"])
+        _fill(existing, template, manager)
+        _finish_if_done(existing)
+        audit.record(actor, existing, {"rebuilt": ("", f"leaving date set again, {existing.items.count()} items")})
         return existing
-    return _build(actor, employment, Kind.LEAVER)
+    if previous_end is not None:
+        _shift(actor, existing, END_RULES, employment.end_date - previous_end)
+    return existing
+
+
+@transaction.atomic
+def leaving_cleared(actor, employment):
+    """Called by employments.end when the leaving date is cleared: the
+    leaver checklist's open items are closed as not needed (nobody is
+    chased for a leaving that is not happening) and the checklist is
+    marked so that setting a date again makes it afresh. None when there
+    is no leaver checklist."""
+    cl = Checklist.objects.filter(employment=employment, kind=Kind.LEAVER).first()
+    if cl is None:
+        return None
+    now = timezone.now()
+    for item in cl.items.filter(state=ChecklistItem.State.OPEN):
+        item.state, item.done_by, item.done_at, item.note = ChecklistItem.State.NOT_NEEDED, None, now, CLEARED
+        item.save(update_fields=["state", "done_by", "done_at", "note"])
+        audit.record(actor, item, {"state": (ChecklistItem.State.OPEN, ChecklistItem.State.NOT_NEEDED)}, note=CLEARED)
+    if CLEARED_GAP not in gaps(cl):
+        cl.gaps = "\n".join([*gaps(cl), CLEARED_GAP])
+    if cl.completed_at is None:
+        cl.completed_at = now
+    cl.save(update_fields=["gaps", "completed_at"])
+    return cl
+
+
+def _by_hand(item):
+    return item.state != ChecklistItem.State.OPEN and not (item.done_by_id is None and item.note == AUTOMATIC)
 
 
 def _untouched(checklist):
-    """Nothing closed, added or removed by hand since it was built."""
+    """Nothing closed, added or removed by hand since it was built (items
+    closed automatically are re-derived by a rebuild)."""
     items = list(checklist.items.all())
     expected = checklist.template.items.count() if checklist.template else 0
-    return (len(items) == expected and all(i.state == ChecklistItem.State.OPEN and i.due_rule for i in items))
+    return len(items) == expected and not any(_by_hand(i) or not i.due_rule for i in items)
 
 
 @transaction.atomic
@@ -154,7 +249,7 @@ def position_added(actor, position):
     if not position.primary:
         return None
     employment = position.employment
-    cl = Checklist.objects.filter(employment=employment, kind=Kind.STARTER, completed_at__isnull=True).first()
+    cl = Checklist.objects.filter(employment=employment, kind=Kind.STARTER).first()
     if cl is None:
         return None
     pos, template, manager = _resolve(employment, Kind.STARTER)
@@ -167,16 +262,25 @@ def position_added(actor, position):
             changes["template"] = (cl.template or "", template or "")
             cl.items.all().delete()
             cl.template = template
-            _copy_items(cl, template, manager)
+            _fill(cl, template, manager)
         else:
             gaps.append(f"the template for {pos.title} ({template}) was not applied: work on this checklist "
                         "had begun")
+    if not changes:
+        # kept items: what the title brings may undo an automatic close made
+        # without it (policies the title must sign)
+        reopened = _reopen_unmet(cl)
+        if reopened:
+            changes["reopened"] = ("", f"{reopened} items no longer met for {pos.title}")
     moved = (cl.items.filter(owner=Owner.MANAGER, state=ChecklistItem.State.OPEN)
              .exclude(owner_employee=manager).update(owner_employee=manager))
     if moved:
         changes["manager_items"] = ("", f"{moved} open items to {manager or 'nobody'}")
     cl.gaps = "\n".join(gaps)
-    cl.save(update_fields=["template", "gaps"])
+    if cl.completed_at is not None and cl.items.filter(state=ChecklistItem.State.OPEN).exists():
+        cl.completed_at = None
+    cl.save(update_fields=["template", "gaps", "completed_at"])
+    _finish_if_done(cl)
     audit.record(actor, cl, changes)
     return cl
 
@@ -243,6 +347,9 @@ def add_item(actor, checklist, title, instruction, owner, due_on, link=""):
         raise PermissionDenied
     if owner not in Owner.values:
         raise ValidationError("Choose who does it.")
+    problem = link_problem(link or "")
+    if problem:
+        raise ValidationError(problem)
     emp = checklist.employment
     # the manager the template's items got: the one on the checklist's anchor
     # date (a leaver's item due after the leaving date still has one)
@@ -287,10 +394,16 @@ def linked_done(employee, link_prefix, *, category=None, check_code=None):
     items = list(ChecklistItem.objects.select_for_update()
                  .filter(checklist__employment__employee=employee, link=link, state=ChecklistItem.State.OPEN)
                  .select_related("checklist"))
+    return _auto_close(items)
+
+
+def _auto_close(items):
+    """The one system close path: "done automatically", nobody against it,
+    an audit row each; a checklist with nothing left open is complete."""
     now = timezone.now()
     for item in items:
-        item.state, item.done_at, item.note = ChecklistItem.State.DONE, now, AUTOMATIC
-        item.save(update_fields=["state", "done_at", "note"])
+        item.state, item.done_by, item.done_at, item.note = ChecklistItem.State.DONE, None, now, AUTOMATIC
+        item.save(update_fields=["state", "done_by", "done_at", "note"])
         audit.record(None, item, {"state": (ChecklistItem.State.OPEN, ChecklistItem.State.DONE)}, note=AUTOMATIC)
     for checklist in {item.checklist_id: item.checklist for item in items}.values():
         _finish_if_done(checklist)
