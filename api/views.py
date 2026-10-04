@@ -75,7 +75,7 @@ def people(request):
             "email": e.work_email,
             "contract_type": c.contract_type.name if c else None, "unit": c.contract_type.unit if c else None,
             "employment": {"start": _iso(emp.start_date), "end": _iso(emp.end_date)},
-            "positions": [{"title": p.title, "team": p.team.name} for p in positions.on(emp, today)],
+            "positions": [{"title": p.title.name, "team": p.team.name} for p in positions.on(emp, today)],
         })
     return JsonResponse({"people": out})
 

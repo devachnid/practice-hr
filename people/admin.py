@@ -8,7 +8,7 @@ from unfold.admin import ModelAdmin, StackedInline, TabularInline
 
 from people import admin_forms
 from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
-                           Employment, PatternDay, PayRecord, Position, Team, WorkingPattern)
+                           Employment, PatternDay, PayRecord, Position, PositionTitle, Team, WorkingPattern)
 from people.services import access, audit, contracts, employees, employments, pay, positions
 
 
@@ -280,6 +280,15 @@ class WorkingPatternAdmin(ModelAdmin):
 @admin.register(Team)
 class TeamAdmin(ModelAdmin):
     list_display = ("name", "display_order", "min_present")
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PositionTitle)
+class PositionTitleAdmin(ModelAdmin):
+    list_display = ("name", "display_order")
+    search_fields = ("name",)
 
     def has_delete_permission(self, request, obj=None):
         return False

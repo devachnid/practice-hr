@@ -2,12 +2,14 @@ from datetime import date
 from decimal import Decimal
 
 from people.models import AuditEntry, EmergencyContact, PayRecord, WorkingPattern
+from people.services import titles
 from tests.factories import make_employee, make_employment, make_position, make_team
 
 
 def test_changelists_render(admin_client):
     for url in ("/admin/people/employee/", "/admin/people/employment/", "/admin/people/team/",
-                "/admin/people/contracttype/", "/admin/people/auditentry/"):
+                "/admin/people/contracttype/", "/admin/people/auditentry/",
+                "/admin/people/positiontitle/"):
         assert admin_client.get(url).status_code == 200, url
 
 
@@ -80,7 +82,7 @@ def test_existing_position_edit_is_restricted_to_to_date(admin_client, hr_admin)
     def position_row(**overrides):
         row = {
             "positions-0-id": pos.pk, "positions-0-employment": emp.pk,
-            "positions-0-title": pos.title, "positions-0-team": team.pk,
+            "positions-0-title": pos.title_id, "positions-0-team": team.pk,
             "positions-0-line_manager": "", "positions-0-primary": "on",
             "positions-0-from_date": str(pos.from_date), "positions-0-to_date": "",
         }
@@ -89,12 +91,12 @@ def test_existing_position_edit_is_restricted_to_to_date(admin_client, hr_admin)
 
     # A title change is refused; the row is untouched.
     r = admin_client.post(f"/admin/people/employment/{emp.pk}/change/", _employment_base(
-        emp, **{**position_row(**{"positions-0-title": "Manager"}),
+        emp, **{**position_row(**{"positions-0-title": titles.get_or_create("Manager").pk}),
                 "positions-TOTAL_FORMS": 1, "positions-INITIAL_FORMS": 1}), follow=True)
     assert r.status_code == 200
     assert "only end" in r.content.decode()
     pos.refresh_from_db()
-    assert pos.title == "Receptionist"
+    assert pos.title.name == "Receptionist"
 
     # Ending it (to_date only) goes through.
     r = admin_client.post(f"/admin/people/employment/{emp.pk}/change/", _employment_base(
@@ -281,7 +283,8 @@ def test_a_unit_clash_row_re_renders_and_nothing_is_saved(admin_client):
                 "contracts-0-weekly_amount": "2", "contracts-0-notes": "typed note",
                 # a valid row beside it, which must not be saved without it
                 "positions-TOTAL_FORMS": 1, "positions-INITIAL_FORMS": 0,
-                "positions-0-title": "Receptionist", "positions-0-team": make_team().pk,
+                "positions-0-title": titles.get_or_create("Receptionist").pk,
+                "positions-0-team": make_team().pk,
                 "positions-0-line_manager": "", "positions-0-primary": "on",
                 "positions-0-from_date": str(emp.start_date), "positions-0-to_date": ""}))
     assert r.status_code == 200

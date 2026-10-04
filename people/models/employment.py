@@ -68,11 +68,24 @@ class Employment(models.Model):
         return self.end_date is None or day <= self.end_date
 
 
+class PositionTitle(models.Model):
+    """A job title the practice uses. Check types, policies and checklist
+    templates target titles, so they are rows rather than free text."""
+    name = models.CharField(max_length=80, unique=True)
+    display_order = models.PositiveIntegerField(default=100)
+
+    class Meta:
+        ordering = ["display_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Position(models.Model):
     """A dated job. The current primary position's line manager is the
     reporting line, which routes approvals."""
     employment = models.ForeignKey(Employment, on_delete=models.PROTECT, related_name="positions")
-    title = models.CharField(max_length=80)
+    title = models.ForeignKey(PositionTitle, on_delete=models.PROTECT, related_name="positions")
     team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name="positions")
     line_manager = models.ForeignKey(
         Employee, null=True, blank=True, on_delete=models.PROTECT, related_name="reports")

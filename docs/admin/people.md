@@ -16,8 +16,8 @@ below. A change is a new row, not an edit to the old one, so the record
 always shows what was true on any past day, not just what is true now.
 
 **Nothing is deleted.** There is no delete button anywhere in this section
-of the admin. An Employee, Employment, Position, Contract, Team, Contract
-type or Working pattern stays in the database forever; ending a spell or
+of the admin. An Employee, Employment, Position, Position title, Contract,
+Team, Contract type or Working pattern stays in the database forever; ending a spell or
 role is done with its end date, never by removing the row.
 
 ## Employee
@@ -131,7 +131,9 @@ is the **primary** one.
 
 ### Title / Team
 
-Free text and a link to [Team](#team). Team drives the [team headcount
+Title is chosen from **People › Position titles**; add a new title there
+first. Renaming a title renames it on every position. Team is a link to
+[Team](#team). Team drives the [team headcount
 warning](#team) and nothing else in this release.
 
 ### Primary
