@@ -11,6 +11,8 @@ There is nothing else to switch on: from that day you see **Approvals** and
 - [Recording leave or sickness for your team](#recording-leave-or-sickness-for-your-team)
 - [Your team's balances](#your-teams-balances)
 - [The calendar](#the-calendar)
+- [Your To do list](#your-to-do-list)
+- [What you can see of a report's checks](#what-you-can-see-of-a-reports-checks)
 - [Reminders when a request waits](#reminders-when-a-request-waits)
 - [What you cannot do, and who to ask](#what-you-cannot-do-and-who-to-ask)
 
@@ -196,6 +198,60 @@ day also shows how many are in, for example "4 of 6".
 Only approved absences appear. Everyone, you included, sees each person's
 name and a plain label such as "Leave", "Sick" or "Away", never the reason.
 
+## Your To do list
+
+When someone joins or leaves your team, HR's set-up gives you some jobs to do
+for them, such as setting up their systems access or collecting their
+equipment. They are on **My team**, under **To do**. They appear as soon as
+HR has set the starter up, before the starter is on your team.
+
+### How to tick off a job
+
+1. Choose **My team**.
+2. Under **To do**, find the job. **For** says who it is for, and **By** says when it is due. "Overdue" means the date has passed.
+3. When it is done, choose **Done**.
+
+What you will see: a message such as "Buddy named: done.", and the job leaves
+the list.
+
+Some jobs say "Ticks itself off" instead of **Done**. They close by
+themselves when the thing happens, such as HR recording a check.
+
+You are emailed a reminder, "Practice HR: things due", before a job is due
+and again while it is overdue.
+
+If something goes wrong: "Already closed." means HR ticked it off first;
+nothing more is needed. If a job does not apply, ask HR: only they can mark
+it not needed.
+
+## What you can see of a report's checks
+
+Checks are the things someone must have for their job, such as a DBS check
+or professional registration. HR records them; you can see how each person
+stands, but not which checks they have or the details.
+
+### How to see how someone's checks stand
+
+1. Choose **My team**.
+2. Look in the **Checks** column beside the person.
+
+What you will see: counts such as "3 current, 1 due soon, 0 lapsed, 0
+missing; next expiry 14 Nov 2026". The words mean:
+
+- **current**: in date.
+- **due soon**: runs out within the next 60 days.
+- **lapsed**: has run out.
+- **missing**: needed for their job, and not yet done.
+- **awaiting**: HR has asked them for something and is waiting for it. When
+  HR asks someone to renew a check that is due soon or has lapsed, it stays
+  in "due soon" or "lapsed" until the new one is recorded, so it is not
+  counted here.
+- **next expiry**: the soonest date one of their checks runs out.
+
+If one of your team's checks lapses, you are told once, in a "Practice HR:
+things due" email, with the line "A check has lapsed (HR has the details)". Ask HR which one it is if you need to know,
+for example to plan their work.
+
 ## Reminders when a request waits
 
 Sometimes a request or TOIL claim is not decided within three working days.
@@ -214,6 +270,8 @@ Ask an HR admin to:
 - correct a balance or undo an approved TOIL claim;
 - change someone's hours, working pattern, team or line manager;
 - set up a new starter or record a leaver;
+- mark a starter or leaver job as not needed;
+- tell you which of someone's checks is due or has lapsed;
 - send a new login link to someone who cannot sign in.
 
 Keeping-in-touch days during maternity, paternity, shared parental or

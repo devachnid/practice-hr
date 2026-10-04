@@ -2,6 +2,16 @@
 
 **Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
 Checklist templates / Checklists / Starters and leavers / Reminder settings.
+Each person's [Compliance tab](#seeing-where-everyone-stands) and the admin
+home page's Compliance card bring it together.
+
+- [Checks](#checks)
+- [Files](#files)
+- [Policies](#policies)
+- [Checklists](#checklists)
+- [Reminders](#reminders)
+- [Seeing where everyone stands](#seeing-where-everyone-stands)
+- [Retention](#retention)
 
 ## Checks
 
@@ -143,6 +153,57 @@ For a check the person supplies (their passport for right to work, say):
 | Their line manager | My team: per report, the counts (current, due soon, lapsed, missing, and awaiting when any) and the next expiry date. Never which checks. |
 | HR admins | Everything, here. |
 
+The manager's *awaiting* number counts only the types whose status is
+*Awaiting*: a first request, with no recorded check of that type to
+outrank it. A renewal request on a type that is *Due soon* or *Lapsed* is
+not counted as awaiting; the type stays in the due soon or lapsed number
+until the new check is recorded. (A renewal on a *Current* type stays in
+the current number, likewise.)
+
+## Files
+
+`/admin/documents/file/`
+
+The documents kept against a person: contracts, offer letters, identity
+documents, certificates, occupational health letters, correspondence and
+anything else, plus each policy version's text. Evidence uploaded for a
+check, and anything a starter uploads from their checklist, lands here too.
+
+### Adding a file
+
+Choose **+** (Add file):
+
+- **Employee** — whose file it is. Required here: only a policy version has
+  no person, and it is added by issuing the version.
+- **Category** — *Contract*, *Offer letter*, *Identity*, *Certificate*,
+  *Occupational health*, *Correspondence* or *Other*. (*Policy* is for policy
+  versions.) Adding a file of a category can close a starter checklist item
+  linked to it (`upload:<category>`; see [What a link does](#what-a-link-does)).
+- **Title** — what the file is, as the person and HR see it.
+- **File** — a PDF, JPEG, PNG or DOCX, at most 10 MB. **The contents must
+  match the extension:** a file whose bytes are something else (a web page
+  renamed `.pdf`, say) is refused with *This file is not a PDF.*, and
+  nothing is stored.
+- **HR only** — tick to keep it off the person's own record.
+
+### Who can open a file
+
+| Who | Can open |
+|---|---|
+| The person | Their own files that are not HR only, under **Documents** on My record. |
+| Anyone with a login linked to an employee record | A policy version's file, from **Policies**. |
+| Their line manager | Nothing: managers never see documents. |
+| HR admins | Every file, here. |
+
+Every download goes through the same audited route, and each writes a
+*Viewed* entry (field `file`) to the [audit log](people.md#audit-log). The
+files are stored under `MEDIA_ROOT/documents/` with names that say nothing
+about the person or the document; the web server never serves that folder,
+and the nightly backup archives it with the database.
+
+A file is never changed or deleted here. If the wrong one was added, add the
+right one; both stay on the record.
+
 ## Policies
 
 The practice's policies that staff must read and sign: information
@@ -216,6 +277,11 @@ else's passkey. A wrong password signs nothing and counts towards the
 [sign-in lockout](sign-in.md#signing-in-and-lockouts) exactly as one typed at the sign-in page
 does. The password is checked and forgotten: it is never stored or written
 to any log.
+
+A signature made with the password is a genuine re-authentication, so, like
+typing the password on the Account page, it also opens the ten-minute
+window in which the person can [add a passkey](sign-in.md#passkeys) without
+being asked for their password again. Signing with a passkey does not.
 
 ## Checklists
 
@@ -406,8 +472,9 @@ due and a link. Nobody with nothing due gets an email.
 One set of three numbers for the whole practice, edited in place:
 
 - **Start days before** (X, default 60) — the first reminder goes this many
-  days before the due date. It is also the window in which a check counts
-  as *Due soon*.
+  days before the due date. In the reminders it is also the window in which
+  a check counts as *Due soon*. The pages (My record, My team, the
+  Compliance tab) always use 60 days, whatever this is set to.
 - **Every days before** (Y, default 30) — then again every this many days
   until the due date.
 - **Every days overdue** (Z, default 7) — after the due date, again every
@@ -452,3 +519,49 @@ is due then. A send the relay refuses is listed on the admin dashboard
 with the other emails that did not go (by subject only, never the
 recipient), and is not logged as sent, so the next morning tries again.
 
+### In the nightly output
+
+`hr_nightly` prints the reminders on its **compliance:** line:
+`reminders_sent` (emails that went, one per recipient), `reminders_failed`
+(emails the relay refused) and `items` (lines in the emails that went). All
+three are 0 with no outgoing email configured. If the step fails it prints
+`compliance: failed` and the run exits with an error. See
+[Nightly housekeeping](sign-in.md#nightly-housekeeping).
+
+## Seeing where everyone stands
+
+### The Compliance card
+
+The admin home page shows four numbers:
+
+| Number | Counts |
+|---|---|
+| **Lapsed checks** | Checks with the status *Lapsed*, across everyone employed today. |
+| **Missing checks** | Checks with the status *Missing*, across everyone employed today. |
+| **Overdue signatures** | Policies someone employed today has not signed by the sign-by date. |
+| **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date. |
+
+Each counts things, not people: someone with two lapsed checks adds two.
+Choose a number to open **Employees** filtered to the people it counts (the
+list's **Compliance** filter). A starter who has not started yet is not in
+the check or signature numbers; their overdue checklist items are.
+
+### The Compliance tab
+
+Each person's page under **People › Employees** has a **Compliance** tab
+beside **Details**: their checks with each status, their policies with each
+signature or sign-by date, and the open items of their checklists, each
+with a link to the page that deals with it. Someone not started yet is
+shown as they will stand on their first day. It is read-only, and opening it
+writes nothing. See [The Compliance tab](people.md#the-compliance-tab) for
+each column and link.
+
+## Retention
+
+Recorded checks, stored files and policy signatures each have their own
+line on the [retention report](people.md#retention-report): *Pre-employment
+and other checks*, *Stored files* and *Policy signatures*, six years after
+the person's last employment ended by default (`RETENTION_DAYS_CHECKS`,
+`RETENTION_DAYS_FILES`, `RETENTION_DAYS_SIGNATURES`). As for every category,
+the report only lists: nothing is deleted automatically, and there is no
+delete button for a check, a file or a signature.

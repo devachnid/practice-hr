@@ -2,15 +2,22 @@
 
 This guide is for the people who run Practice HR for the practice. That
 means setting staff up, keeping their jobs and hours up to date, looking
-after leave rules, and producing the monthly payroll file. You are an HR admin when your
+after leave rules, keeping track of checks, policies and starter and
+leaver checklists, and producing the monthly payroll file. You are an HR admin when your
 login has **Admin status** ticked.
 
 - [What you can do](#what-you-can-do)
 - [Going live: your first month](#going-live-your-first-month)
 - [Finding your way round the admin](#finding-your-way-round-the-admin)
 - [Setting someone up](#setting-someone-up)
+- [Setting someone up before day one](#setting-someone-up-before-day-one)
 - [Changing someone's hours, pattern or manager](#changing-someones-hours-pattern-or-manager)
 - [When someone leaves](#when-someone-leaves)
+- [Working the leaver list](#working-the-leaver-list)
+- [Recording a check](#recording-a-check)
+- [Asking someone for evidence](#asking-someone-for-evidence)
+- [Issuing a policy](#issuing-a-policy)
+- [Reminder settings](#reminder-settings)
 - [Leave policies in plain words](#leave-policies-in-plain-words)
 - [Bank holidays and closed days](#bank-holidays-and-closed-days)
 - [Adjusting a balance](#adjusting-a-balance)
@@ -55,7 +62,9 @@ Work through this in order. The rest of this guide explains each step.
    steps for length of service (see [Leave policies in plain words](#leave-policies-in-plain-words)).
    Set **Carry over max days** now if your staff can carry leave into the
    next year: as delivered, nothing carries.
-2. **Add your teams** under **People**, **Teams**.
+2. **Add your teams** under **People**, **Teams**, and **your job titles**
+   under **People**, **Position titles** (Receptionist, Practice nurse and so
+   on). A position's title is chosen from that list.
 3. **Create a login for each person** (see [How to give someone a login](#how-to-give-someone-a-login)).
    Adding a login sends its invitation straight away and the link lasts
    seven days. If you are not ready for staff to sign in yet, that is fine:
@@ -82,12 +91,19 @@ Work through this in order. The rest of this guide explains each step.
 
 ## Finding your way round the admin
 
-Choose **Admin** in the menu. The menu down the left has three groups:
+Choose **Admin** in the menu. The menu down the left has four groups:
 
-- **People**: Employees, Employments, Teams, Contract types, Audit log.
+- **People**: Employees, Employments, Position titles, Teams, Contract
+  types, Audit log.
 - **Absence**: Absence types, Policies, Bank holidays, Closed days, Pots,
   Absences, Payroll, Retention.
+- **Compliance**: Check types, Checks, Files, Policies, Signatures,
+  Checklist templates, Checklists, Starters and leavers, Reminder settings.
 - **Access**: Login accounts.
+
+There are two lists called **Policies**: the one under **Absence** is leave
+rules, and the one under **Compliance** is the practice policies staff read
+and sign.
 
 A pot is one person's balance of one kind of leave for one leave year.
 
@@ -97,8 +113,10 @@ when you choose **Admin**. It lists pages by group: **Working patterns** is
 under **People**, and the other two are under **Absence**.
 
 The admin home page also shows **Leave requests and TOIL claims waiting**
-(anything undecided for more than three working days) and **Emails that did
-not go**.
+(anything undecided for more than three working days), a **Compliance** card
+and **Emails that did not go**. The **Compliance** card has four numbers:
+**Lapsed checks**, **Missing checks**, **Overdue signatures** and **Overdue
+checklist items**. Choose one to see the people it counts.
 
 People's records, employments, positions and contracts cannot be deleted. When something changes, you end the old
 row and add a new one, so the record always shows what was true on any day.
@@ -142,7 +160,7 @@ and comes back gets a second one.
 
 1. Under **People**, open **Employments** and choose **+** (Add employment).
 2. Choose the **Employee** and the **Start date**. Set **Continuous service date** only if their service counts from earlier (for example, from another NHS post). Longer service can give more leave, and it is counted from this date.
-3. In the **Positions** section, add a row: **Title**, **Team**, **Line manager**, tick **Primary**, and the **From date**. The line manager of the primary position is the person who decides their requests. Leave **Line manager** blank for someone whose requests should go to the HR admins.
+3. In the **Positions** section, add a row: choose the **Title** from the list (it is the list under **People**, **Position titles**: if their title is not there, add it there first), then the **Team**, **Line manager**, tick **Primary**, and the **From date**. The line manager of the primary position is the person who decides their requests. Leave **Line manager** blank for someone whose requests should go to the HR admins.
 4. In the **Contracts** section, add a row: **Contract type**, **Basis** (Permanent or Fixed term), **From date**, and **Weekly amount** (hours, or sessions for GPs). A fixed-term contract needs a **To date**.
 5. Choose **Save**.
 
@@ -173,6 +191,82 @@ someone new, it:
 So a new starter's balances appear the morning after you set them up. The
 same run closes leave years that have ended, expires old TOIL, switches off
 leavers' logins, and emails you about requests that have waited too long.
+
+## Setting someone up before day one
+
+Set a new starter up as soon as they accept the job. Practice HR then gives
+them, you and their line manager a starter checklist, and they can do their
+part from home before they start.
+
+### How to set up a starter
+
+1. Give them a login (see [How to give someone a login](#how-to-give-someone-a-login)). They are emailed a link to choose a password.
+2. Add their employee record and choose their login in **User** (see [How to add their employee record](#how-to-add-their-employee-record)).
+3. Add their employment with their real **Start date**, even though it is in the future, and in **Positions** their **Title**, **Team** and **Line manager**, with **Primary** ticked (see [How to add their employment, position and contract](#how-to-add-their-employment-position-and-contract)).
+4. Choose **Save**.
+
+What you will see: under **Compliance**, **Starters and leavers** lists them,
+with the date they start and how many items are done. Open them to see the
+whole checklist and who does each item. If the page lists **Gaps**, such as
+"no line manager on the primary position", something in step 3 is missing;
+the line manager's items then come to you.
+
+### What the starter sees
+
+When they sign in before their first day, they see one page, **Getting
+started**, and nothing else. It says when they start and lists their part:
+
+- **Your details**: a form for their contact details, address, NI number,
+  bank details and emergency contacts.
+- **Upload** for their right-to-work document.
+- **Read and sign** for the practice policies.
+
+The rest of Practice HR opens for them on their first day. They are emailed
+a reminder of anything of theirs that is coming up or overdue.
+
+### How to check their details
+
+When they save the details form they see "Saved. HR will check your details
+and tick them off your list." The item stays open until you have checked them.
+
+1. Under **Compliance**, open **Starters and leavers** and choose their name.
+2. Beside **Complete your details**, choose **their details**. Their record opens on the **Details** tab.
+3. Check what they entered, and correct anything wrong there.
+4. Go back to the checklist and choose **Done** beside **Complete your details**.
+
+Once you have chosen **Done**, they can no longer change their bank or NI
+details themselves: any later change comes to you.
+
+### How to record their checks
+
+Record each check as you get the result: see [Recording a check](#recording-a-check).
+Their record's **Compliance** tab shows which checks their title needs and
+whether each will be current on their first day. Choose **Record** beside
+one to open the form with their name and the check already chosen.
+
+### What ticks itself off
+
+You do not need to tick these off. They close by themselves when:
+
+- **Upload your right-to-work document**: an identity document is stored for
+  them, whether they upload it or you record their right-to-work check with
+  the copy attached.
+- **Read and sign the practice policies**: they have signed every policy they
+  have to.
+- **DBS check recorded** and **Occupational health clearance**: you record a
+  clear check of that kind.
+- **Contract issued**: you add their contract under **Compliance**,
+  **Files**, with the category **Contract**.
+
+Anything they already had, such as a DBS from an earlier spell at the
+practice, is ticked off as soon as the checklist is made. Everything else on
+the list, such as **References received**, is ticked off by its owner
+choosing **Done**.
+
+If something goes wrong: if they cannot sign in, send them a new link (see
+[How to send someone a new password link](#how-to-send-someone-a-new-password-link)).
+If **Getting started** says "There is no employee record linked to your
+login yet", choose their login in **User** on their employee record.
 
 ## Changing someone's hours, pattern or manager
 
@@ -242,6 +336,162 @@ What happens:
 
 If someone comes back, add a new employment for them, and tick **Active** on
 their login account again.
+
+## Working the leaver list
+
+When you set someone's **End date**, Practice HR makes a leaver checklist for
+them: handover, equipment, systems access, smartcard, final pay and closing
+their file. Most of it belongs to their line manager, who sees it under
+**My team**; the rest is yours.
+
+### How to work through a leaver's checklist
+
+1. Under **Compliance**, open **Starters and leavers**. Everyone with a checklist not yet finished is listed, soonest date first, with how many items are done and how many are overdue.
+2. Choose the leaver's name.
+3. For each item that has been done, type a note in the box marked **Note (optional)** if you want to, and choose **Done**.
+4. For an item that does not apply, type the reason in the box marked **Why not** and choose **Not needed**.
+5. To add something for this person only, fill in **Add an item** at the bottom and choose **Add**. To take an item off their list, choose **Remove**.
+
+What you will see: a message such as "Equipment returned: done." The
+checklist leaves the list once every item is done or not needed.
+
+You can tick off any item, including the line manager's. Only you can mark
+an item not needed.
+
+If something goes wrong: "Say why it is not needed." means **Why not** was
+empty. "Already closed." means someone else ticked it off first; nothing more
+is needed. If the leaving date is cleared because they are staying, their
+open items are closed as not needed for you.
+
+## Recording a check
+
+Checks are the things someone must have for their job, such as a DBS check,
+right to work, references or professional registration. Which checks a
+person needs depends on their job title.
+
+### How to say which titles need a check
+
+Do this once for each check, before anyone is chased for it. Until you do,
+nobody needs anything.
+
+1. Under **Compliance**, open **Check types** and choose a check, such as **DBS**.
+2. In **Positions**, move each title that needs it across to the chosen side.
+3. Choose **Save**.
+
+### How to record a check
+
+1. Under **Compliance**, open **Checks** and choose **+** (Add check). Or, on the person's record, open the **Compliance** tab and choose **Record** beside the check.
+2. Choose the **Employee** and the **Check type**.
+3. Fill in **Done on** (the date of the check) and the **Outcome**: **Clear**, **Clear with notes** or **Not clear**.
+4. Leave **Expires on** empty: it is worked out for you. Fill it in only if the certificate says a different date.
+5. For a check with a number, such as DBS or professional registration, type it in **Reference**. For DBS, also choose the **DBS disclosure level**, and tick **On the DBS update service** if they subscribe.
+6. For a check with a document, such as right to work, choose the copy in **Evidence file**.
+7. Choose **Save**.
+
+**Do not keep a copy of a DBS certificate.** Record its number, date and
+level, and give the certificate back. Practice HR refuses a file on a DBS
+check.
+
+**Note** is for you: the person and their manager never see it.
+
+A check is never changed once saved. If you got something wrong, record it
+again: the newest one counts.
+
+If something goes wrong: the form shows what to fix and nothing is saved.
+"A DBS check needs its disclosure level." or "DBS needs its reference
+number." means a box in step 5 is empty. "The date done cannot be after
+today." means **Done on** is in the future.
+
+## Asking someone for evidence
+
+Use this when the person has something you need, such as a new passport or
+a renewed registration. They see the request on their **My record** page,
+with an upload button.
+
+### How to ask
+
+1. Under **Compliance**, open **Checks** and choose **Ask for evidence** at the top of the list.
+2. Choose the **Person** and the **Check**, then choose **Ask for evidence**.
+
+To ask someone to renew a check they already have, open that check and
+choose **Ask the person for evidence**, then **Ask for evidence**.
+
+What you will see: "Sam Patel has been asked for their DBS evidence. They see
+it on My record." They are not emailed about it, so tell them: it is on
+their **My record** page, under **Checks**, with an **Upload** button for a
+check that takes a document. For a check with only a number, such as DBS,
+they are told you will record it with them.
+
+### How to record what they send
+
+1. Open **Checks** and choose their waiting check.
+2. Choose **Record the result**. The file they uploaded is linked at the top of the page.
+3. Fill in the result as for [recording a check](#how-to-record-a-check). If they gave you a paper copy instead, attach it in **Evidence file**.
+4. Choose **Record the result**.
+
+If something goes wrong: "Already asked." means a request for that check is
+still waiting; record its result or wait for their upload. A starter cannot
+see **My record** until their first day, so for their right-to-work document
+before then use the upload on their **Getting started** page, or record the
+check yourself from the copy they bring.
+
+## Issuing a policy
+
+The practice policies staff must read and sign are under **Compliance**,
+**Policies** (not the leave **Policies** under **Absence**).
+
+### How to add a policy
+
+1. Under **Compliance**, open **Policies** and choose **+** (Add policy).
+2. Type the **Title**.
+3. In **Positions**, move across the titles who must sign it. Leave it empty for everyone.
+4. Choose **Save**.
+
+### How to issue a version for people to sign
+
+1. Open the policy and choose **Issue new version**.
+2. Type a **Label**, such as "v2" or "October edition".
+3. Check **Issued on** (today, unless it took effect earlier) and set **Sign within (days)**.
+4. In **File**, choose the policy document: a PDF, JPEG, PNG or DOCX.
+5. Choose **Issue this version**.
+
+What you will see: "Information governance (v2) issued. Everyone it applies to
+is asked to sign it." Everyone the policy applies to sees it under **Policies**
+in their menu, including anyone who signed the last version. A starter who
+joins later has the same number of days from their first day.
+
+You cannot sign for anyone. Each person signs for themselves, with their
+password or a passkey. The **Compliance** tab on their record shows what
+they have signed and what is overdue.
+
+If something goes wrong: "This policy already has a version with that
+label." means you need a new label. "The issue date cannot be after today."
+or "The issue date cannot be before the current version's" means **Issued
+on** needs changing. "This file is not a PDF." means the file is not really
+the kind its name says; save it again as a PDF and try again.
+
+## Reminder settings
+
+Every morning, Practice HR emails anyone with something coming up or overdue:
+checks to renew, policies to sign and checklist items. Each person gets one
+email, called "Practice HR: things due", listing everything for them. You
+get the lines that need HR. Line managers are told when one of their team's
+checks has lapsed, but not which one.
+
+### How to change how often reminders go
+
+1. Under **Compliance**, open **Reminder settings**.
+2. Set **Start days before**: how many days before something is due the first reminder goes.
+3. Set **Every days before**: how often it is repeated until the day it is due.
+4. Set **Every days overdue**: how often it is repeated once it is overdue.
+5. Choose **Save**.
+
+A reminder always goes on the day something is due, whatever you set. The
+settings start as 60, 30 and 7.
+
+If something goes wrong: if nobody is getting reminders, check the admin home
+page. "Outgoing email is not configured" means no emails go at all (see
+[When emails do not go](#when-emails-do-not-go)).
 
 ## Leave policies in plain words
 
@@ -509,15 +759,16 @@ can rerun it after late changes.
 - Colleagues and managers see only "Sick" on the calendar.
 - Sickness of seven calendar days or fewer is marked self-certified
   automatically.
-- National Insurance numbers and pay records are seen only by HR admins, and
-  every time someone opens them it is written to the **Audit log**.
+- National Insurance numbers, bank details and pay records are seen only by
+  HR admins, and every time someone opens them it is written to the **Audit
+  log**. So is every recorded check you open and every file anyone downloads.
 
 ## Retention
 
 Under **Absence**, choose **Retention**. It lists people whose records are
 past the time the practice keeps them. By default that is six years after
-their last employment ended for personal, pay and health records, and seven
-years for the audit log. It only lists them. Nothing is deleted automatically, and
+their last employment ended for personal, pay and health records, checks,
+stored files and policy signatures, and seven years for the audit log. It only lists them. Nothing is deleted automatically, and
 there is no delete button: talk to whoever looks after the system about
 removing records.
 
