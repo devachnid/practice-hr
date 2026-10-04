@@ -57,7 +57,8 @@ def start(actor, employee, start_date, continuous_service_date=None, end_date=No
     """A new spell. Usually open-ended; a spell already over (a past one
     being entered after the fact) takes its end date and reason here, so
     the overlap check sees its real dates rather than an open end that
-    would collide with every later spell."""
+    would collide with every later spell. A spell begun in the last 30 days
+    or yet to begin gets its starter checklist in the same transaction."""
     check_start(employee, start_date, end_date)
     emp = Employment(employee=employee, start_date=start_date, end_date=end_date,
                      leaving_reason=leaving_reason,
@@ -69,6 +70,8 @@ def start(actor, employee, start_date, continuous_service_date=None, end_date=No
     if end_date is not None:
         changes.update({"end_date": ("", end_date), "leaving_reason": ("", leaving_reason)})
     audit.record(actor, emp, changes)
+    from onboarding.services import checklists   # here: onboarding imports people's services
+    checklists.start(actor, emp)                  # None for a spell begun long ago; gaps recorded, never raised
     return emp
 
 
@@ -110,7 +113,8 @@ def _cancel_after(actor, employment, end_date):
 def end(actor, employment, end_date, leaving_reason):
     """Set (or clear) the last day. Live absences starting after it are
     cancelled in the same transaction (_cancel_after), and the audit entry's
-    note lists them."""
+    note lists them. Setting a last day makes the leaver checklist (or moves
+    its open items' dates when it already exists)."""
     check_end(employment, end_date)
     before = (employment.end_date, employment.leaving_reason)
     employment.end_date = end_date
@@ -120,6 +124,9 @@ def end(actor, employment, end_date, leaving_reason):
     note = _cancel_after(actor, employment, end_date)
     audit.record(actor, employment, {"end_date": (before[0], end_date),
                                      "leaving_reason": (before[1], leaving_reason)}, note=note)
+    if end_date is not None:
+        from onboarding.services import checklists
+        checklists.leave(actor, employment, previous_end=before[0])
     return employment
 
 
@@ -128,6 +135,7 @@ def amend(actor, employment, start_date=None, continuous_service_date=None):
     """Change the dates of an existing spell. Re-runs the overlap check."""
     check_amend(employment, start_date)
     changes = {}
+    previous_start = employment.start_date
     if start_date and start_date != employment.start_date:
         changes["start_date"] = (employment.start_date, start_date)
         employment.start_date = start_date
@@ -137,6 +145,9 @@ def amend(actor, employment, start_date=None, continuous_service_date=None):
     employment.full_clean()
     employment.save()
     audit.record(actor, employment, changes)
+    if employment.start_date != previous_start:
+        from onboarding.services import checklists
+        checklists.start_moved(actor, employment, previous_start)
     return employment
 
 

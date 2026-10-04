@@ -1,6 +1,7 @@
 # Compliance
 
-**Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures.
+**Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
+Checklist templates / Checklists.
 
 ## Checks
 
@@ -215,4 +216,128 @@ else's passkey. A wrong password signs nothing and counts towards the
 [sign-in lockout](sign-in.md#signing-in-and-lockouts) exactly as one typed at the sign-in page
 does. The password is checked and forgotten: it is never stored or written
 to any log.
+
+## Checklists
+
+A **starter checklist** and a **leaver checklist** list what has to happen
+when someone joins or leaves, and who does each part. Each one is copied
+from a **template** when the employment starts or its leaving date is set;
+after that it belongs to that person and changing the template does not
+change it.
+
+### When a checklist is made
+
+- **Starter:** when an employment is added whose start date is in the
+  future or in the last 30 days. An older spell (one being entered after
+  the fact) gets none.
+- **Leaver:** when an employment's leaving date is set. Setting it again
+  keeps the same checklist and moves its open items' due dates with the
+  new date. Clearing the leaving date leaves the checklist as it is.
+
+Moving an employment's start date moves its starter checklist's open items
+with it. Items already closed keep their dates.
+
+### Templates
+
+`/admin/onboarding/checklisttemplate/`
+
+Two are set up when the app is installed: **Default starter** and **Default
+leaver**, with no titles. A template applies to the people whose **primary
+position's title** is in its **Positions**; the default of its kind
+(Positions left empty) applies to every title without one of its own.
+**Active** off stops a template being used; checklists already made from it
+stay.
+
+The title is the one on the start date (starter) or the leaving date
+(leaver). The admin saves an employment before its positions, so a starter
+checklist is made with the default first and **re-made from the title's
+template when the primary position is added**, as long as nobody has
+closed, added or removed an item on it yet. Once work on it has begun it is
+kept, and the gap is noted (below).
+
+Each item has:
+
+- **Order** — the order within the template.
+- **Title** and **Instruction** — what the owner sees.
+- **Owner** — who does it:
+
+  | Owner | Who that is on a checklist |
+  |---|---|
+  | **HR** | Any HR admin. |
+  | **Line manager** | The line manager of the person's primary position when the checklist is made (or when the position is added). |
+  | **The person** | The person themselves. |
+
+- **Due rule** and **Due days** — the due date is that many days *before
+  the start date*, *after the start date*, *before the leaving date* or
+  *after the leaving date*.
+- **Link** — what closes the item automatically (below), or blank for an
+  item someone ticks off.
+
+The default starter items:
+
+| Item | Owner | Due | Link |
+|---|---|---|---|
+| Complete your details | The person | 7 days before the start | `details` |
+| Read and sign the practice policies | The person | 14 days after the start | `sign_policies` |
+| Upload your right-to-work document | The person | 7 days before the start | `upload:identity` |
+| References received | HR | 7 days before the start | |
+| DBS check recorded | HR | On the start date | `check:dbs` |
+| Occupational health clearance | HR | On the start date | `check:occupational_health` |
+| Contract issued | HR | 14 days before the start | `upload:contract` |
+| Induction completed | Line manager | 5 days after the start | |
+| Clinical and practice systems access set up | Line manager | 1 day before the start | |
+| Buddy named | Line manager | 1 day after the start | |
+
+The default leaver items:
+
+| Item | Owner | Due |
+|---|---|---|
+| Handover completed | Line manager | 5 days before the leaving date |
+| Equipment returned | Line manager | On the leaving date |
+| Systems access removed | Line manager | On the leaving date |
+| Smartcard returned | Line manager | On the leaving date |
+| Final pay and leave balance to payroll | HR | 7 days after the leaving date |
+| File closed and retention date noted | HR | 14 days after the leaving date |
+
+### What a link does
+
+| Link | Closes when |
+|---|---|
+| `details` | Not by itself: the person fills in their details form, and HR marks the item done once they have checked it. |
+| `upload:<category>` | A file of that category is added for the person, by anyone (`upload:identity`, `upload:contract`; the categories are those under Files, except *Policy*). |
+| `sign_policies` | The person signs a policy and has nothing left to sign. |
+| `check:<code>` | A clear check of that type is recorded for the person (`check:dbs`, `check:right_to_work`; the codes are on the check types). |
+| blank | Never: the owner or HR marks it done. |
+
+A link the app does not recognise is refused when the template is saved.
+An item closed automatically shows *done automatically* and no person
+against it. Nothing that happened before the checklist was made closes an
+item: mark those done by hand.
+
+### Who closes what
+
+The owner marks their own items done; **HR can mark any item done**. Only
+HR can mark an item **not needed**, and must say why. HR can also add an
+item to one person's checklist, or remove one. A checklist is complete once
+every item is done or not needed. Every change is in the
+[audit log](people.md#audit-log).
+
+### Checklists and their gaps
+
+`/admin/onboarding/checklist/`
+
+Each person's checklists, read-only here, with how many items are done and
+how many overdue. A checklist is never refused for a missing piece of
+set-up, so it can be made with **gaps**, listed on it:
+
+- *no position on the anchor date* — no primary position on the start (or
+  leaving) date, so no title to choose a template by; it is re-checked when
+  the position is added.
+- *no starter (or leaver) checklist template* — no active template applies,
+  so the checklist has no items. Add or switch on a default.
+- *no line manager on the primary position* — the line manager items have
+  no owner: HR does them, or adds a manager to the position, which hands
+  the open ones over.
+- *the template for … was not applied* — the title's template arrived after
+  work on the checklist had begun; add any missing items by hand.
 

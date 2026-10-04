@@ -118,6 +118,8 @@ def navigation(request):
             _nav_item("Files", "folder", "admin:documents_file_changelist"),
             _nav_item("Policies", "policy", "admin:documents_policy_changelist"),
             _nav_item("Signatures", "draw", "admin:documents_signature_changelist"),
+            _nav_item("Checklist templates", "checklist", "admin:onboarding_checklisttemplate_changelist"),
+            _nav_item("Checklists", "task_alt", "admin:onboarding_checklist_changelist"),
         ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),

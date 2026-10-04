@@ -30,6 +30,7 @@ BY_EXTENSION = {"pdf": "pdf", "jpg": "jpeg", "jpeg": "jpeg", "png": "png", "docx
 LABEL = {"pdf": "PDF", "jpeg": "JPEG", "png": "PNG", "docx": "DOCX"}
 ROOT = "documents"
 MB = 1024 * 1024
+ADDED_HOOKS = []           # callables(file) run after add() has saved and audited, in its transaction
 
 
 def _limit():
@@ -128,8 +129,9 @@ def _store(upload, kind):
 
 def add(actor, employee, category, title, upload, hr_only=False):
     """Check the upload (type, size, sniffed content) and the row, then
-    write the bytes, the row and the audit. A refusal at any point leaves
-    nothing on disk."""
+    write the bytes, the row and the audit, and run ADDED_HOOKS (a linked
+    checklist item closing). A refusal at any point, a hook's included,
+    leaves nothing on disk."""
     kind = sniff(upload)
     f = File(employee=employee, category=category, title=title, original_name=_original_name(upload.name, kind),
              content_type=TYPES[kind][1], size=upload.size, uploaded_by=actor, hr_only=hr_only)
@@ -139,6 +141,9 @@ def add(actor, employee, category, title, upload, hr_only=False):
         with transaction.atomic():
             f.save()
             audit.record(actor, f, {"added": ("", f"{f.get_category_display()}: {title}")})
+            # inside the block: a hook that raises takes the row and the bytes with it
+            for hook in ADDED_HOOKS:
+                hook(f)
     except BaseException:
         _absolute(f.path).unlink(missing_ok=True)
         raise
