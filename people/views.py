@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_safe
@@ -29,6 +29,21 @@ class PersonalDetailsForm(forms.ModelForm):
         }
 
 
+def _show_record_error(form, error):
+    """A service refusal on the form: beside its field where the form has
+    it, otherwise named, with who can put it right."""
+    if not hasattr(error, "error_dict"):
+        form.add_error(None, error.messages)
+        return
+    for field, messages_ in error.message_dict.items():
+        if field in form.fields:
+            form.add_error(field, messages_)
+            continue
+        label = Employee._meta.get_field(field).verbose_name if field != "__all__" else ""
+        for m in messages_:
+            form.add_error(None, f"{label[:1].upper()}{label[1:]}: {m} Ask HR to correct it." if label else m)
+
+
 @login_required
 def me(request):
     employee = access.employee_for(request.user)
@@ -41,10 +56,17 @@ def me(request):
             # The form has already copied its values onto `employee`
             # (ModelForm._post_clean), so diffing against it would find
             # nothing to audit. The service diffs a fresh row instead.
-            employees.update(request.user, Employee.objects.get(pk=employee.pk),
-                             **form.cleaned_data)
-            messages.success(request, "Saved.")
-            return redirect("people:me")
+            try:
+                employees.update(request.user, Employee.objects.get(pk=employee.pk),
+                                 **form.cleaned_data)
+            except ValidationError as e:
+                # the service checks the whole record: a stored value this
+                # form does not show (an NI number in an old format) is
+                # refused here, and said so, rather than a server error
+                _show_record_error(form, e)
+            else:
+                messages.success(request, "Saved.")
+                return redirect("people:me")
     else:
         form = PersonalDetailsForm(instance=employee)
     emp = employments.current(employee, today)

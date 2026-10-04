@@ -24,16 +24,16 @@ class Employee(models.Model):
     postcode = models.CharField(max_length=10, blank=True, default="")
     ni_number = models.CharField(
         "NI number", max_length=9, blank=True, default="",
-        validators=[RegexValidator(r"^[A-Z]{2}\d{6}[A-D]$",
+        validators=[RegexValidator(r"^[A-Z]{2}[0-9]{6}[A-D]\Z",
                                    "Enter the NI number as two letters, six digits and A, B, C or D, "
                                    "in capitals and without spaces.")])
     bank_account_name = models.CharField(max_length=60, blank=True, default="")
     bank_sort_code = models.CharField(
         max_length=8, blank=True, default="",
-        validators=[RegexValidator(r"^\d{2}-\d{2}-\d{2}$", "Enter the sort code as NN-NN-NN.")])
+        validators=[RegexValidator(r"^[0-9]{2}-[0-9]{2}-[0-9]{2}\Z", "Enter the sort code as NN-NN-NN.")])
     bank_account_number = models.CharField(
         max_length=8, blank=True, default="",
-        validators=[RegexValidator(r"^\d{8}$", "An account number is eight digits.")])
+        validators=[RegexValidator(r"^[0-9]{8}\Z", "An account number is eight digits.")])
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, null=True, blank=True,
         on_delete=models.SET_NULL, related_name="employee")

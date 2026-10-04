@@ -5,6 +5,7 @@ services."""
 from django import forms
 
 from onboarding.models import Owner
+from people import ni
 from people.models import Employee
 
 
@@ -33,6 +34,13 @@ class DetailsForm(forms.ModelForm):
             "bank_sort_code": forms.TextInput(attrs={"autocomplete": "off", "inputmode": "numeric"}),
             "bank_account_number": forms.TextInput(attrs={"autocomplete": "off", "inputmode": "numeric"}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        ni.accept_typed(self)              # "ab 12 34 56 c" as printed on a payslip
+
+    def clean_ni_number(self):
+        return ni.normalise(self.cleaned_data.get("ni_number"))
 
 
 class EmergencyContactForm(forms.Form):

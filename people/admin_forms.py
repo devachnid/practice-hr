@@ -9,6 +9,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
 
+from people import ni
 from people.models import Contract, Employee, Employment, Position
 from people.services import contracts, employments, positions
 
@@ -41,6 +42,14 @@ class EmployeeForm(forms.ModelForm):
         fields = ["first_name", "last_name", "preferred_name", "work_email", "personal_email",
                   "phone", "date_of_birth", "address_line1", "address_line2", "town", "postcode",
                   "ni_number", "bank_account_name", "bank_sort_code", "bank_account_number", "user"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "ni_number" in self.fields:     # left out for someone not shown it (EmployeeAdmin.get_fields)
+            ni.accept_typed(self)
+
+    def clean_ni_number(self):
+        return ni.normalise(self.cleaned_data.get("ni_number"))
 
 
 def check_employment(form, employee, fresh, data, changed):
