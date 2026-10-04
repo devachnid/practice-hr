@@ -152,7 +152,7 @@ def test_recorded_hooks_run_for_a_clear_check_only(dbs, hr_admin, monkeypatch):
     rtw = CheckType.objects.get(code="right_to_work")
     asked = checks.ask(hr_admin, e, rtw)
     assert seen == [c]
-    checks.complete(hr_admin, asked, today, Check.Outcome.CLEAR)
+    checks.complete(hr_admin, asked, today, Check.Outcome.CLEAR, upload=SimpleUploadedFile("p.pdf", PDF))
     assert seen == [c, asked]
 
 
@@ -191,10 +191,10 @@ def test_evidence_is_refused_for_a_type_that_keeps_no_file(dbs, hr_admin, employ
 def test_the_person_cannot_upload_to_a_recorded_check(dbs, hr_admin, employee_user):
     rtw = CheckType.objects.get(code="right_to_work")
     e = _receptionist(user=employee_user)
-    c = checks.record(hr_admin, e, rtw, timezone.localdate(), Check.Outcome.CLEAR)
+    c = checks.record(hr_admin, e, rtw, timezone.localdate(), Check.Outcome.NOT_CLEAR)
     with pytest.raises(ValidationError, match="not waiting"):
         checks.upload_evidence(employee_user, c, SimpleUploadedFile("p.pdf", PDF))
-    checks.upload_evidence(hr_admin, c, SimpleUploadedFile("p.pdf", PDF))       # HR, on any
+    checks.upload_evidence(hr_admin, c, SimpleUploadedFile("p.pdf", PDF))       # HR, on one with no evidence yet
     c.refresh_from_db()
     assert c.evidence.employee == e
 
@@ -207,7 +207,8 @@ def test_summary_counts_and_next_expiry(dbs, hr_admin):
     assert checks.summary(e, today) == {"current": 0, "due_soon": 0, "lapsed": 0, "missing": 2, "awaiting": 0,
                                         "next_expiry": None}
     checks.record(hr_admin, e, dbs, today, Check.Outcome.CLEAR, reference="1", dbs_level="basic")
-    checks.record(hr_admin, e, indemnity, today, Check.Outcome.CLEAR, expires_on=today + timedelta(days=20))
+    checks.record(hr_admin, e, indemnity, today, Check.Outcome.CLEAR, expires_on=today + timedelta(days=20),
+                  upload=SimpleUploadedFile("i.pdf", PDF))
     assert checks.summary(e, today) == {"current": 1, "due_soon": 1, "lapsed": 0, "missing": 0, "awaiting": 0,
                                         "next_expiry": today + timedelta(days=20)}
 
@@ -400,7 +401,7 @@ def test_a_refusal_at_save_is_a_message_not_a_500(hr_admin, admin_client, monkey
 
     def refuse(*a, **kw):
         raise VE("Refused at save.")
-    monkeypatch.setattr(checks, "upload_evidence", refuse)
+    monkeypatch.setattr(checks, "_attach", refuse)
     r = admin_client.post("/admin/checks/check/add/", {
         "employee": e.pk, "check_type": rtw.pk, "done_on": timezone.localdate().isoformat(), "outcome": "clear",
         "upload": SimpleUploadedFile("passport.pdf", PDF)}, follow=True)
@@ -420,7 +421,9 @@ def test_a_renewal_request_shows_the_upload_form_and_takes_the_file(hr_admin, em
     indemnity.positions.add(titles.get_or_create("Receptionist"))
     e = _receptionist(user=employee_user)
     today = timezone.localdate()
-    clear = checks.record(hr_admin, e, indemnity, today - timedelta(days=360), Check.Outcome.CLEAR)
+    clear = checks.record(hr_admin, e, indemnity, today - timedelta(days=360), Check.Outcome.CLEAR,
+                          upload=SimpleUploadedFile("old.pdf", PDF))
+    first_evidence = clear.evidence_id
     asked = checks.ask(hr_admin, e, indemnity)
     row = checks.state(e, today)[0]
     assert row.status == "due_soon" and row.latest == clear and row.asked == asked
@@ -428,7 +431,7 @@ def test_a_renewal_request_shows_the_upload_form_and_takes_the_file(hr_admin, em
     assert "Due soon" in body and f'action="/checks/{asked.pk}/upload/"' in body
     employee_client.post(f"/checks/{asked.pk}/upload/", {"file": SimpleUploadedFile("i.pdf", PDF)})
     asked.refresh_from_db(); clear.refresh_from_db()
-    assert asked.evidence is not None and clear.evidence is None
+    assert asked.evidence is not None and clear.evidence_id == first_evidence
     assert checks.state(e, today)[0].asked == asked
     assert f'action="/checks/{asked.pk}/upload/"' not in employee_client.get("/people/me/").content.decode()
 
@@ -457,3 +460,58 @@ def test_validity_months_cannot_be_zero():
     t = CheckType(name="Zero", code="zero", validity_months=0)
     with pytest.raises(ValidationError):
         t.full_clean()
+
+
+# ---- final review I6/M3: evidence files ------------------------------------------------------
+
+def test_a_clear_check_of_a_file_type_needs_its_file(hr_admin, employee_user):
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist(user=employee_user)
+    today = timezone.localdate()
+    with pytest.raises(ValidationError, match="Right to work needs its evidence file."):
+        checks.record(hr_admin, e, rtw, today, Check.Outcome.CLEAR)
+    with pytest.raises(ValidationError, match="Right to work needs its evidence file."):
+        checks.validate(rtw, today, Check.Outcome.CLEAR, {}, today)
+    assert not Check.objects.exists()
+    checks.record(hr_admin, e, rtw, today, Check.Outcome.NOT_CLEAR)              # not clear: nothing to keep
+    c = checks.record(hr_admin, e, rtw, today, Check.Outcome.CLEAR, upload=SimpleUploadedFile("p.pdf", PDF))
+    assert c.evidence.category == "identity"
+    asked = checks.ask(hr_admin, e, rtw)
+    with pytest.raises(ValidationError, match="needs its evidence file"):
+        checks.complete(hr_admin, asked, today, Check.Outcome.CLEAR)
+    checks.upload_evidence(employee_user, asked, SimpleUploadedFile("p.pdf", PDF))
+    asked.refresh_from_db()
+    checks.complete(hr_admin, asked, today, Check.Outcome.CLEAR)                 # the person's upload counts
+    with pytest.raises(ValidationError, match="takes no file"):
+        checks.record(hr_admin, e, CheckType.objects.get(code="references"), today, Check.Outcome.CLEAR,
+                      upload=SimpleUploadedFile("p.pdf", PDF))
+
+
+def test_the_admin_forms_refuse_a_clear_file_check_without_its_file(hr_admin, admin_client):
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist()
+    today = timezone.localdate().isoformat()
+    r = admin_client.post("/admin/checks/check/add/", {"employee": e.pk, "check_type": rtw.pk, "done_on": today,
+                                                       "outcome": "clear"})
+    assert r.status_code == 200 and "Right to work needs its evidence file." in r.content.decode()
+    assert not Check.objects.exists()
+    c = checks.ask(hr_admin, e, rtw)
+    r = admin_client.post(f"/admin/checks/check/{c.pk}/complete/", {"done_on": today, "outcome": "clear"})
+    assert r.status_code == 200 and "Right to work needs its evidence file." in r.content.decode()
+    c.refresh_from_db()
+    assert c.awaiting
+
+
+def test_hr_cannot_repoint_a_recorded_checks_evidence(hr_admin):
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist()
+    c = checks.record(hr_admin, e, rtw, timezone.localdate(), Check.Outcome.CLEAR,
+                      upload=SimpleUploadedFile("p.pdf", PDF))
+    first = c.evidence_id
+    with pytest.raises(ValidationError, match="This check already has its evidence."):
+        checks.upload_evidence(hr_admin, c, SimpleUploadedFile("q.pdf", PDF))
+    c.refresh_from_db()
+    assert c.evidence_id == first
+    asked = checks.ask(hr_admin, e, rtw)                       # an awaiting check: HR may upload, again too
+    checks.upload_evidence(hr_admin, asked, SimpleUploadedFile("r.pdf", PDF))
+    checks.upload_evidence(hr_admin, asked, SimpleUploadedFile("s.pdf", PDF))

@@ -42,6 +42,7 @@ def test_seeded_default_templates_exist():
 
 
 def test_a_new_employment_gets_a_starter_checklist_with_owners_and_dates(hr_admin):
+    CheckType.objects.get(code="dbs").positions.add(titles.get_or_create("Receptionist"))
     mgr = make_employee(first="Mo", last="Khan")
     emp = _starter(hr_admin, manager=mgr)
     cl = Checklist.objects.get(employment=emp, kind="starter")
@@ -140,6 +141,7 @@ def test_a_position_added_after_work_has_begun_keeps_the_items_and_fills_the_man
     t = ChecklistTemplate.objects.create(kind="starter", name="Nurse starter")
     t.positions.add(titles.get_or_create("Practice Nurse"))
     t.items.create(order=1, title="Hep B status", owner="hr", due_rule="after_start", due_days=7, link="check:hep_b")
+    CheckType.objects.get(code="hep_b").positions.add(titles.get_or_create("Practice Nurse"))
     mgr = make_employee(first="Mo", last="Khan")
     positions.add(hr_admin, emp, titles.get_or_create("Practice Nurse"), Team.objects.first() or make_team(), mgr,
                   start)
@@ -280,7 +282,7 @@ def test_a_title_template_rebuild_starts_with_what_is_already_in_place_done(hr_a
     e = make_employee()
     today = timezone.localdate()
     checks.record(hr_admin, e, CheckType.objects.get(code="hep_b"), today, Check.Outcome.CLEAR,
-                  evidence=None)
+                  upload=SimpleUploadedFile("hep-b.pdf", PDF))
     start = today + timedelta(days=10)
     emp = employments.start(hr_admin, e, start)
     positions.add(hr_admin, emp, titles.get_or_create("Practice Nurse"), make_team(), None, start)
@@ -432,3 +434,60 @@ def test_a_title_that_owes_policies_reopens_signing_done_before_the_position(hr_
     positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), make_team(), None, start)
     item.refresh_from_db()
     assert item.state == "open" and item.done_at is None and item.note == ""
+
+
+# ---- final review I4/I5: empty and gapped checklists ----------------------------------------
+
+def test_a_checklist_with_no_items_is_never_complete_by_itself(hr_admin):
+    ChecklistTemplate.objects.filter(kind="starter").update(active=False)
+    emp = _starter(hr_admin)
+    cl = Checklist.objects.get(employment=emp)
+    assert cl.items.count() == 0 and cl.completed_at is None
+    assert "no starter checklist template" in " ".join(checklists.gaps(cl))
+    assert cl in checklists.for_hr()
+
+
+def test_a_checklist_closed_automatically_with_a_gap_stays_on_hrs_list(hr_admin):
+    t = ChecklistTemplate.objects.create(kind="starter", name="Nurse starter")
+    t.positions.add(titles.get_or_create("Practice Nurse"))
+    t.items.create(order=1, title="Contract", owner="hr", due_rule="before_start", due_days=1,
+                   link="upload:contract")
+    emp = _starter(hr_admin, title="Practice Nurse")            # no manager: a gap
+    cl = Checklist.objects.get(employment=emp)
+    files.add(hr_admin, emp.employee, File.Category.CONTRACT, "Contract", SimpleUploadedFile("c.pdf", PDF))
+    cl.refresh_from_db()
+    assert cl.completed_at is not None and checklists.gaps(cl)
+    assert cl in checklists.for_hr()                            # nobody finished it by hand
+    other = _starter(hr_admin, title="Practice Nurse")
+    ocl = Checklist.objects.get(employment=other)
+    checklists.complete(hr_admin, ocl.items.get())
+    ocl.refresh_from_db()
+    assert ocl.completed_at is not None and checklists.gaps(ocl)
+    assert ocl not in checklists.for_hr()                       # HR finished it
+
+
+def test_a_starter_whose_title_needs_no_check_types_has_that_gap(hr_admin):
+    emp = _starter(hr_admin, title="Practice Nurse")
+    cl = Checklist.objects.get(employment=emp)
+    assert "no check types for the title Practice Nurse" in " ".join(checklists.gaps(cl))
+    dbs = CheckType.objects.get(code="dbs")
+    dbs.positions.add(titles.get_or_create("Receptionist"))
+    cl = Checklist.objects.get(employment=_starter(hr_admin, title="Receptionist"))
+    assert "no check types" not in " ".join(checklists.gaps(cl))
+    dbs.active = False
+    dbs.save()
+    cl = Checklist.objects.get(employment=_starter(hr_admin, title="Receptionist"))
+    assert "no check types for the title Receptionist" in " ".join(checklists.gaps(cl))   # active ones only
+
+
+def test_a_leaver_checklist_has_no_check_types_gap(hr_admin):
+    emp = _starter(hr_admin, days_ahead=-5)
+    employments.end(hr_admin, emp, timezone.localdate() + timedelta(days=30), "resigned")
+    cl = Checklist.objects.get(employment=emp, kind="leaver")
+    assert "no check types" not in " ".join(checklists.gaps(cl))
+
+
+def test_a_checklist_template_cannot_be_deleted(admin_client):
+    t = ChecklistTemplate.objects.filter(kind="starter").first()
+    assert admin_client.get(f"/admin/onboarding/checklisttemplate/{t.pk}/delete/").status_code == 403
+    assert ChecklistTemplate.objects.filter(pk=t.pk).exists()

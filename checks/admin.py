@@ -81,15 +81,14 @@ class CheckAdmin(ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         # never obj.save(): the service validates, defaults the expiry, audits
-        # and runs the hooks; an upload is stored last, through upload_evidence
+        # and runs the hooks; an upload is stored last, by checks.record
         d = form.cleaned_data
         try:
             with transaction.atomic():
                 c = checks.record(request.user, d["employee"], d["check_type"], d["done_on"], d["outcome"],
                                   expires_on=d["expires_on"], reference=d["reference"], note=d["note"],
-                                  dbs_level=d["dbs_level"], dbs_update_service=d["dbs_update_service"])
-                if d.get("upload"):
-                    checks.upload_evidence(request.user, c, d["upload"])
+                                  dbs_level=d["dbs_level"], dbs_update_service=d["dbs_update_service"],
+                                  upload=d.get("upload") or None)
         except ValidationError as e:
             # the form checked everything it could; a refusal here (a race)
             # rolls the whole record back and is shown, not a 500
@@ -171,7 +170,7 @@ class CheckAdmin(ModelAdmin):
     @action(description="Record the result", url_path="complete", permissions=["complete"])
     def record_result(self, request, object_id):
         """An awaiting check's result: the form, then checks.complete, and
-        an upload (if any) through checks.upload_evidence, last."""
+        an upload (if any) stored last by checks.complete."""
         check = get_object_or_404(Check.objects.select_related("employee", "check_type", "evidence"), pk=object_id)
         form = CompleteForm(request.POST or None, request.FILES or None, instance=check)
         if request.method == "POST" and form.is_valid():
@@ -181,9 +180,7 @@ class CheckAdmin(ModelAdmin):
                 with transaction.atomic():
                     checks.complete(request.user, fresh, d["done_on"], d["outcome"], expires_on=d["expires_on"],
                                     reference=d["reference"], note=d["note"], dbs_level=d["dbs_level"],
-                                    dbs_update_service=d["dbs_update_service"])
-                    if d.get("upload"):
-                        checks.upload_evidence(request.user, fresh, d["upload"])
+                                    dbs_update_service=d["dbs_update_service"], upload=d.get("upload") or None)
             except ValidationError as e:
                 form.add_error(None, e.messages)
             else:

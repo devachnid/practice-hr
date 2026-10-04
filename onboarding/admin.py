@@ -34,6 +34,9 @@ class ChecklistTemplateAdmin(ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related("positions")
 
+    def has_delete_permission(self, request, obj=None):
+        return False                      # switch Active off instead: checklists made from it point at it
+
 
 class ChecklistItemInline(TabularInline):
     model = ChecklistItem

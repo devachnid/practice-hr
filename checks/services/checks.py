@@ -147,6 +147,9 @@ def validate(check_type, done_on, outcome, fields, today):
         raise ValidationError("A DBS check needs its disclosure level.")
     if check_type.evidence == CheckType.Evidence.REFERENCE and outcome in CLEAR and not fields.get("reference"):
         raise ValidationError(f"{check_type} needs its reference number.")
+    if (check_type.evidence == CheckType.Evidence.FILE and outcome in CLEAR
+            and not (fields.get("upload") or fields.get("evidence"))):
+        raise ValidationError(f"{check_type} needs its evidence file.")
 
 
 def _after(check):
@@ -157,14 +160,16 @@ def _after(check):
 
 @transaction.atomic
 def record(actor, employee, check_type, done_on, outcome, expires_on=None, reference="", note="", evidence=None,
-           dbs_level="", dbs_update_service=False):
+           dbs_level="", dbs_update_service=False, upload=None):
     """HR records a check. `evidence` is a File already stored for this
-    person, or None (the admin attaches an upload after, through
-    upload_evidence, so the bytes are written last)."""
+    person, or None; `upload` is a new file to store as its evidence, written
+    last (_attach), after the row and the hooks. A clear check of a
+    type whose evidence is a file needs one or the other."""
     fields = {"reference": reference, "note": note, "evidence": evidence, "dbs_level": dbs_level,
               "dbs_update_service": dbs_update_service}
     today = timezone.localdate()
-    validate(check_type, done_on, outcome, fields, today)
+    validate(check_type, done_on, outcome, {**fields, "upload": upload}, today)
+    _takes_file(check_type, upload)
     if evidence is not None and evidence.employee_id != employee.pk:
         raise ValidationError("The evidence must be one of this person's files.")
     c = Check(employee=employee, check_type=check_type, done_on=done_on, outcome=outcome,
@@ -173,6 +178,8 @@ def record(actor, employee, check_type, done_on, outcome, expires_on=None, refer
     c.save()
     audit.record(actor, c, {"recorded": ("", f"{check_type}: {c.get_outcome_display()}, done {done_on:%d %b %Y}")})
     _after(c)
+    if upload is not None:
+        _attach(actor, c, upload)
     return c
 
 
@@ -189,7 +196,8 @@ def ask(actor, employee, check_type):
 
 @transaction.atomic
 def upload_evidence(actor, check, upload):
-    """The person, once, on their own awaiting check; HR, on any (their own too). Only a type
+    """The person, once, on their own awaiting check; HR, on an awaiting
+    check or a recorded one with no evidence yet (their own too). Only a type
     whose evidence is a file takes one: a DBS certificate, for one, is not
     kept (its reference number is). files.add is the last fallible step
     before the link: its bytes are not rolled back with the transaction."""
@@ -203,23 +211,41 @@ def upload_evidence(actor, check, upload):
             raise ValidationError("This check is not waiting for anything from you.")
         if check.evidence_id is not None:
             raise ValidationError("Already uploaded; HR will record it.")
-    if check.check_type.evidence != CheckType.Evidence.FILE:
-        raise ValidationError(f"{check.check_type} takes no file.")
+    elif not check.awaiting and check.evidence_id is not None:
+        # a recorded check's evidence is part of the record: never repointed
+        raise ValidationError("This check already has its evidence.")
+    return _attach(actor, check, upload)
+
+
+def _takes_file(check_type, upload):
+    if upload is not None and check_type.evidence != CheckType.Evidence.FILE:
+        raise ValidationError(f"{check_type} takes no file.")
+
+
+def _attach(actor, check, upload):
+    """Store `upload` as the check's evidence (record, complete and
+    upload_evidence, once each has applied its own rules)."""
+    _takes_file(check.check_type, upload)
     category = CATEGORY.get(check.check_type.code, File.Category.CERTIFICATE)
+    before = check.evidence_id or ""
     f = files.add(actor, check.employee, category, f"{check.check_type} evidence", upload)
     check.evidence = f
     check.save(update_fields=["evidence"])
-    audit.record(actor, check, {"evidence": ("", f.pk)})
+    audit.record(actor, check, {"evidence": (before, f.pk)})
     return check
 
 
 @transaction.atomic
-def complete(actor, check, done_on, outcome, expires_on=None, **fields):
-    """HR turns an awaiting check into a recorded one."""
+def complete(actor, check, done_on, outcome, expires_on=None, upload=None, **fields):
+    """HR turns an awaiting check into a recorded one. `upload`, a new
+    evidence file, is stored last, as for record(); the person's own upload
+    counts as the evidence too."""
     if not check.awaiting:
         raise ValidationError("Only a check still waiting can be completed.")
     today = timezone.localdate()
-    validate(check.check_type, done_on, outcome, fields, today)
+    validate(check.check_type, done_on, outcome,
+             {**fields, "upload": upload, "evidence": fields.get("evidence") or check.evidence}, today)
+    _takes_file(check.check_type, upload)
     for k, v in fields.items():
         setattr(check, k, v)
     check.done_on, check.outcome = done_on, outcome
@@ -229,4 +255,6 @@ def complete(actor, check, done_on, outcome, expires_on=None, **fields):
     check.save()
     audit.record(actor, check, {"completed": ("", f"{check.check_type}: {check.get_outcome_display()}")})
     _after(check)
+    if upload is not None:
+        _attach(actor, check, upload)        # HR's copy: replaces one the person sent, if any
     return check

@@ -1,12 +1,13 @@
 {% extends "base.html" %}
 {% comment %}onboarding:hr_list — HR's Starters and leavers: every checklist
-not yet complete, soonest date first, with its progress (checklists.summary)
+not yet complete, and every complete one with gaps nobody finished by hand
+(checklists.for_hr), soonest date first, with its progress (checklists.summary)
 and its gaps (checklists.gaps).{% endcomment %}
 {% block title %}Starters and leavers{% endblock %}
 {% block content %}
 <div class="stack">
 <div class="page-head"><h1>Starters and leavers</h1><a href="{% url 'admin:onboarding_checklist_changelist' %}">All checklists</a></div>
-<p class="muted">Every starter and leaver checklist not yet complete. Open one to tick items off, mark them not needed, or add and remove items.</p>
+<p class="muted">Every starter and leaver checklist not yet complete, and any finished by itself with a gap still to look at. Open one to tick items off, mark them not needed, or add and remove items.</p>
 <section class="card">
   {% if rows %}
   <div class="table-scroll">

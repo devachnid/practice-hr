@@ -71,6 +71,7 @@ def _resolve(employment, kind):
 
 
 def _gaps(kind, pos, template, manager):
+    from checks.models import CheckType
     gaps = []
     if pos is None:
         gaps.append("no position on the anchor date, so no title to match a template")
@@ -78,6 +79,10 @@ def _gaps(kind, pos, template, manager):
         gaps.append(f"no {kind} checklist template (add one in Admin › Compliance › Checklist templates)")
     if manager is None:
         gaps.append("no line manager on the primary position: manager items have no owner")
+    if kind == Kind.STARTER and pos is not None and not CheckType.objects.filter(active=True,
+                                                                                 positions=pos.title).exists():
+        gaps.append(f"no check types for the title {pos.title} (add it to the check types it needs in "
+                    "Admin › Compliance › Check types)")
     return gaps
 
 
@@ -308,7 +313,12 @@ def may_complete(user, item):
 
 
 def _finish_if_done(checklist):
-    if checklist.completed_at is None and not checklist.items.filter(state=ChecklistItem.State.OPEN).exists():
+    """Complete once every item is closed. A checklist with no items is
+    never complete by itself: it has nothing on it because something is
+    missing (a template), and HR must see it."""
+    items = checklist.items.all()
+    if (checklist.completed_at is None and items.exists()
+            and not items.filter(state=ChecklistItem.State.OPEN).exists()):
         checklist.completed_at = timezone.now()
         checklist.save(update_fields=["completed_at"])
 
@@ -469,6 +479,22 @@ def own_items(employee, today):
     closed = (ChecklistItem.objects.filter(checklist_id__in=ids, owner=Owner.PERSON)
               .exclude(state=ChecklistItem.State.OPEN).select_related("checklist"))
     return sorted([*open_, *closed], key=lambda i: (i.due_on, i.order, i.pk))
+
+
+def for_hr():
+    """HR's Starters and leavers: every checklist not yet complete, and
+    every complete one with a gap that nobody finished by hand (all its
+    items closed automatically), so a set-up problem does not vanish because
+    nothing was left to tick. A leaver checklist closed by clearing the
+    leaving date is not listed for that alone."""
+    out = []
+    for cl in (Checklist.objects.filter(Q(completed_at__isnull=True) | ~Q(gaps=""))
+               .select_related("employment__employee").prefetch_related("items")):
+        if cl.completed_at is None:
+            out.append(cl)
+        elif [g for g in gaps(cl) if g != CLEARED_GAP] and not any(_by_hand(i) for i in cl.items.all()):
+            out.append(cl)
+    return out
 
 
 def items_owned_by(manager_employee, today):

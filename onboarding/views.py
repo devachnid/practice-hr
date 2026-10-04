@@ -195,8 +195,7 @@ def upload(request, pk):
 def hr_list(request):
     _hr_only(request)
     rows = []
-    for cl in (Checklist.objects.filter(completed_at__isnull=True)
-               .select_related("employment__employee").prefetch_related("items")):
+    for cl in checklists.for_hr():
         emp = cl.employment
         rows.append({"checklist": cl, "employee": emp.employee,
                      "date": emp.start_date if cl.kind == "starter" else emp.end_date,

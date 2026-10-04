@@ -1,7 +1,9 @@
 """The admin's check forms. Each runs checks.validate and sniffs an upload,
-so a refusal shows on the form before anything is written; CheckAdmin then
-writes through checks.record / checks.complete / checks.ask, and an upload
-through checks.upload_evidence (files.add, the last step)."""
+so a refusal shows on the form before anything is written (a clear check
+of a type whose evidence is a file needs its file: uploaded here, or
+already sent by the person); CheckAdmin then writes through checks.record
+/ checks.complete (each storing an upload last, through files.add) and
+checks.ask."""
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -32,8 +34,9 @@ class DateInput(UnfoldAdminTextInputWidget):
 class _Result(forms.ModelForm):
     """The result of a check: shared by the add page and Complete."""
     upload = forms.FileField(label="Evidence file", required=False, widget=UnfoldAdminFileFieldWidget,
-                             help_text="PDF, JPEG, PNG or DOCX, for a type whose evidence is a file. "
-                                       "Never a DBS certificate: record its number instead.")
+                             help_text="PDF, JPEG, PNG or DOCX, for a type whose evidence is a file (needed "
+                                       "for a clear result unless the person has sent it). Never a DBS "
+                                       "certificate: record its number instead.")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -43,6 +46,10 @@ class _Result(forms.ModelForm):
 
     def _check_type(self):
         raise NotImplementedError
+
+    def _evidence(self):
+        """Evidence the check has already (the person's upload on a request)."""
+        return None
 
     def clean_upload(self):
         upload = self.cleaned_data.get("upload")
@@ -56,7 +63,8 @@ class _Result(forms.ModelForm):
         if check_type is None or self.errors:
             return data
         try:
-            checks.validate(check_type, data.get("done_on"), data.get("outcome"), data, timezone.localdate())
+            checks.validate(check_type, data.get("done_on"), data.get("outcome"),
+                            {**data, "evidence": self._evidence()}, timezone.localdate())
         except ValidationError as e:
             self.add_error(None, e)
         if data.get("upload") and check_type.evidence != CheckType.Evidence.FILE:
@@ -96,6 +104,9 @@ class CompleteForm(_Result):
 
     def _check_type(self):
         return self.instance.check_type
+
+    def _evidence(self):
+        return self.instance.evidence
 
 
 class AskForm(forms.Form):

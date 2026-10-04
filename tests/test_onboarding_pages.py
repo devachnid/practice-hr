@@ -685,3 +685,13 @@ def test_an_hr_admin_with_a_future_employment_is_never_pre_start(hr_admin, clien
     assert not access.is_pre_start(hr_admin, timezone.localdate())
     client.force_login(hr_admin)
     assert client.get("/people/me/").status_code == 200
+
+
+def test_a_starter_with_no_template_is_on_starters_and_leavers_with_its_gap(hr_admin, admin_client):
+    """Final review I4: an empty checklist is never complete by itself."""
+    from onboarding.models import ChecklistTemplate
+    ChecklistTemplate.objects.filter(kind="starter").update(active=False)
+    other = User.objects.create_user(email="nia@example.com", password="pw")
+    emp = _starter(hr_admin, other)
+    body = admin_client.get("/onboarding/all/").content.decode()
+    assert emp.employee.name in body and "no starter checklist template" in body

@@ -62,8 +62,8 @@ shorter (a check done on 31 January with one month's validity expires on
 the last day of February).
 
 **Evidence** is what a recorded check carries: *A file* (uploaded and kept
-under Files), *A reference number* (required on a clear check; no file is
-taken), or *Nothing to attach*.
+under Files; required on a clear check), *A reference number* (required on
+a clear check; no file is taken), or *Nothing to attach*.
 
 **Remind person** sends the reminders to the person as well as to HR.
 
@@ -94,7 +94,12 @@ stay. A type cannot be deleted once it exists: make it inactive instead.
   right-to-work document as *Identity*, occupational health and Hep B
   immunity evidence as *Occupational health*, anything else as
   *Certificate*. It downloads from the check's page through the audited
-  download. A type whose evidence is not a file refuses one.
+  download. A type whose evidence is not a file refuses one. **A clear
+  check of a type whose evidence is a file needs its file**: the form
+  refuses one without (*Right to work needs its evidence file.*), unless
+  the person has already sent it on a request (below). Once a check is
+  recorded with its evidence, the evidence is part of the record and is
+  not replaced: record a new check instead.
 - **DBS disclosure level** — Basic, Standard, Enhanced, or Enhanced with
   barred lists. Required on a clear DBS check.
 - **On the DBS update service** — tick when the person subscribes.
@@ -317,7 +322,7 @@ leaver**, with no titles. A template applies to the people whose **primary
 position's title** is in its **Positions**; the default of its kind
 (Positions left empty) applies to every title without one of its own.
 **Active** off stops a template being used; checklists already made from it
-stay.
+stay. A template cannot be deleted: switch **Active** off instead.
 
 The title is the one on the start date (starter) or the leaving date
 (leaver). The admin saves an employment before its positions, so a starter
@@ -416,12 +421,18 @@ set-up, so it can be made with **gaps**, listed on it:
   leaving) date, so no title to choose a template by; it is re-checked when
   the position is added.
 - *no starter (or leaver) checklist template* — no active template applies,
-  so the checklist has no items. Add or switch on a default.
+  so the checklist has no items. Add or switch on a default. A checklist
+  with no items is never complete by itself: it stays on Starters and
+  leavers until you add items to it and close them.
 - *no line manager on the primary position* — the line manager items have
   no owner, and nobody but HR can close them: HR does them. The manager is
   taken only from the primary position covering the start (or leaving)
   date, when the checklist is made or that position is added; a manager
   given to someone later does not take the items over.
+- *no check types for the title …* (starter checklists) — no active check
+  type lists the person's title under **Positions**, so nothing will be
+  asked of them or chased. Add the title to the check types it needs, if
+  any.
 - *the template for … was not applied* — the title's template arrived after
   work on the checklist had begun; add any missing items by hand.
 - *the leaving date was cleared* — the leaver checklist was closed when its
@@ -453,7 +464,8 @@ set-up, so it can be made with **gaps**, listed on it:
   and leavers, with **Done**. It is there from the moment the checklist is
   made, before the starter is one of their team.
 - **Starters and leavers** (sidebar › Compliance, `/onboarding/all/`) — every
-  checklist not yet complete, soonest date first, with how many items are
+  checklist not yet complete, and every one that finished by itself (each
+  item closed automatically) with a gap still listed, soonest date first, with how many items are
   done, how many are overdue and its gaps. Open one to mark any item
   **Done** (with an optional note) or **Not needed** (a reason is
   required), to **Remove** an item, or to **Add** one for this person only.
