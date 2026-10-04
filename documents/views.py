@@ -6,7 +6,8 @@ and writes the audit row; anyone else gets 403.
 Signing re-authenticates here, every time, and policies.sign only records
 how: the password typed again (recent_auth.confirm_password, through
 authenticate(), so a wrong one counts towards the login lockout), or an
-assertion from one of the signed-in person's own passkeys. A session left
+assertion from one of the signed-in person's own passkeys (checked as
+theirs before it is verified; the options offer only theirs). A session left
 signed in is not enough to sign, and neither is someone else's passkey. A
 failed check writes nothing and shows the page again. The password is
 never echoed, logged or kept."""
@@ -32,7 +33,6 @@ from people.services import access
 
 WRONG_PASSWORD = "That password is not right."
 NO_PASSWORD = "Enter your password, or sign with a passkey."
-NOT_YOURS = "That passkey is not yours. Sign with your own passkey or your password."
 
 
 @login_required
@@ -62,15 +62,13 @@ def _reauthenticate(request, form):
         if not isinstance(credential, dict):
             return None, passkeys.MESSAGES["malformed"]
         try:
-            passkey = passkeys.verify_login(request, credential)
+            # one of request.user's own passkeys, or refused before it is verified
+            passkeys.verify_reauth(request, request.user, credential)
         except passkeys.PasskeyError as exc:
-            known = getattr(exc, "passkey", None)
-            if known is not None:      # counted against that key's account, as the login page does
-                user_login_failed.send(sender=__name__, credentials={"username": known.user.email},
+            if getattr(exc, "passkey", None) is not None:   # their own key, a bad assertion: as at the login page
+                user_login_failed.send(sender=__name__, credentials={"username": request.user.email},
                                        request=request)
             return None, passkeys.MESSAGES[exc.code]
-        if passkey.user_id != request.user.pk:
-            return None, NOT_YOURS
         return Signature.Method.PASSKEY, ""
     password = form.cleaned_data["password"]
     if not password:
@@ -110,13 +108,17 @@ def sign(request, pk):
             return redirect("documents:policies")
     return render(request, "documents/sign.html", {
         "version": version, "form": form, "error": error,
-        "due_on": policies.due(version, me, today),
+        "due_on": policies.due(version, me, today), "has_passkeys": request.user.passkeys.exists(),
     })
 
 
 @login_required
 @require_POST
 def passkey_options(request):
-    """The sign page's passkey button: a challenge for this session, as the
-    login page's. POST, as there: it writes the challenge to the session."""
-    return JsonResponse(json.loads(passkeys.login_options(request)))
+    """The sign page's passkey button: a challenge for this session, offering
+    only the signed-in person's own passkeys. POST, as the login page's: it
+    writes the challenge to the session."""
+    try:
+        return JsonResponse(json.loads(passkeys.reauth_options(request, request.user)))
+    except passkeys.PasskeyError as exc:
+        return JsonResponse({"error": passkeys.MESSAGES[exc.code]}, status=400)

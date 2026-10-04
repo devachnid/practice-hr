@@ -208,7 +208,8 @@ else, change a signature or delete one.
 
 Signing is the person's own act, so the sign page asks them to prove it is
 them every time, not just that their browser is signed in: **their password
-typed again**, or **one of their own passkeys** on a device that has one. A
+typed again**, or **one of their own passkeys** on a device that has one
+(the browser is offered only their passkeys, never another account's). A
 practice PC left signed in is not enough to sign, and neither is someone
 else's passkey. A wrong password signs nothing and counts towards the
 [sign-in lockout](sign-in.md#signing-in-and-lockouts) exactly as one typed at the sign-in page

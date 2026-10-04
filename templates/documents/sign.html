@@ -4,7 +4,8 @@
 the label of a box that must be ticked, and the proof that it is the person
 signing: the password typed again, or (where the browser has passkeys) one
 of their own passkeys, whose assertion static/documents/sign.js puts in the
-hidden credential field. Expects version, form, error, due_on.{% endcomment %}
+hidden credential field; the button only for someone with a passkey. Expects
+version, form, error, due_on, has_passkeys.{% endcomment %}
 {% block title %}Sign {{ version.policy.title }}{% endblock %}
 {% block scripts %}<script src="{% static 'documents/sign.js' %}" defer></script>{% endblock %}
 {% block content %}
@@ -24,8 +25,8 @@ hidden credential field. Expects version, form, error, due_on.{% endcomment %}
     <input type="hidden" name="credential" id="sign-credential" value="">
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Sign with my password</button>
-      <button type="button" id="sign-passkey" class="btn" style="display:none"
-              data-options-url="{% url 'documents:passkey_options' %}">Sign with a passkey</button>
+      {% if has_passkeys %}<button type="button" id="sign-passkey" class="btn" style="display:none"
+              data-options-url="{% url 'documents:passkey_options' %}">Sign with a passkey</button>{% endif %}
     </div>
     <p id="sign-passkey-error" class="field-error" style="display:none" role="alert"></p>
   </form>

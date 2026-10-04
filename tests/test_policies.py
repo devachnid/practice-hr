@@ -149,7 +149,7 @@ def test_the_page_shows_the_exact_sentence_and_a_read_link(hr_admin, employee_us
     body = employee_client.get(SIGN.format(v.pk)).content.decode()
     assert "I confirm I have read and understood Information governance (v1)." in body
     assert f'href="/documents/file/{v.file_id}/"' in body
-    assert 'id="sign-passkey"' in body and "documents/sign.js" in body
+    assert "documents/sign.js" in body
     assert Signature.objects.count() == 0      # a GET writes nothing
 
 
@@ -195,18 +195,46 @@ def test_signing_with_the_persons_own_passkey(hr_admin, employee_user, employee_
     assert s.method == "passkey" and s.employee.user == employee_user
 
 
-def test_someone_elses_passkey_does_not_sign(hr_admin, employee_user, employee_client):
-    """A borrowed session with the borrower's own passkey: verified, but not
-    the signed-in person, so refused."""
+def test_someone_elses_passkey_does_not_sign_and_is_left_untouched(hr_admin, employee_user, employee_client,
+                                                                   caplog):
+    """A borrowed session with the borrower's own passkey: refused before it
+    is verified, so their key's counter and last use do not move."""
+    from accounts.models import Passkey
     v = _policy(hr_admin).versions.get()
     _staff(user=employee_user)
+    _enrol(employee_client)                       # the person has a passkey, so the button is offered
     other = get_user_model().objects.create_user(email="jo@example.com", password="pw2")
     oc = Client()
     oc.force_login(other)
     theirs = _enrol(oc)
-    r = employee_client.post(SIGN.format(v.pk), {"confirm": "on", "credential": _assertion(employee_client, theirs)})
+    row = Passkey.objects.get(user=other)
+    caplog.set_level(logging.INFO)
+    credential = _assertion(employee_client, theirs)
+    r = employee_client.post(SIGN.format(v.pk), {"confirm": "on", "credential": credential})
     assert r.status_code == 200 and Signature.objects.count() == 0
     assert "not yours" in r.content.decode()
+    after = Passkey.objects.get(pk=row.pk)
+    assert (after.sign_count, after.last_used_at) == (row.sign_count, row.last_used_at)
+    refused = [rec for rec in caplog.records if rec.levelno == logging.WARNING and "another account" in rec.getMessage()]
+    assert refused and theirs.id not in caplog.text
+    # the challenge was spent all the same: the same assertion cannot be tried again
+    r = employee_client.post(SIGN.format(v.pk), {"confirm": "on", "credential": credential})
+    assert "no passkey request is in progress" in r.content.decode()
+
+
+def test_the_sign_pages_passkey_options_list_only_the_persons_own_keys(hr_admin, employee_user, employee_client):
+    v = _policy(hr_admin).versions.get()
+    _staff(user=employee_user)
+    assert employee_client.post(OPTIONS).status_code == 400        # no passkeys: nothing to offer
+    assert 'id="sign-passkey"' not in employee_client.get(SIGN.format(v.pk)).content.decode()
+    mine = [_enrol(employee_client), _enrol(employee_client)]
+    other = get_user_model().objects.create_user(email="jo@example.com", password="pw2")
+    oc = Client()
+    oc.force_login(other)
+    _enrol(oc)
+    options = employee_client.post(OPTIONS).json()
+    assert sorted(c["id"] for c in options["allowCredentials"]) == sorted(a.id for a in mine)
+    assert 'id="sign-passkey"' in employee_client.get(SIGN.format(v.pk)).content.decode()
 
 
 def test_a_bad_assertion_or_junk_credential_writes_nothing(hr_admin, employee_user, employee_client):
@@ -227,6 +255,7 @@ def test_a_bad_assertion_or_junk_credential_writes_nothing(hr_admin, employee_us
 
 def test_passkey_options_need_a_post_and_a_signed_in_person(client, employee_client):
     assert employee_client.get(OPTIONS).status_code == 405
+    _enrol(employee_client)
     assert "challenge" in employee_client.post(OPTIONS).json()
     assert client.post(OPTIONS).status_code == 302
 
@@ -371,3 +400,39 @@ def test_a_long_title_and_label_still_issue(hr_admin):
     v = policies.issue(hr_admin, p, "L" * 40, SimpleUploadedFile("x.pdf", PDF, content_type="application/pdf"),
                        timezone.localdate(), 14)
     assert len(v.file.title) <= 120 and policies.confirmation(v).endswith("(" + "L" * 40 + ").")
+
+
+# ---- every role on the pages --------------------------------------------------
+
+def test_anonymous_is_sent_to_sign_in(hr_admin, client):
+    v = _policy(hr_admin).versions.get()
+    for url in ("/documents/policies/", SIGN.format(v.pk)):
+        for r in (client.get(url), client.post(url, {"confirm": "on", "password": "pw"})):
+            assert r.status_code == 302 and r["Location"].startswith("/accounts/login/"), url
+    assert Signature.objects.count() == 0
+
+
+def test_a_line_manager_sees_only_their_own_policies(hr_admin, employee_user):
+    everyone = _policy(hr_admin).versions.get()
+    reception = _policy(hr_admin, title="Front desk", positions=["Receptionist"]).versions.get()
+    boss_user = get_user_model().objects.create_user(email="boss@example.com", password="pw")
+    boss = _staff(user=boss_user, title="Practice Manager")
+    report = make_employee(first="Ria", last="Shah", user=employee_user)
+    make_position(make_employment(report, start=timezone.localdate() - timedelta(days=50)), manager=boss)
+    policies.sign(employee_user, reception, "password", "")
+    c = Client()
+    c.force_login(boss_user)
+    body = c.get("/documents/policies/").content.decode()
+    assert "Information governance" in body and "Front desk" not in body and "Signed on" not in body
+    assert c.get(SIGN.format(everyone.pk)).status_code == 200
+    assert c.get(SIGN.format(reception.pk)).status_code == 404
+    assert c.post(SIGN.format(reception.pk), {"confirm": "on", "password": "pw"}).status_code == 404
+    assert Signature.objects.count() == 1
+
+
+def test_a_superuser_with_no_employee_record_is_treated_as_the_hr_admin_is(hr_admin, superuser_client):
+    v = _policy(hr_admin).versions.get()
+    assert "no employee record" in superuser_client.get("/documents/policies/").content.decode()
+    assert superuser_client.get(SIGN.format(v.pk)).status_code == 404
+    assert superuser_client.post(SIGN.format(v.pk), {"confirm": "on", "password": "pw"}).status_code == 404
+    assert Signature.objects.count() == 0

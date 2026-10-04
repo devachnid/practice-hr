@@ -70,6 +70,8 @@ MESSAGES = {
     "id_too_long": "The passkey could not be verified (credential id too long).",
     "duplicate": "That passkey is already registered here.",
     "unknown": "That passkey is not registered here.",
+    "not_yours": "That passkey is not yours.",
+    "none_here": "You have no passkeys here.",
 }
 
 
@@ -195,6 +197,10 @@ def verify_login(request, credential):
     passkey = Passkey.objects.select_related("user").filter(credential_id=credential.get("id")).first()
     if passkey is None:
         raise PasskeyError("unknown")
+    return _verified(request, challenge, credential, passkey)
+
+
+def _verified(request, challenge, credential, passkey):
     try:
         verified = webauthn.verify_authentication_response(
             credential=credential, expected_challenge=challenge,
@@ -210,3 +216,40 @@ def verify_login(request, credential):
     passkey.last_used_at = timezone.now()
     passkey.save(update_fields=["sign_count", "last_used_at"])
     return passkey
+
+
+# --- re-authenticating someone already signed in (signing a policy) ----------
+
+def reauth_options(request, user):
+    """login_options for a person already signed in: allowCredentials lists
+    their own passkeys only, so on a shared device the browser offers no
+    one else's. With none, there is nothing to offer (an empty list would
+    mean "any key", the login page's discoverable request)."""
+    mine = [PublicKeyCredentialDescriptor(id=base64url_to_bytes(p.credential_id)) for p in user.passkeys.all()]
+    if not mine:
+        raise PasskeyError("none_here")
+    options = webauthn.generate_authentication_options(
+        timeout=CHALLENGE_TTL * 1000, rp_id=rp_id(request), allow_credentials=mine,
+        user_verification=UserVerificationRequirement.REQUIRED)
+    _stash(request, options.challenge)
+    return options_to_json(options)
+
+
+def verify_reauth(request, user, credential):
+    """verify_login for `user`, already signed in: the credential must be one
+    of their own passkeys, checked before anything is verified, so another
+    account's key is refused without its counter or last use moving. The
+    challenge is spent either way."""
+    challenge = _spend(request)
+    if not isinstance(credential, dict):
+        raise PasskeyError("malformed")
+    cid = credential.get("id")
+    passkey = Passkey.objects.select_related("user").filter(credential_id=cid, user=user).first()
+    if passkey is None:
+        if Passkey.objects.filter(credential_id=cid).exists():
+            # the key is not named, nor whose it is: only that it happened
+            logger.warning("passkey re-authentication refused: a key of another account, presented by user %s",
+                           user.pk)
+            raise PasskeyError("not_yours")
+        raise PasskeyError("unknown")
+    return _verified(request, challenge, credential, passkey)
