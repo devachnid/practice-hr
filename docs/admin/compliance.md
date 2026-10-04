@@ -1,7 +1,7 @@
 # Compliance
 
 **Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
-Checklist templates / Checklists / Starters and leavers.
+Checklist templates / Checklists / Starters and leavers / Reminder settings.
 
 ## Checks
 
@@ -390,3 +390,61 @@ set-up, so it can be made with **gaps**, listed on it:
   done, how many are overdue and its gaps. Open one to mark any item
   **Done** (with an optional note) or **Not needed** (a reason is
   required), to **Remove** an item, or to **Add** one for this person only.
+
+## Reminders
+
+Every morning `hr_nightly` (see [Nightly housekeeping](sign-in.md#nightly-housekeeping))
+works out what is due across checks, policies and checklists and sends
+**one email per person who has something to hear about**, listing it under
+the name of the person it concerns, each line with what it is, when it is
+due and a link. Nobody with nothing due gets an email.
+
+### Reminder settings
+
+`/admin/compliance/reminderschedule/` (sidebar › Compliance › Reminder settings)
+
+One set of three numbers for the whole practice, edited in place:
+
+- **Start days before** (X, default 60) — the first reminder goes this many
+  days before the due date. It is also the window in which a check counts
+  as *Due soon*.
+- **Every days before** (Y, default 30) — then again every this many days
+  until the due date.
+- **Every days overdue** (Z, default 7) — after the due date, again every
+  this many days while it is still outstanding.
+
+A reminder always goes **on the due date itself**, whatever Y is. With the
+defaults, a DBS expiring on 1 December is mentioned on 2 October, 1
+November and 1 December, then on 2 December (the first day it is
+*Lapsed*, which starts it afresh) and every 7 days after that until a new
+check is recorded.
+
+### Who is reminded of what
+
+| What | When | Who |
+|---|---|---|
+| A check the person's title needs | *Due soon* (inside the window before it expires), *Lapsed*, or *Missing* (owed since their employment started). Only for someone employed today. | Every HR admin; the person too when the type has **Remind person** and they have a login that is switched on. |
+| A check that has lapsed | Once, the first time it lapses. | The person's line manager, told only that *a check has lapsed*, never which one (a manager sees counts of a report's checks, not the checks). |
+| A policy to sign | Inside the window before its sign-by date, then overdue. | The person, if their login is switched on; every HR admin as well once it is overdue. |
+| A checklist item | Inside the window before its due date, then overdue, until it is done or not needed. Items of a leaver checklist stop 90 days after the leaving date. | Its owner: the person, if their login is switched on; the line manager it was given to; or every HR admin. A line manager item with no manager (or one whose login is off) goes to HR. |
+
+A check the person has been asked for evidence of (*Awaiting*) is not
+reminded of: the request is the reminder. Each HR admin gets the HR lines
+in one email of their own; an HR admin who is also the person, or the
+manager, gets a line once.
+
+### The sent log
+
+Each line sent is logged against its recipient (`compliance.ReminderSent`:
+address, item, date), and the log decides what goes next: a line goes
+again only when the numbers above say so, counted from the last time that
+recipient had it. A change to the thing itself starts it afresh: a renewed
+check (new expiry), a check that moves from *Due soon* to *Lapsed*, a
+policy's new version, a checklist item whose due date moved.
+
+**No email without a relay.** With no outgoing email configured, nothing
+is sent and nothing is logged, so the first morning with a relay sends what
+is due then. A send the relay refuses is listed on the admin dashboard
+with the other emails that did not go (by subject only, never the
+recipient), and is not logged as sent, so the next morning tries again.
+

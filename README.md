@@ -193,7 +193,8 @@ reports; until it exists the backup skips it rather than failing). Expired sessi
 cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
 runs `manage.py hr_nightly`, which disables the login of anyone whose
 employment has ended, closes each leave year that has ended, opens this
-year's and next year's leave pots, charges bank holidays and chases waiting leave requests
+year's and next year's leave pots, charges bank holidays, chases waiting leave requests and sends the
+morning compliance reminders
 — see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping) and
 [Year end](docs/admin/year-end.md). `deploy/manage absence_year_end` runs
 the year-end part by hand, and `deploy/manage payroll_report --period
