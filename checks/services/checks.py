@@ -92,6 +92,14 @@ def _asked(employee, check_type):
             .order_by("-id").first())
 
 
+def asked_of(employee):
+    """The requests for evidence still waiting on the person (awaiting
+    checks), one per type, oldest type first: Getting started shows them
+    before the person's first day, when My record is not yet theirs."""
+    return list(Check.objects.filter(employee=employee, awaiting=True).select_related("check_type", "evidence")
+                .order_by("check_type__display_order", "check_type__name", "-id"))
+
+
 def state(employee, today, window_days=60):
     required = required_for(employee, today)
     required_ids = {t.pk for t in required}
@@ -103,6 +111,18 @@ def state(employee, today, window_days=60):
         rows.append(Row(t, latest, _status(latest, t.pk in required_ids, today, window_days),
                         latest.expires_on if latest else None, _asked(employee, t)))
     return rows
+
+
+def owed_status(row, employment, today):
+    """The status the reminders and the dashboard go by: row.status, except
+    that a required check asked of the person and not answered (its only
+    row a request with nothing uploaded) is *missing* once their employment
+    has started: asking does not stop it being owed. The pages keep
+    *Awaiting*."""
+    if (row.status == "awaiting" and row.asked is not None and row.asked.evidence_id is None
+            and employment is not None and employment.start_date <= today):
+        return "missing"
+    return row.status
 
 
 def summary(employee, today, window_days=60):

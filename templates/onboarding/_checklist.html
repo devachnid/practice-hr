@@ -1,7 +1,8 @@
 {% comment %}The person's own checklist items (onboarding.views.own_items), on
 Getting started and on My record's Your checklist card. Expects items and
 back ("start" or "me", where a post returns to). Each open item shows the
-control its link needs: the details form, an upload, the policies page,
+control its link needs: the details form (once sent, "Sent – HR will
+check it", with a link to change them), an upload, the policies page,
 nothing for a check (HR records it), and Done only for an item with no
 link. Closed items show how they were closed.{% endcomment %}
 {% if items %}
@@ -16,6 +17,7 @@ link. Closed items show how they were closed.{% endcomment %}
       <td class="row-actions">
       {% if item.state == "done" %}<span class="badge badge-ok">Done</span>
       {% elif item.state == "not_needed" %}<span class="badge badge-muted">Not needed</span>
+      {% elif item.link == "details" and item.submitted_at %}<span class="badge badge-muted">Sent – HR will check it</span> <a href="{% url 'onboarding:details' %}">Change your details</a>
       {% elif item.link == "details" %}<a href="{% url 'onboarding:details' %}" class="btn btn-primary">Your details</a> <span class="muted">HR ticks this off once they have checked them.</span>
       {% elif item.link == "sign_policies" %}<a href="{% url 'documents:policies' %}" class="btn btn-primary">Read and sign</a>
       {% elif item.link|slice:":7" == "upload:" %}

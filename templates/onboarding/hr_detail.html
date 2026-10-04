@@ -23,7 +23,7 @@ once HR has checked the person's details in the admin.{% endcomment %}
     <tbody>
     {% for item in items %}
       <tr>
-        <th scope="row">{{ item.title }}{% if item.instruction %}<br><span class="muted">{{ item.instruction }}</span>{% endif %}{% if item.link %}<br><span class="muted">Linked: {{ item.link }}{% if item.link == "details" %}. Check <a href="{{ employee_admin_url }}">their details</a>, then mark it done.{% endif %}</span>{% endif %}</th>
+        <th scope="row">{{ item.title }}{% if item.instruction %}<br><span class="muted">{{ item.instruction }}</span>{% endif %}{% if item.link %}<br><span class="muted">Linked: {{ item.link }}{% if item.link == "details" %}. {% if item.submitted_at and item.state == "open" %}Sent {{ item.submitted_at|date:"j M Y" }}. {% endif %}Check <a href="{{ employee_admin_url }}">their details</a>, then mark it done.{% endif %}</span>{% endif %}</th>
         <td>{{ item.get_owner_display }}{% if item.owner != "hr" %}: {{ item.owner_employee.name|default:"nobody" }}{% endif %}</td>
         <td>{{ item.due_on|date:"j M Y" }}</td>
         <td>{% if item.state == "open" %}{% if item.due_on < today %}<span class="badge badge-warning">Overdue</span>{% else %}<span class="badge badge-muted">Open</span>{% endif %}

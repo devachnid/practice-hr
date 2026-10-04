@@ -11,6 +11,7 @@ from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
@@ -140,8 +141,11 @@ class CheckAdmin(ModelAdmin):
         except ValidationError as e:
             messages.error(request, " ".join(e.messages))
             return None
+        # before their first day My record is not theirs yet: Getting started shows it
+        where = ("Getting started" if access.employee_is_pre_start(employee, timezone.localdate())
+                 else "My record")
         messages.success(request, f"{employee} has been asked for their {check_type} evidence. "
-                                  f"They see it on My record.")
+                                  f"They see it on {where}.")
         return c
 
     @action(description="Ask for evidence", url_path="ask", permissions=["ask"])

@@ -466,7 +466,8 @@ def test_the_gate_lets_through_documents_accounts_and_static(cast):
     assert own.get("/documents/policies/").status_code == 200
     assert own.get("/accounts/account/").status_code == 200
     assert own.get("/onboarding/details/").status_code == 200
-    for path in ("/people/team/", "/checks/1/upload/", "/absence/request/", "/admin/"):
+    assert own.get("/checks/1/upload/").status_code == 405     # let through (final review I1); POST only
+    for path in ("/people/team/", "/absence/request/", "/admin/"):
         r = own.get(path)
         assert r.status_code == 302 and r["Location"] == "/onboarding/", path
 
@@ -598,3 +599,89 @@ def test_the_details_form_keeps_contacts_and_refuses_a_half_row(hr_admin, employ
     assert r.status_code == 200
     emp.employee.refresh_from_db()
     assert emp.employee.bank_sort_code == ""
+
+
+# ---- final review I1: evidence asked of a starter before their first day -----------------
+
+
+def _asked_rtw(hr_admin, employee):
+    from checks.models import CheckType
+    from checks.services import checks
+    return checks.ask(hr_admin, employee, CheckType.objects.get(code="right_to_work"))
+
+
+def test_a_pre_start_starter_sees_and_answers_a_request_for_evidence_on_getting_started(cast, hr_admin):
+    asked = _asked_rtw(hr_admin, cast["emp"].employee)
+    own = cast["clients"]["own"]
+    body = own.get("/onboarding/").content.decode()
+    assert f'action="/checks/{asked.pk}/upload/"' in body and "Upload your right to work evidence" in body
+    r = own.post(f"/checks/{asked.pk}/upload/", {"file": SimpleUploadedFile("passport.pdf", PDF)})
+    assert r.status_code == 302 and r["Location"] == "/onboarding/"
+    asked.refresh_from_db()
+    assert asked.evidence is not None and asked.evidence.employee == cast["emp"].employee
+    body = own.get("/onboarding/").content.decode()
+    assert "Sent. HR will record it." in body and f'action="/checks/{asked.pk}/upload/"' not in body
+
+
+def test_an_anonymous_upload_to_a_check_goes_to_sign_in(cast, hr_admin):
+    asked = _asked_rtw(hr_admin, cast["emp"].employee)
+    r = cast["clients"]["anonymous"].post(f"/checks/{asked.pk}/upload/",
+                                          {"file": SimpleUploadedFile("passport.pdf", PDF)})
+    assert _is_login(r)
+    asked.refresh_from_db()
+    assert asked.evidence is None
+
+
+def test_hr_is_told_where_the_person_sees_a_request(cast, admin_client):
+    from checks.models import CheckType
+    rtw = CheckType.objects.get(code="right_to_work")
+    r = admin_client.post("/admin/checks/check/ask/", {"employee": cast["emp"].employee.pk, "check_type": rtw.pk},
+                          follow=True)
+    body = r.content.decode()
+    assert "They see it on Getting started." in body and "They see it on My record" not in body
+    r = admin_client.post("/admin/checks/check/ask/", {"employee": cast["manager"].pk, "check_type": rtw.pk},
+                          follow=True)
+    assert "They see it on My record." in r.content.decode()
+
+
+# ---- final review I2: a details item, once sent, is HR's to check -------------------------
+
+
+def _due_for_details(today):
+    from compliance.models import ReminderSchedule
+    from onboarding.services import due
+    return [d for d in due.due_items(today, ReminderSchedule.get()) if d.label == "Complete your details"]
+
+
+def test_sending_the_details_form_marks_the_item_sent_and_says_so(cast):
+    own = cast["clients"]["own"]
+    item = cast["checklist"].items.get(link="details")
+    assert item.submitted_at is None
+    assert own.post("/onboarding/details/", DETAILS_POST).status_code == 302
+    item.refresh_from_db()
+    assert item.submitted_at is not None and item.state == "open"
+    assert AuditEntry.objects.filter(model="onboarding.checklistitem", object_id=item.pk,
+                                     field="submitted_at").exists()
+    body = own.get("/onboarding/").content.decode()
+    assert "Sent – HR will check it" in body and "/onboarding/details/" in body
+
+
+def test_a_details_item_is_chased_of_the_person_until_sent_then_of_hr(cast):
+    today = timezone.localdate()
+    item = cast["checklist"].items.get(link="details")
+    ChecklistItem.objects.filter(pk=item.pk).update(due_on=today)
+    (before,) = _due_for_details(today)
+    assert before.recipient == "sam@example.com" and before.url.endswith("/onboarding/")
+    assert cast["clients"]["own"].post("/onboarding/details/", DETAILS_POST).status_code == 302
+    (after,) = _due_for_details(today)
+    assert after.recipient == "hr@example.com" and after.url.endswith(f"/onboarding/all/{cast['checklist'].pk}/")
+
+
+def test_an_hr_admin_with_a_future_employment_is_never_pre_start(hr_admin, client):
+    """Final review M8: HR is never gated, whatever their own record says."""
+    e = make_employee(first="Hana", last="Reed", user=hr_admin)
+    employments.start(hr_admin, e, timezone.localdate() + timedelta(days=10))
+    assert access.employee_is_pre_start(e, timezone.localdate())
+    assert not access.is_pre_start(hr_admin, timezone.localdate())
+    client.force_login(hr_admin)
+    assert client.get("/people/me/").status_code == 200

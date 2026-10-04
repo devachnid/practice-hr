@@ -43,10 +43,12 @@ def compliance_people(today):
     out = {key: [] for key, _ in COMPLIANCE}
     current = employments.active_on(today).values_list("employee_id", flat=True)
     for e in Employee.objects.filter(pk__in=current).order_by("pk"):
+        emp = employments.current(e, today)
         for row in checks.state(e, today):
-            if row.status == "lapsed":
+            status = checks.owed_status(row, emp, today)     # an unanswered request is still missing
+            if status == "lapsed":
                 out["lapsed_checks"].append(e.pk)
-            elif row.status == "missing":
+            elif status == "missing":
                 out["missing_checks"].append(e.pk)
         out["overdue_signatures"] += [e.pk for o in policies.owed(e, today) if o.state == "overdue"]
     out["overdue_items"] = list(ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)

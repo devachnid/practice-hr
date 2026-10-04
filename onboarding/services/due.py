@@ -6,7 +6,8 @@ ago (or has not ended): due soon inside the reminder window, due today,
 then overdue. Each goes to its owner: the person, the line manager it was
 given to, or every HR admin. An item whose owner has no login that is
 switched on (or a line manager item with no manager) is HR's to do, so HR
-is reminded of it."""
+is reminded of it; so is a details item the person has sent (submitted_at),
+which waits on HR checking it."""
 from datetime import timedelta
 
 from django.db.models import Q
@@ -33,6 +34,8 @@ def due_items(today, sched):
         state = state_by_date(today, item.due_on)
         key = f"item:{item.pk}:{item.due_on.isoformat()}"
         owner = {Owner.PERSON: e, Owner.MANAGER: item.owner_employee}.get(item.owner)
+        if item.link == "details" and item.submitted_at is not None:
+            owner = None                        # sent: HR's to check, not the person's to chase
         address = active_email(owner)
         if address and item.owner == Owner.PERSON:
             to, url = [address], reverse("onboarding:getting_started")

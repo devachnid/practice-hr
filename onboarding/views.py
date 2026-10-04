@@ -18,6 +18,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from checks.services import checks
 from documents.services import files, policies
 from onboarding.forms import AddItemForm, DetailsForm, contact_formset
 from onboarding.middleware import pre_start
@@ -56,9 +57,10 @@ def _hr_only(request):
 def getting_started(request):
     me = access.employee_for(request.user)
     today = timezone.localdate()
-    ctx = {"employee": me, "items": [], "owed": [], "is_pre_start": pre_start(request)}
+    ctx = {"employee": me, "items": [], "owed": [], "asked": [], "is_pre_start": pre_start(request)}
     if me is not None:
         ctx.update({"items": checklists.own_items(me, today), "owed": policies.owed(me, today),
+                    "asked": checks.asked_of(me),
                     "start_date": me.employments.filter(start_date__gt=today).order_by("start_date")
                     .values_list("start_date", flat=True).first()})
     return render(request, "onboarding/getting_started.html", ctx)
@@ -89,6 +91,7 @@ def details(request):
                 # its instance, so diffing against that would audit nothing
                 employees.update(request.user, Employee.objects.get(pk=me.pk), **form.cleaned_data)
                 employees.set_emergency_contacts(request.user, me, contacts.rows())
+                checklists.details_submitted(request.user, me)
         except ValidationError as e:
             form.add_error(None, e.messages)
         else:

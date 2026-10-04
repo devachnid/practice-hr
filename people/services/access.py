@@ -95,9 +95,15 @@ def can_view_checks(user, employee):
 
 def is_pre_start(user, day):
     """A starter before their first day: a login linked to an employee with
-    no current employment and one that starts after `day`."""
-    me = employee_for(user)
-    if me is None:
+    no current employment and one that starts after `day`. Never an HR
+    admin (or superuser): HR is never gated, whatever their own record says."""
+    if can_view_restricted(user):
         return False
-    return (employments.current(me, day) is None
-            and me.employments.filter(start_date__gt=day).exists())
+    me = employee_for(user)
+    return me is not None and employee_is_pre_start(me, day)
+
+
+def employee_is_pre_start(employee, day):
+    """The person has no current employment and one that starts after `day`."""
+    return (employments.current(employee, day) is None
+            and employee.employments.filter(start_date__gt=day).exists())

@@ -370,3 +370,49 @@ def test_a_failing_compliance_step_keeps_the_earlier_lines_and_fails_the_command
     assert "people: {" in out and "absence: {" in out and "compliance: failed" in out
     assert "ValueError" in caplog.text
     assert "sam@example.com" not in caplog.text and "Sam Patel" not in caplog.text
+
+
+# ---- final review I3: a request nobody has answered is still owed ------------------------
+
+def _rtw_asked(hr_admin, user=None):
+    rtw = CheckType.objects.get(code="right_to_work")
+    rtw.positions.add(titles.get_or_create("Receptionist"))
+    e = _receptionist(hr_admin, user=user)
+    return e, checks.ask(hr_admin, e, rtw)
+
+
+def test_an_unanswered_request_for_a_required_check_is_reminded_of_as_missing(hr_admin, employee_user, media):
+    from checks.services import due
+    today = timezone.localdate()
+    e, asked = _rtw_asked(hr_admin, user=employee_user)
+    assert [r.status for r in checks.state(e, today)] == ["awaiting"]        # the pages keep Awaiting
+    lines = [d for d in due.due_items(today, ReminderSchedule.get()) if d.employee == e]
+    assert {(d.recipient, d.state, d.label) for d in lines} == {
+        ("hr@example.com", "missing", "Right to work"), ("sam@example.com", "missing", "Right to work")}
+    assert all(d.due_on == e.employments.get().start_date for d in lines)
+    checks.upload_evidence(employee_user, asked, SimpleUploadedFile("passport.pdf", PDF))
+    assert [d for d in due.due_items(today, ReminderSchedule.get()) if d.employee == e] == []   # HR's to record
+
+
+def test_the_dashboard_counts_an_unanswered_request_as_missing(hr_admin, employee_user, media):
+    from absence.admin_dashboard import compliance_people
+    today = timezone.localdate()
+    e, asked = _rtw_asked(hr_admin, user=employee_user)
+    assert compliance_people(today)["missing_checks"] == [e.pk]
+    checks.upload_evidence(employee_user, asked, SimpleUploadedFile("passport.pdf", PDF))
+    assert compliance_people(today)["missing_checks"] == []
+
+
+def test_a_request_before_the_start_date_is_not_yet_owed(hr_admin):
+    from checks.services import due
+    today = timezone.localdate()
+    rtw = CheckType.objects.get(code="right_to_work")
+    rtw.positions.add(titles.get_or_create("Receptionist"))
+    e = make_employee()
+    emp = employments.start(hr_admin, e, today + timedelta(days=5))
+    positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), make_team(), None, emp.start_date)
+    checks.ask(hr_admin, e, rtw)
+    row = checks.state(e, emp.start_date)[0]
+    assert checks.owed_status(row, emp, today) == "awaiting"
+    assert checks.owed_status(row, emp, emp.start_date) == "missing"
+    assert [d for d in due.due_items(today, ReminderSchedule.get()) if d.employee == e] == []

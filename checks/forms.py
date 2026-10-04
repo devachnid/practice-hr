@@ -103,5 +103,6 @@ class AskForm(forms.Form):
                                       label="Person")
     check_type = forms.ModelChoiceField(queryset=CheckType.objects.filter(active=True),
                                         widget=UnfoldAdminSelectWidget, label="Check",
-                                        help_text="They see it on My record, with an upload form for a type "
-                                                  "whose evidence is a file.")
+                                        help_text="They see it on My record (on Getting started before their "
+                                                  "first day), with an upload form for a type whose "
+                                                  "evidence is a file.")

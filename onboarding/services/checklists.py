@@ -18,7 +18,8 @@ Linked items close themselves (linked_done) when the linked thing happens:
 "sign_policies" (policies.SIGNED_HOOKS, once nothing is owed) and
 "check:<check type code>" (checks.RECORDED_HOOKS). "details" never closes
 itself: HR marks it done once they have checked what the person entered on
-their details form (onboarding.views.details). The hooks run inside the
+their details form (onboarding.views.details); sending the form marks it
+sent (details_submitted), which makes it HR's to chase. The hooks run inside the
 caller's transaction, so linked_done never raises for an ordinary case: no
 matching item is a no-op."""
 from datetime import timedelta
@@ -376,6 +377,24 @@ def remove_item(actor, item):
     audit.record(actor, checklist, {"removed": (item.title, "")})
     item.delete()
     _finish_if_done(checklist)
+
+
+@transaction.atomic
+def details_submitted(actor, employee):
+    """The person has sent their details form: each of their open "details"
+    items is marked sent (submitted_at), so from now on it is HR's to check
+    (the reminders go to HR, not the person) and Getting started says so.
+    The item stays open until HR ticks it off. Returns how many were marked."""
+    items = list(ChecklistItem.objects.select_for_update()
+                 .filter(checklist__employment__employee=employee, owner=Owner.PERSON, link="details",
+                         state=ChecklistItem.State.OPEN))
+    now = timezone.now()
+    for item in items:
+        before = item.submitted_at
+        item.submitted_at = now
+        item.save(update_fields=["submitted_at"])
+        audit.record(actor, item, {"submitted_at": (before or "", now)})
+    return len(items)
 
 
 def _value(choice):

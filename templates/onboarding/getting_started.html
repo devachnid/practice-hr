@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% comment %}onboarding:getting_started — the person's own checklist items
-(_checklist.html) and the policies they still have to sign. Before their
+(_checklist.html), the checks HR has asked them for evidence of
+(people/_check_upload.html, as on My record) and the policies they still
+have to sign. Before their
 start date this is the one page a starter sees (onboarding.middleware), and
 base.html leaves the navigation out.{% endcomment %}
 {% block title %}Getting started{% endblock %}
@@ -15,6 +17,23 @@ base.html leaves the navigation out.{% endcomment %}
     <h2>Your checklist</h2>
     {% include "onboarding/_checklist.html" with back="start" %}
   </section>
+  {% if asked %}
+  <section class="card">
+    <h2>Checks</h2>
+    <p class="muted">HR has asked you for these.</p>
+    <div class="table-scroll">
+    <table class="list">
+      <thead><tr><th scope="col">Check</th><th scope="col"><span class="visually-hidden">What to do</span></th></tr></thead>
+      <tbody>
+      {% for asked_check in asked %}
+        <tr><th scope="row">{{ asked_check.check_type.name }}</th>
+          <td>{% include "people/_check_upload.html" with asked=asked_check %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
   <section class="card">
     <h2>Policies</h2>
     {% if owed %}

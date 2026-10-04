@@ -118,6 +118,9 @@ class ChecklistItem(models.Model):
                                 related_name="+")
     done_at = models.DateTimeField(null=True, blank=True)
     note = models.CharField(max_length=200, blank=True, default="")
+    submitted_at = models.DateTimeField(null=True, blank=True,
+                                        help_text="A details item: when the person last sent their details "
+                                                  "(HR's to check from then on).")
 
     class Meta:
         ordering = ["due_on", "order", "id"]

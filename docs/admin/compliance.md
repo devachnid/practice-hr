@@ -135,7 +135,8 @@ For a check the person supplies (their passport for right to work, say):
    asks the same person for the same type again (a renewal). One request per
    person and type can be waiting at a time.
 2. **They upload.** The person sees the check as *Awaiting* on My record ›
-   Checks, with an upload form when the type's evidence is a file. A renewal
+   Checks (before their first day, on Getting started), with an upload
+   form when the type's evidence is a file. A renewal
    request shows the same form under the type's current status (*Due soon*,
    say), which stays as it is until you record the new check. They can
    upload once; their file is stored under Files against them. For a type
@@ -496,8 +497,11 @@ is recorded.
 | A policy to sign | Inside the window before its sign-by date, then overdue. | The person, if their login is switched on; every HR admin as well once it is overdue, whether the person has a login or not. |
 | A checklist item | Inside the window before its due date, then overdue, until it is done or not needed. Items of a leaver checklist stop 90 days after the leaving date. | Its owner: the person, the line manager it was given to, or every HR admin. An item whose owner has no login that is switched on, or a line manager item with no manager, goes to HR instead. |
 
-A check the person has been asked for evidence of (*Awaiting*) is not
-reminded of: the request is the reminder. Each HR admin gets the HR lines
+A check the person has been asked for evidence of (*Awaiting*) is still
+owed: until they upload something, it is reminded of as *Missing*, owed
+since their employment started, like a check nobody has asked for. Once
+they have uploaded their evidence it waits on you to record the result,
+and is not reminded of. The pages keep showing it as *Awaiting*. Each HR admin gets the HR lines
 in one email of their own; an HR admin who is also the person, or the
 manager, gets a line once.
 
@@ -537,7 +541,7 @@ The admin home page shows four numbers:
 | Number | Counts |
 |---|---|
 | **Lapsed checks** | Checks with the status *Lapsed*, across everyone employed today. |
-| **Missing checks** | Checks with the status *Missing*, across everyone employed today. |
+| **Missing checks** | Checks with the status *Missing*, across everyone employed today, and checks asked for (*Awaiting*) that the person has not answered yet. |
 | **Overdue signatures** | Policies someone employed today has not signed by the sign-by date. |
 | **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date. |
 
