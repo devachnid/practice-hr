@@ -236,11 +236,13 @@ def test_the_code_flow_gives_exactly_sub_email_employee_id_and_admin(
     client_id, tokens = _signed_in_flow(capsys, employee_client, employee_user, is_admin=role)
     claims = _b64url_json(tokens["id_token"].split(".")[1])
     assert set(claims) - PROTOCOL == {"sub", "email", "employee_id", "admin"}
+    assert isinstance(claims["admin"], bool)  # a JSON true/false, never 0 or 1
     assert (claims["sub"], claims["email"], claims["employee_id"], claims["admin"]) == (
         str(employee_user.pk), "sam@example.com", e.pk, admin)
     assert claims["aud"] == client_id and claims["nonce"] == "nn"
     info = Client().get("/o/userinfo/", HTTP_AUTHORIZATION=f"Bearer {tokens['access_token']}")
     assert info.status_code == 200
+    assert isinstance(info.json()["admin"], bool)
     assert info.json() == {"sub": str(employee_user.pk), "email": "sam@example.com",
                            "employee_id": e.pk, "admin": admin}
 

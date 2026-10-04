@@ -256,10 +256,14 @@ this order:
 
        deploy/manage export_logins --file /var/lib/rota/logins.json
 
-2. Copy the file to this box (`scp`, or `cp` if both apps run on one) into
-   `/var/lib/practice-hr/`: `deploy/manage` runs commands as the
-   `practice-hr` user, which can read that directory and nobody else can.
-   Make the file that user's alone:
+2. Copy the file to this box as `/var/lib/practice-hr/rota-logins.json`
+   (`cp` instead of `scp` if both apps run on one box; `hr` here is this
+   box's name):
+
+       scp /var/lib/rota/logins.json hr:/var/lib/practice-hr/rota-logins.json
+
+   `deploy/manage` runs commands as the `practice-hr` user, which can read
+   that directory and nobody else can. Make the file that user's alone:
 
        chown practice-hr:practice-hr /var/lib/practice-hr/rota-logins.json
        chmod 600 /var/lib/practice-hr/rota-logins.json
@@ -286,7 +290,10 @@ It prints one count per line:
 - **passwords_set** — logins here with no password yet (just created, or
   invited and never set up) that now have their rota password. They sign
   in here with it: both apps store a password as the same kind of hash, so
-  the hash moves and the password itself is never seen.
+  the hash moves and the password itself is never seen. That includes an
+  HR admin's login that was invited but never set up: their rota password
+  now opens this admin too, and with it pay and health records. It is the
+  same person, but worth knowing before you run it.
 - **password_kept** — logins that already had a password here. It is kept,
   and the rota's is ignored.
 - **linked** — employee records whose work email matched (whatever its

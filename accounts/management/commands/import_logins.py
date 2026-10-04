@@ -4,6 +4,7 @@ rota's export_logins writes; it holds password hashes, so it is deleted
 once this has run (docs/admin/sign-in.md)."""
 
 import json
+import re
 from datetime import datetime
 
 from django.contrib.auth import get_user_model
@@ -21,6 +22,8 @@ from people.services import employees
 FLAGS = ("is_active", "is_rota_admin", "is_superuser")
 KEYS = {"email", "password", *FLAGS}
 COUNTS = ("created", "passwords_set", "password_kept", "linked", "admins")
+# What a Django hash starts with: its algorithm's name, then "$".
+HASH_PREFIX = re.compile(r"[a-z0-9_]+\$")
 
 
 def _read(path):
@@ -45,6 +48,7 @@ def _read(path):
         refuse('"exported_at" is not an ISO date and time')
     if not isinstance(data["logins"], list):
         refuse('"logins" is not a list')
+    seen = set()
     for n, login in enumerate(data["logins"], 1):
         if not isinstance(login, dict) or set(login) != KEYS:
             refuse(f"login {n} is not an object with exactly {', '.join(sorted(KEYS))}")
@@ -52,6 +56,9 @@ def _read(path):
             validate_email(login["email"])
         except (TypeError, ValidationError):
             refuse(f"login {n}'s email is not an email address")
+        if login["email"].casefold() in seen:
+            refuse(f"duplicate email in file: {login['email']}")
+        seen.add(login["email"].casefold())
         if any(not isinstance(login[flag], bool) for flag in FLAGS):
             refuse(f"login {n}'s {', '.join(FLAGS)} are not all true or false")
         password = login["password"]
@@ -61,6 +68,10 @@ def _read(path):
             try:
                 identify_hasher(password)
             except ValueError:
+                # Neither message repeats the value: it may be a password.
+                if HASH_PREFIX.match(password):
+                    refuse(f"login {n}'s password ({login['email']}) is not a hash this "
+                           "system can check (its algorithm is not one of PASSWORD_HASHERS)")
                 refuse(f"login {n}'s password ({login['email']}) is not a password hash")
     return data["logins"]
 

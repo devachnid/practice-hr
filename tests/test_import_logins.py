@@ -201,6 +201,32 @@ def test_a_password_that_is_not_a_hash_is_refused_and_not_repeated(capsys, tmp_p
     assert not User.objects.exists()
 
 
+def test_a_hash_this_system_cannot_check_is_refused_as_such(capsys, tmp_path, rota):
+    """A real hash from an algorithm not in PASSWORD_HASHERS is a different
+    problem from a value that is no hash at all, and the message says so."""
+    foreign = "scrypt_custom$1$c2FsdA$ZGlnZXN0ZGlnZXN0"
+    with pytest.raises(CommandError) as raised:
+        _run(capsys, _file(tmp_path, _login("a@example.com", foreign)))
+    message = str(raised.value)
+    assert "not a hash this system can check" in message and "not a password hash" not in message
+    assert foreign not in message and "ZGlnZXN0ZGlnZXN0" not in message
+    assert not User.objects.exists()
+
+
+def test_a_password_with_a_dollar_but_no_algorithm_is_not_a_hash(capsys, tmp_path, rota):
+    with pytest.raises(CommandError) as raised:
+        _run(capsys, _file(tmp_path, _login("a@example.com", "my pass$word")))
+    assert "not a password hash" in str(raised.value) and "pass$word" not in str(raised.value)
+
+
+def test_two_logins_with_one_email_are_refused(capsys, tmp_path, rota):
+    path = _file(tmp_path, _login("jo@example.com", is_rota_admin=True),
+                 _login("Jo@Example.com"))
+    with pytest.raises(CommandError, match="duplicate email in file: Jo@Example.com"):
+        _run(capsys, path)
+    assert not User.objects.exists() and not AppRole.objects.exists()
+
+
 def test_a_missing_file_is_refused(capsys, tmp_path, rota):
     with pytest.raises(CommandError, match="missing.json"):
         _run(capsys, tmp_path / "missing.json")

@@ -184,9 +184,9 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
     def get_form(self, request, obj=None, **kwargs):
         # The admin builds the form from the fieldsets' field names, and a
         # model form refuses a name the model does not have; the app boxes
-        # are LoginChangeForm's own.
-        fields = kwargs["fields"] if "fields" in kwargs else flatten_fieldsets(
-            self.get_fieldsets(request, obj))
+        # are LoginChangeForm's own. Django itself sometimes passes
+        # fields=None (_get_form_for_get_fields): read the fieldsets then.
+        fields = kwargs.get("fields") or flatten_fieldsets(self.get_fieldsets(request, obj))
         kwargs["fields"] = [f for f in fields if not f.startswith(APP_ADMIN)]
         return super().get_form(request, obj, **kwargs)
 

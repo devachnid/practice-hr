@@ -148,3 +148,14 @@ def test_the_list_shows_who_is_an_admin_of_what(admin_client, employee_user, hr_
     apps = {u.email: cl.model_admin.apps(u) for u in cl.result_list}
     assert apps == {"sam@example.com": "rota (admin)", "hr@example.com": "rota", nobody.email: ""}
     assert "rota (admin)" in r.content.decode()
+
+
+def test_the_form_builds_when_django_passes_no_field_list(rf, hr_admin, employee_user):
+    """Django's own _get_form_for_get_fields passes fields=None."""
+    from django.contrib import admin as django_admin
+    _client()
+    request = rf.get("/")
+    request.user = hr_admin
+    model_admin = django_admin.site._registry[User]
+    form = model_admin.get_form(request, employee_user, fields=None)
+    assert form._meta.fields and not any(f.startswith("app_admin_") for f in form._meta.fields)
