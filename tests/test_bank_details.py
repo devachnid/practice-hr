@@ -48,3 +48,29 @@ def test_the_payroll_starters_sheet_carries_bank_details(hr_admin, tmp_path, set
     row = [c.value for c in ws[2]]
     assert headers[-3:] == ["Account name", "Sort code", "Account number"]
     assert row[-3:] == ["S Patel", "12-34-56", "12345678"]
+
+
+# ---- final review T2: the negative side of the privacy contract ------------------------------
+
+def test_a_non_hr_viewer_gets_no_bank_fields_and_no_bank_audit(employee_user, employee_client):
+    from django.contrib import admin as django_admin
+    from django.test import RequestFactory
+
+    from people.models import Employee
+    e = make_employee(user=employee_user, bank_account_name="S Patel", bank_sort_code="12-34-56",
+                      bank_account_number="12345678")
+    request = RequestFactory().get("/")
+    request.user = employee_user
+    fields = django_admin.site._registry[Employee].get_fields(request, e)
+    assert not {"bank_account_name", "bank_sort_code", "bank_account_number"} & set(fields)
+    r = employee_client.get(f"/admin/people/employee/{e.pk}/change/")
+    assert r.status_code in (302, 403) and "12345678" not in r.content.decode()
+    body = employee_client.get("/people/me/").content.decode()
+    assert "12345678" not in body and "12-34-56" not in body
+    assert not AuditEntry.objects.filter(kind="viewed", field="bank").exists()
+
+
+def test_no_bank_audit_when_both_bank_fields_are_blank(admin_client):
+    e = make_employee(bank_account_name="S Patel")
+    assert admin_client.get(f"/admin/people/employee/{e.pk}/change/").status_code == 200
+    assert not AuditEntry.objects.filter(kind="viewed", field="bank").exists()

@@ -68,6 +68,15 @@ def _day(d):
     return date_format(d, "j M Y") if d else ""
 
 
+def _as_of(employee, today):
+    """(current employment, upcoming employment, the day the Compliance tab
+    shows). Someone not started yet is shown as they will stand on their
+    first day: what their title will need, and whether it will be current."""
+    employed = employments.current(employee, today)
+    upcoming = None if employed else employee.employments.filter(start_date__gt=today).order_by("start_date").first()
+    return employed, upcoming, (upcoming.start_date if upcoming else today)
+
+
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
     form = admin_forms.EmployeeForm
@@ -99,17 +108,13 @@ class EmployeeAdmin(ModelAdmin):
     def compliance_summary(self, obj):
         """Their checks (checks.state), their policies (policies.state) and
         the open items of their checklists, each with a link to act on it.
-        Reads only."""
+        Reads only; change_view audits the view of the checks."""
         from checks.services import checks
         from documents.services import policies
         from onboarding.models import ChecklistItem
 
         today = timezone.localdate()
-        # Someone not started yet is shown as they will stand on their first
-        # day: what their title will need, and whether it will be current.
-        employed = employments.current(obj, today)
-        upcoming = None if employed else obj.employments.filter(start_date__gt=today).order_by("start_date").first()
-        as_of = upcoming.start_date if upcoming else today
+        employed, upcoming, as_of = _as_of(obj, today)
         check_rows = []
         for r in checks.state(obj, as_of):
             if r.latest is not None and not r.latest.awaiting:
@@ -169,6 +174,14 @@ class EmployeeAdmin(ModelAdmin):
                     audit.viewed(request.user, obj, "ni_number")
                 if obj.bank_account_number or obj.bank_sort_code:
                     audit.viewed(request.user, obj, "bank")
+        # The Compliance tab shows their checks: a view of them, audited as
+        # opening a check is (CheckAdmin), when there is any row to see.
+        if request.method == "GET":
+            obj = self.get_object(request, object_id)
+            if obj is not None and self.has_view_permission(request, obj):
+                from checks.services import checks
+                if checks.state(obj, _as_of(obj, timezone.localdate())[2]):
+                    audit.viewed(request.user, obj, "checks")
         return super().change_view(request, object_id, form_url, extra_context)
 
     def save_model(self, request, obj, form, change):

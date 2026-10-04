@@ -3,7 +3,8 @@
 Files are read-only: an HR admin adds a file on the add page
 (documents.forms.UploadForm, saved by files.add) and downloads one through
 documents:download (files.open, which audits). Files are never changed or
-deleted here; a replacement supersedes.
+deleted here; a replacement supersedes (the "Supersede" action on a
+file's page: files.supersede).
 
 A policy's title, titles and active flag are edited here; its versions are
 listed read-only and a new one is added by the "Issue new version" action
@@ -18,7 +19,7 @@ from django.utils.html import format_html
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action
 
-from documents.forms import IssueForm, UploadForm
+from documents.forms import IssueForm, SupersedeForm, UploadForm
 from documents.models import File, Policy, PolicyVersion, Signature
 from documents.services import files, policies
 from people.services import access
@@ -30,10 +31,11 @@ SHOWN = ("title", "employee", "category", "hr_only", "original_name", "content_t
 @admin.register(File)
 class FileAdmin(ModelAdmin):
     list_display = ("title", "employee", "category", "uploaded_at", "hr_only")
-    list_filter = ("category", "hr_only")
+    list_filter = ("category", "hr_only", ("employee", admin.RelatedOnlyFieldListFilter))
     search_fields = ("title", "employee__first_name", "employee__last_name", "employee__preferred_name")
     list_select_related = ("employee",)
     add_form = UploadForm
+    actions_detail = ["supersede_file"]
 
     def get_form(self, request, obj=None, **kwargs):
         if obj is None:
@@ -57,6 +59,27 @@ class FileAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def has_supersede_permission(self, request, object_id=None):
+        return (access.can_view_restricted(request.user)
+                and File.objects.filter(pk=object_id, employee__isnull=False, superseded_by__isnull=True).exists())
+
+    @action(description="Supersede", url_path="supersede", permissions=["supersede"])
+    def supersede_file(self, request, object_id):
+        """The replacement and a note, then files.supersede."""
+        file = get_object_or_404(File.objects.select_related("employee"), pk=object_id)
+        form = SupersedeForm(request.POST or None, file=file)
+        if request.method == "POST" and form.is_valid():
+            try:
+                files.supersede(request.user, file, form.cleaned_data["by"], form.cleaned_data["note"])
+            except ValidationError as e:
+                form.add_error(None, e.messages)
+            else:
+                messages.success(request, f"{file} is superseded by {form.cleaned_data['by']}.")
+                return HttpResponseRedirect(reverse("admin:documents_file_change", args=[file.pk]))
+        return render(request, "documents/admin/supersede.html", {
+            **self.admin_site.each_context(request), "title": f"Supersede: {file}",
+            "opts": self.model._meta, "form": form, "file": file})
 
     def save_model(self, request, obj, form, change):
         # never obj.save(): the service sniffs, stores under an opaque name and audits

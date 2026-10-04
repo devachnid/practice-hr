@@ -22,7 +22,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateformat import format as date_format
 from django.views.decorators.debug import sensitive_post_parameters
-from django.views.decorators.http import require_http_methods, require_POST, require_safe
+from django.views.decorators.http import require_GET, require_http_methods, require_POST, require_safe
 
 from accounts import passkeys, recent_auth
 from accounts.client_ip import client_ip
@@ -36,7 +36,7 @@ NO_PASSWORD = "Enter your password, or sign with a passkey."
 
 
 @login_required
-@require_safe
+@require_GET          # not HEAD: each request is an audited view
 def download(request, pk):
     f = get_object_or_404(File, pk=pk)
     return files.open(request.user, f)

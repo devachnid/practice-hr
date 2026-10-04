@@ -22,6 +22,7 @@ their details form (onboarding.views.details); sending the form marks it
 sent (details_submitted), which makes it HR's to chase. The hooks run inside the
 caller's transaction, so linked_done never raises for an ordinary case: no
 matching item is a no-op."""
+import logging
 from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -32,6 +33,7 @@ from django.utils import timezone
 from onboarding.models import Checklist, ChecklistItem, ChecklistTemplate, DueRule, Kind, Owner, link_problem
 from people.services import access, audit, positions
 
+log = logging.getLogger("hr.onboarding")
 RECENT_DAYS = 30
 START_RULES = (DueRule.BEFORE_START, DueRule.AFTER_START)
 END_RULES = (DueRule.BEFORE_END, DueRule.AFTER_END)
@@ -191,8 +193,10 @@ def leave(actor, employment, previous_end=None):
     """Called by employments.end when an end date is set. A leaver
     checklist already there is kept; when `previous_end` says the date
     moved, its open items due by the leaving date move with it. One closed
-    by leaving_cleared (the date was cleared, now set again) is made
-    afresh from the template for the new date."""
+    by leaving_cleared (the date was cleared, now set again) gets a fresh
+    set of items from the template for the new date, after the old ones,
+    which are kept as they are (not needed): nothing is deleted, and
+    nothing old is reopened."""
     if employment.end_date is None:
         return None
     existing = Checklist.objects.filter(employment=employment, kind=Kind.LEAVER).first()
@@ -200,13 +204,14 @@ def leave(actor, employment, previous_end=None):
         return _build(actor, employment, Kind.LEAVER)
     if CLEARED_GAP in gaps(existing):
         pos, template, manager = _resolve(employment, Kind.LEAVER)
-        existing.items.all().delete()
+        kept = existing.items.count()
         existing.template, existing.completed_at = template, None
         existing.gaps = "\n".join(_gaps(Kind.LEAVER, pos, template, manager))
         existing.save(update_fields=["template", "completed_at", "gaps"])
         _fill(existing, template, manager)
         _finish_if_done(existing)
-        audit.record(actor, existing, {"rebuilt": ("", f"leaving date set again, {existing.items.count()} items")})
+        audit.record(actor, existing, {"rebuilt": ("", f"leaving date set again, "
+                                                       f"{existing.items.count() - kept} items added")})
         return existing
     if previous_end is not None:
         _shift(actor, existing, END_RULES, employment.end_date - previous_end)
@@ -441,9 +446,56 @@ def _auto_close(items):
     return len(items)
 
 
+FAILED_GAP = "checklist could not be built: {}"
+
+
+def guarded(actor, employment, kind, call, *args):
+    """Run `call(actor, *args)` (start, leave, leaving_cleared, start_moved,
+    position_added) in a savepoint for the employment services: a checklist
+    must never stop an employment or a position being saved. On any error
+    its writes are rolled back, the error's class (only) is logged, and the
+    gap is recorded on the employment's checklist of `kind`, a bare one
+    made for it if there is none (if even that fails, the log is all)."""
+    try:
+        with transaction.atomic():
+            return call(actor, *args)
+    except Exception as exc:
+        name = type(exc).__name__
+        log.warning("checklist step %s failed for employment %s: %s", getattr(call, "__name__", call),
+                    employment.pk, name)
+        try:
+            with transaction.atomic():
+                _record_failure(actor, employment, kind, name)
+        except Exception as again:
+            log.warning("could not record the checklist gap for employment %s: %s", employment.pk,
+                        type(again).__name__)
+        return None
+
+
+def _record_failure(actor, employment, kind, name):
+    cl = Checklist.objects.filter(employment=employment, kind=kind).first()
+    if cl is None:
+        cl = Checklist.objects.create(employment=employment, kind=kind, created_by=actor)
+    gap = FAILED_GAP.format(name)
+    if gap not in gaps(cl):
+        before = cl.gaps
+        cl.gaps = "\n".join([*gaps(cl), gap])
+        cl.save(update_fields=["gaps"])
+        audit.record(actor, cl, {"gaps": (before, cl.gaps)})
+    return cl
+
+
 # ---- the hooks (registered in onboarding.apps.OnboardingConfig.ready) ---------
 
 def on_check_recorded(check):
+    """Closes the check: items only for a clear check that has not expired
+    (as at build, _already_met): a check recorded late, already lapsed, is
+    still to be chased."""
+    from checks.services import checks
+    if check.outcome not in checks.CLEAR:
+        return
+    if check.expires_on is not None and check.expires_on < timezone.localdate():
+        return
     linked_done(check.employee, "check", check_code=check.check_type.code)
 
 

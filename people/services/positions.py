@@ -86,7 +86,8 @@ def add(actor, employment, title, team, line_manager, from_date, primary=True, t
     pos.save()
     audit.record(actor, pos, {"created": ("", f"{title}, {team}, reports to {line_manager or 'nobody'}")})
     from onboarding.services import checklists   # here: onboarding imports this module
-    checklists.position_added(actor, pos)          # a starter checklist picks up its title and manager
+    # a starter checklist picks up its title and manager; an error there never stops the save
+    checklists.guarded(actor, employment, "starter", checklists.position_added, pos)
     return pos
 
 

@@ -6,6 +6,7 @@ served (config/urls.py maps no MEDIA_URL). Stored paths are opaque
 (documents/<year>/<uuid4 hex>.<ext>), never derived from the upload's name,
 and the extension comes from what the bytes were sniffed to be."""
 import hashlib
+import logging
 import unicodedata
 import uuid
 import zipfile
@@ -14,7 +15,7 @@ from pathlib import Path, PurePosixPath
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.utils import timezone
 
 from documents.models import File
@@ -30,6 +31,7 @@ BY_EXTENSION = {"pdf": "pdf", "jpg": "jpeg", "jpeg": "jpeg", "png": "png", "docx
 LABEL = {"pdf": "PDF", "jpeg": "JPEG", "png": "PNG", "docx": "DOCX"}
 ROOT = "documents"
 MB = 1024 * 1024
+log = logging.getLogger("hr.documents")
 ADDED_HOOKS = []           # callables(file) run after add() has saved and audited, in its transaction
 
 
@@ -160,6 +162,9 @@ def supersede(actor, file, by, note):
         raise ValidationError("Already superseded.")
     if by.pk == locked.pk or by.employee_id != locked.employee_id:
         raise ValidationError("A file is superseded by another file of the same person.")
+    if File.objects.filter(pk=by.pk, superseded_by__isnull=False).exists():
+        # no chains and no loops: the replacement is always a current file
+        raise ValidationError("The replacement has been superseded itself: choose a current file.")
     note = note[:200]
     for f in (locked, file):
         f.superseded_by, f.superseded_note = by, note
@@ -169,10 +174,19 @@ def supersede(actor, file, by, note):
 
 
 def open(actor, file):  # the service's verb; this module never needs the builtin
-    """The access rule, the audit row, the bytes. Every download uses this."""
+    """The access rule, the audit row, the bytes. Every download uses this.
+    Bytes missing on disk are Http404 (and a logged warning), nothing
+    audited."""
     if not access.can_view_file(actor, file):
         raise PermissionDenied
-    handle = _absolute(file.path).open("rb")
+    try:
+        handle = _absolute(file.path).open("rb")
+    except FileNotFoundError:
+        # the row is there but the bytes are not (a restore without the
+        # media, say): a plain not-found, and a warning naming only the
+        # opaque path, never the person or the file's own name
+        log.warning("stored file missing: file %s at %s", file.pk, file.path)
+        raise Http404("This file is not available.") from None
     try:
         audit.viewed(actor, file, "file")
     except BaseException:

@@ -71,7 +71,8 @@ def start(actor, employee, start_date, continuous_service_date=None, end_date=No
         changes.update({"end_date": ("", end_date), "leaving_reason": ("", leaving_reason)})
     audit.record(actor, emp, changes)
     from onboarding.services import checklists   # here: onboarding imports people's services
-    checklists.start(actor, emp)                  # None for a spell begun long ago; gaps recorded, never raised
+    # None for a spell begun long ago; gaps recorded, and an error never stops the save
+    checklists.guarded(actor, emp, "starter", checklists.start, emp)
     return emp
 
 
@@ -125,11 +126,11 @@ def end(actor, employment, end_date, leaving_reason):
     note = _cancel_after(actor, employment, end_date)
     audit.record(actor, employment, {"end_date": (before[0], end_date),
                                      "leaving_reason": (before[1], leaving_reason)}, note=note)
-    from onboarding.services import checklists
+    from onboarding.services import checklists   # each guarded: an error never stops the save
     if end_date is not None:
-        checklists.leave(actor, employment, previous_end=before[0])
+        checklists.guarded(actor, employment, "leaver", checklists.leave, employment, before[0])
     elif before[0] is not None:
-        checklists.leaving_cleared(actor, employment)
+        checklists.guarded(actor, employment, "leaver", checklists.leaving_cleared, employment)
     return employment
 
 
@@ -150,7 +151,7 @@ def amend(actor, employment, start_date=None, continuous_service_date=None):
     audit.record(actor, employment, changes)
     if employment.start_date != previous_start:
         from onboarding.services import checklists
-        checklists.start_moved(actor, employment, previous_start)
+        checklists.guarded(actor, employment, "starter", checklists.start_moved, employment, previous_start)
     return employment
 
 

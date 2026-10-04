@@ -20,14 +20,20 @@ from onboarding.models import ChecklistItem, Owner
 ENDED_WITHIN_DAYS = 90
 
 
+def still_chased(items, today):
+    """`items` (ChecklistItem rows) less those of an employment that ended
+    more than ENDED_WITHIN_DAYS ago: the reminders and the dashboard's
+    Overdue checklist items leave those alone."""
+    ended_after = today - timedelta(days=ENDED_WITHIN_DAYS)
+    return items.filter(Q(checklist__employment__end_date__isnull=True)
+                        | Q(checklist__employment__end_date__gte=ended_after))
+
+
 def due_items(today, sched):
     out = []
     hr = hr_admin_addresses()
     last = today + timedelta(days=sched.start_days_before)
-    ended_after = today - timedelta(days=ENDED_WITHIN_DAYS)
-    items = (ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lte=last)
-             .filter(Q(checklist__employment__end_date__isnull=True)
-                     | Q(checklist__employment__end_date__gte=ended_after))
+    items = (still_chased(ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lte=last), today)
              .select_related("checklist__employment__employee__user", "owner_employee__user"))
     for item in items:
         e = item.checklist.employment.employee

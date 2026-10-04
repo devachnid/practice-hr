@@ -35,10 +35,12 @@ def compliance_people(today):
     a person with two lapsed checks is there twice). Checks and signatures
     are of the people employed today, by checks.state and policies.owed;
     checklist items are every open item past its due date, starter or
-    leaver. Read-only."""
+    leaver, but those of an employment that ended more than 90 days ago.
+    Read-only."""
     from checks.services import checks
     from documents.services import policies
     from onboarding.models import ChecklistItem
+    from onboarding.services import due
 
     out = {key: [] for key, _ in COMPLIANCE}
     current = employments.active_on(today).values_list("employee_id", flat=True)
@@ -51,7 +53,9 @@ def compliance_people(today):
             elif status == "missing":
                 out["missing_checks"].append(e.pk)
         out["overdue_signatures"] += [e.pk for o in policies.owed(e, today) if o.state == "overdue"]
-    out["overdue_items"] = list(ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)
+    overdue = ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)
+    # as the reminders: nothing of an employment that ended more than 90 days ago
+    out["overdue_items"] = list(due.still_chased(overdue, today)
                                 .values_list("checklist__employment__employee_id", flat=True))
     return out
 

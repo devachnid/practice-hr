@@ -337,3 +337,70 @@ def test_admin_is_closed_to_employees(employee_client, hr_admin):
     f = files.add(hr_admin, make_employee(), File.Category.CONTRACT, "Contract", _upload())
     for url in ("/admin/documents/file/", f"/admin/documents/file/{f.pk}/change/", "/admin/documents/file/add/"):
         assert employee_client.get(url).status_code in (302, 403)
+
+
+# ---- final review M5/T3 ----------------------------------------------------------------------
+
+def test_supersede_refuses_a_replacement_already_superseded(hr_admin):
+    e = make_employee()
+    a = files.add(hr_admin, e, File.Category.CONTRACT, "A", _upload())
+    b = files.add(hr_admin, e, File.Category.CONTRACT, "B", _upload())
+    c = files.add(hr_admin, e, File.Category.CONTRACT, "C", _upload())
+    files.supersede(hr_admin, a, b, "b replaces a")
+    with pytest.raises(ValidationError, match="superseded itself"):
+        files.supersede(hr_admin, b, a, "a loop")
+    files.supersede(hr_admin, b, c, "c replaces b")
+    with pytest.raises(ValidationError, match="superseded itself"):
+        files.supersede(hr_admin, c, b, "another loop")
+    c.refresh_from_db()
+    assert c.superseded_by is None
+
+
+def test_admin_supersede_action_and_employee_filter(admin_client, hr_admin):
+    e = make_employee(first="Priya", last="Shah")
+    old = files.add(hr_admin, e, File.Category.CONTRACT, "Old contract", _upload())
+    new = files.add(hr_admin, e, File.Category.CONTRACT, "New contract", _upload())
+    theirs = files.add(hr_admin, make_employee(first="Jo", last="Bloggs"), File.Category.CONTRACT, "Jo contract",
+                       _upload())
+    body = admin_client.get(f"/admin/documents/file/?employee__id__exact={e.pk}").content.decode()
+    assert "Old contract" in body and "Jo contract" not in body
+    page = admin_client.get(f"/admin/documents/file/{old.pk}/supersede/")
+    body = page.content.decode()
+    assert page.status_code == 200 and "New contract" in body and "Jo contract" not in body
+    assert File.objects.get(pk=old.pk).superseded_by is None                 # a GET writes nothing
+    r = admin_client.post(f"/admin/documents/file/{old.pk}/supersede/", {"by": theirs.pk, "note": "x"})
+    assert r.status_code == 200 and File.objects.get(pk=old.pk).superseded_by is None
+    r = admin_client.post(f"/admin/documents/file/{old.pk}/supersede/", {"by": new.pk, "note": "reissued"})
+    assert r.status_code == 302
+    old.refresh_from_db()
+    assert old.superseded_by == new and old.superseded_note == "reissued"
+    assert AuditEntry.objects.filter(model="documents.file", object_id=old.pk, field="superseded_by").exists()
+    assert admin_client.get(f"/admin/documents/file/{old.pk}/supersede/").status_code == 403   # done already
+
+
+def test_the_supersede_action_is_hr_only(employee_client, hr_admin):
+    e = make_employee()
+    old = files.add(hr_admin, e, File.Category.CONTRACT, "Old", _upload())
+    new = files.add(hr_admin, e, File.Category.CONTRACT, "New", _upload())
+    r = employee_client.post(f"/admin/documents/file/{old.pk}/supersede/", {"by": new.pk, "note": ""})
+    assert r.status_code in (302, 403)
+    assert File.objects.get(pk=old.pk).superseded_by is None
+
+
+def test_a_file_whose_bytes_are_missing_is_a_404_with_a_warning(admin_client, hr_admin, media, caplog):
+    e = make_employee(first="Priya", last="Shah")
+    f = files.add(hr_admin, e, File.Category.CONTRACT, "Contract", _upload(name="priya-contract.pdf"))
+    (media / f.path).unlink()
+    r = admin_client.get(f"/documents/file/{f.pk}/")
+    assert r.status_code == 404
+    assert f.path in caplog.text
+    for secret in ("Priya", "Shah", "priya-contract"):
+        assert secret not in caplog.text
+    assert not AuditEntry.objects.filter(kind="viewed", model="documents.file").exists()
+
+
+def test_the_download_refuses_head(admin_client, hr_admin):
+    f = files.add(hr_admin, make_employee(), File.Category.CONTRACT, "Contract", _upload())
+    assert admin_client.head(f"/documents/file/{f.pk}/").status_code == 405
+    assert not AuditEntry.objects.filter(kind="viewed", model="documents.file").exists()
+    assert admin_client.get(f"/documents/file/{f.pk}/").status_code == 200

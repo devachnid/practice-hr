@@ -219,9 +219,15 @@ def test_set_clear_set_again_makes_a_fresh_leaver_checklist(hr_admin):
     employments.end(hr_admin, emp, second, "resigned")
     cl = Checklist.objects.get(employment=emp, kind="leaver")
     template = ChecklistTemplate.objects.get(kind="leaver", positions=None)
-    assert cl.completed_at is None and cl.items.count() == template.items.count()
-    assert all(i.state == "open" for i in cl.items.all())
-    assert cl.items.get(title="Handover completed").due_on == second - timedelta(days=5)
+    n = template.items.count()
+    # final review M2: the old items are kept as they were, a fresh set follows
+    assert cl.completed_at is None and cl.items.count() == 2 * n
+    fresh = cl.items.filter(state="open")
+    assert fresh.count() == n
+    assert fresh.get(title="Handover completed").due_on == second - timedelta(days=5)
+    old = cl.items.exclude(state="open")
+    assert old.filter(state="done").count() == 1
+    assert old.filter(state="not_needed", note="leaving date cleared").count() == n - 1
     assert "cleared" not in " ".join(checklists.gaps(cl))
 
 
@@ -234,7 +240,9 @@ def test_a_cleared_leaver_checklist_with_nothing_open_is_still_made_afresh(hr_ad
     employments.end(hr_admin, emp, None, "")
     employments.end(hr_admin, emp, timezone.localdate() + timedelta(days=40), "resigned")
     cl.refresh_from_db()
-    assert cl.completed_at is None and not cl.items.exclude(state="open").exists()
+    n = ChecklistTemplate.objects.get(kind="leaver", positions=None).items.count()
+    assert cl.completed_at is None and cl.items.filter(state="open").count() == n
+    assert cl.items.filter(state="done").count() == n           # kept, not reopened
 
 
 def test_a_returner_starts_with_what_is_already_in_place_done(hr_admin):
@@ -491,3 +499,57 @@ def test_a_checklist_template_cannot_be_deleted(admin_client):
     t = ChecklistTemplate.objects.filter(kind="starter").first()
     assert admin_client.get(f"/admin/onboarding/checklisttemplate/{t.pk}/delete/").status_code == 403
     assert ChecklistTemplate.objects.filter(pk=t.pk).exists()
+
+
+# ---- final review M4: a checklist error never stops the employment save ---------------------
+
+def test_a_failing_checklist_build_is_a_gap_and_a_log_line_not_a_failed_save(hr_admin, monkeypatch, caplog):
+    def boom(*a, **kw):
+        raise RuntimeError("Sam Patel's template is broken")
+    monkeypatch.setattr(checklists, "_build", boom)
+    e = make_employee()
+    emp = employments.start(hr_admin, e, timezone.localdate() + timedelta(days=10))
+    assert emp.pk is not None
+    cl = Checklist.objects.get(employment=emp, kind="starter")
+    assert checklists.gaps(cl) == ["checklist could not be built: RuntimeError"] and cl.items.count() == 0
+    assert "RuntimeError" in caplog.text and "Sam Patel" not in caplog.text and "broken" not in caplog.text
+    assert cl in checklists.for_hr()
+
+
+def test_a_failing_position_hook_still_saves_the_position(hr_admin, monkeypatch):
+    emp = employments.start(hr_admin, make_employee(), timezone.localdate() + timedelta(days=10))
+
+    def boom(*a, **kw):
+        raise ValueError("no")
+    monkeypatch.setattr(checklists, "_resolve", boom)
+    pos = positions.add(hr_admin, emp, titles.get_or_create("Receptionist"), make_team(), None, emp.start_date)
+    assert pos.pk is not None
+    cl = Checklist.objects.get(employment=emp, kind="starter")
+    assert "checklist could not be built: ValueError" in checklists.gaps(cl)
+
+
+def test_a_failing_leaver_step_still_saves_the_leaving_date(hr_admin, monkeypatch):
+    emp = _starter(hr_admin, days_ahead=-5)
+    monkeypatch.setattr(checklists, "_build", lambda *a, **kw: 1 / 0)
+    end = timezone.localdate() + timedelta(days=30)
+    employments.end(hr_admin, emp, end, "resigned")
+    emp.refresh_from_db()
+    assert emp.end_date == end
+    cl = Checklist.objects.get(employment=emp, kind="leaver")
+    assert checklists.gaps(cl) == ["checklist could not be built: ZeroDivisionError"]
+
+
+# ---- final review M6: a recorded check closes its item only if clear and in date ------------
+
+def test_a_check_recorded_already_expired_does_not_close_its_item(hr_admin):
+    emp = _starter(hr_admin)
+    item = Checklist.objects.get(employment=emp).items.get(link="check:dbs")
+    dbs = CheckType.objects.get(code="dbs")
+    today = timezone.localdate()
+    checks.record(hr_admin, emp.employee, dbs, today - timedelta(days=400), Check.Outcome.CLEAR, reference="1",
+                  dbs_level="basic", expires_on=today - timedelta(days=1))
+    item.refresh_from_db()
+    assert item.state == "open"
+    checks.record(hr_admin, emp.employee, dbs, today, Check.Outcome.CLEAR, reference="2", dbs_level="basic")
+    item.refresh_from_db()
+    assert item.state == "done" and item.note == "done automatically"

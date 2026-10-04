@@ -50,8 +50,8 @@ def test_retention_report_lists_the_new_categories(admin_client, hr_admin, setti
     emp = employments.start(hr_admin, e, timezone.localdate() - timedelta(days=4000))
     employments.end(hr_admin, emp, timezone.localdate() - timedelta(days=3000), "resigned")
     body = admin_client.get("/people/retention/").content.decode()
-    for category in ("checks", "files", "signatures"):
-        assert category in body
+    for label in ("Pre-employment and other checks", "Stored files", "Policy signatures"):
+        assert label in body, label
 
 
 # --- beyond the brief's three ---------------------------------------------------
@@ -102,18 +102,52 @@ def test_a_starter_s_checks_are_shown_as_they_will_stand_on_day_one(admin_client
 
 
 def test_the_tab_is_not_on_the_add_page(admin_client):
-    body = admin_client.get("/admin/people/employee/add/").content.decode()
-    assert "compliance_summary" not in body and "Nothing is recorded" not in body
-    assert admin_client.get("/admin/people/employee/add/").status_code == 200
+    e = make_employee()
+    change = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "Open checklist items" in change and "No open checklist items." in change   # what the tab writes
+    r = admin_client.get("/admin/people/employee/add/")
+    assert r.status_code == 200
+    body = r.content.decode()
+    assert "Open checklist items" not in body and "No open checklist items." not in body
 
 
-def test_opening_the_tab_writes_nothing(admin_client, hr_admin):
+def test_opening_the_tab_writes_only_the_audit_of_the_checks_view(admin_client, hr_admin):
+    """Final review M7: HR's view of a person's checks is audited, as
+    opening a check is; nothing else is written."""
     dbs = CheckType.objects.get(code="dbs"); dbs.positions.add(titles.get_or_create("Receptionist"))
     e = _receptionist(hr_admin)
     _overdue_policy(hr_admin)
     before = (AuditEntry.objects.count(), Check.objects.count(), ChecklistItem.objects.count())
     admin_client.get(f"/admin/people/employee/{e.pk}/change/")
-    assert (AuditEntry.objects.count(), Check.objects.count(), ChecklistItem.objects.count()) == before
+    assert (AuditEntry.objects.count(), Check.objects.count(), ChecklistItem.objects.count()) == (
+        before[0] + 1, before[1], before[2])
+    entry = AuditEntry.objects.latest("pk")
+    assert (entry.kind, entry.model, entry.object_id, entry.field, entry.actor) == (
+        "viewed", "people.employee", e.pk, "checks", hr_admin)
+
+
+def test_a_tab_with_no_checks_is_not_audited_and_the_checks_list_is_not(admin_client, hr_admin):
+    e = _receptionist(hr_admin)                                     # the title needs no checks
+    admin_client.get(f"/admin/people/employee/{e.pk}/change/")
+    admin_client.get("/admin/checks/check/")
+    assert not AuditEntry.objects.filter(kind="viewed").exists()
+
+
+def test_overdue_checklist_items_leave_out_a_leaver_past_90_days(hr_admin):
+    """Final review M9: the same rule as the reminders."""
+    from absence.admin_dashboard import compliance_people
+    from onboarding.models import Checklist, Kind
+    today = timezone.localdate()
+    e = make_employee()
+    emp = employments.start(hr_admin, e, today - timedelta(days=400))
+    emp.end_date = today - timedelta(days=91)
+    emp.save()
+    cl = Checklist.objects.create(employment=emp, kind=Kind.LEAVER)
+    ChecklistItem.objects.create(checklist=cl, title="File closed", owner="hr", due_on=today - timedelta(days=80))
+    assert e.pk not in compliance_people(today)["overdue_items"]
+    emp.end_date = today - timedelta(days=90)
+    emp.save()
+    assert compliance_people(today)["overdue_items"] == [e.pk]
 
 
 def test_each_number_links_to_the_people_it_counts(admin_client, hr_admin):

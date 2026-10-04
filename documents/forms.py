@@ -1,11 +1,12 @@
-"""The admin's upload and issue forms, and the person's sign form. An
+"""The admin's upload, supersede and issue forms, and the person's sign form. An
 upload is sniffed on the form, so a file whose bytes disagree with its
 extension is refused before anything is written; FileAdmin.save_model then
 stores it through files.add, PolicyAdmin's issue action through
 policies.issue."""
 from django import forms
 from django.utils import timezone
-from unfold.widgets import UnfoldAdminFileFieldWidget, UnfoldAdminIntegerFieldWidget, UnfoldAdminTextInputWidget
+from unfold.widgets import (UnfoldAdminFileFieldWidget, UnfoldAdminIntegerFieldWidget, UnfoldAdminSelectWidget,
+                            UnfoldAdminTextInputWidget)
 
 from documents.models import File, PolicyVersion
 from documents.services import files
@@ -30,6 +31,20 @@ class UploadForm(forms.ModelForm):
         upload = self.cleaned_data["upload"]
         files.sniff(upload)
         return upload
+
+
+class SupersedeForm(forms.Form):
+    """FileAdmin's Supersede: the replacement, among the same person's
+    current files, and why (files.supersede checks again as it writes)."""
+    by = forms.ModelChoiceField(queryset=File.objects.none(), label="Replaced by", widget=UnfoldAdminSelectWidget,
+                                help_text="Another of this person's current files.")
+    note = forms.CharField(max_length=200, required=False, widget=UnfoldAdminTextInputWidget,
+                           help_text="Why, e.g. reissued with the new hours.")
+
+    def __init__(self, *args, file, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["by"].queryset = (File.objects.filter(employee_id=file.employee_id, superseded_by__isnull=True)
+                                      .exclude(pk=file.pk).order_by("-uploaded_at"))
 
 
 class DateInput(UnfoldAdminTextInputWidget):
