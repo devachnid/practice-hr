@@ -139,9 +139,14 @@ directory only root and the app's group can read — the app reads the file
 itself, as the `practice-hr` user:
 
     install -d -o root -g practice-hr -m 750 /etc/practice-hr
-    (umask 027; openssl genrsa -out /etc/practice-hr/oidc.pem 2048)
-    chgrp practice-hr /etc/practice-hr/oidc.pem
+    openssl genrsa -out /etc/practice-hr/oidc.pem 2048
+    chown root:practice-hr /etc/practice-hr/oidc.pem
+    chmod 640 /etc/practice-hr/oidc.pem
     echo OIDC_RSA_PRIVATE_KEY_FILE=/etc/practice-hr/oidc.pem >> /etc/practice-hr.env
+
+The `chmod` is not optional: `openssl genrsa` writes a private key readable
+by its owner alone, whatever the umask, so without it the app cannot read
+the file and refuses to start ("cannot be read (Permission denied)").
 
 Leave it unset on a box with no relying party yet — the app runs exactly
 the same either way, `/o/` just answers 404. A named file the app cannot
