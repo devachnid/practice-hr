@@ -200,14 +200,16 @@ UNFOLD = {
 CHASE_AFTER_WORKING_DAYS = int(os.environ.get("CHASE_AFTER_WORKING_DAYS", "3"))
 
 # How long after an employment ends each category of record may be kept, in
-# days: six years, and seven for the audit trail. Each is overridable by a
+# days: six years (checks, files and policy signatures included), and seven
+# for the audit trail. Each is overridable by a
 # RETENTION_DAYS_<CATEGORY> environment variable. The retention report only
 # lists what is past its period; nothing is deleted automatically.
 def _retention_days():
     from django.core.exceptions import ImproperlyConfigured
 
     days = {}
-    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555)):
+    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555),
+                             ("checks", 2190), ("files", 2190), ("signatures", 2190)):
         name = f"RETENTION_DAYS_{category.upper()}"
         raw = os.environ.get(name)
         if raw is None:

@@ -95,6 +95,9 @@ CATEGORY_LABELS = {
     "pay": "Pay records",
     "health": "Health records",
     "audit": "Audit log",
+    "checks": "Pre-employment and other checks",
+    "files": "Stored files",
+    "signatures": "Policy signatures",
 }
 
 
