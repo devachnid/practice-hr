@@ -1,7 +1,8 @@
 {% comment %}My record's Checks card: one row per checks.state row, with its
-status, dates and outcome. HR's note is never shown here. An awaiting check
-of a type that takes a file shows a one-field upload form posting to
-checks:upload. Expects checks.{% endcomment %}
+status, dates and outcome. HR's note is never shown here. Whenever HR has
+asked for evidence (row.asked, a renewal too, whatever the status), a type
+that takes a file shows a one-field upload form posting to checks:upload on
+that awaiting check. Expects checks.{% endcomment %}
 <section class="card">
   <h2>Checks</h2>
   {% if checks %}
@@ -14,25 +15,17 @@ checks:upload. Expects checks.{% endcomment %}
         <th scope="row">{{ row.check_type.name }}</th>
         <td><span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.label }}</span></td>
         {% if row.status == "awaiting" %}
-        <td colspan="3">
-          {% if row.latest.evidence_id %}
-            Sent. HR will record it.
-          {% elif row.check_type.evidence == "file" %}
-            <form method="post" action="{% url 'checks:upload' row.latest.pk %}" enctype="multipart/form-data" class="check-upload">{% csrf_token %}
-              <label for="check-file-{{ row.latest.pk }}">Upload your {{ row.check_type.name|lower }} evidence</label>
-              <input type="file" name="file" id="check-file-{{ row.latest.pk }}" accept=".pdf,.jpg,.jpeg,.png,.docx" required>
-              <button type="submit" class="btn btn-primary">Upload</button>
-            </form>
-          {% else %}
-            HR will record this with you.
-          {% endif %}
-        </td>
+        <td colspan="3">{% include "people/_check_upload.html" with asked=row.asked %}</td>
         {% else %}
         <td>{{ row.latest.done_on|date:"j M Y"|default:"" }}</td>
         <td>{{ row.expires_on|date:"j M Y"|default:"" }}</td>
         <td>{% if row.latest %}{{ row.latest.get_outcome_display }}{% endif %}</td>
         {% endif %}
       </tr>
+      {% if row.asked and row.status != "awaiting" %}
+      <tr><td></td><td colspan="4">HR has asked you for a new {{ row.check_type.name }}.
+        {% include "people/_check_upload.html" with asked=row.asked %}</td></tr>
+      {% endif %}
     {% endfor %}
     </tbody>
   </table>

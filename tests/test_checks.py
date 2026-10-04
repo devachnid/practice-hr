@@ -204,10 +204,11 @@ def test_summary_counts_and_next_expiry(dbs, hr_admin):
     e = _receptionist()
     indemnity = CheckType.objects.get(code="indemnity")
     indemnity.positions.add(titles.get_or_create("Receptionist"))
-    assert checks.summary(e, today) == {"current": 0, "due_soon": 0, "lapsed": 0, "missing": 2, "next_expiry": None}
+    assert checks.summary(e, today) == {"current": 0, "due_soon": 0, "lapsed": 0, "missing": 2, "awaiting": 0,
+                                        "next_expiry": None}
     checks.record(hr_admin, e, dbs, today, Check.Outcome.CLEAR, reference="1", dbs_level="basic")
     checks.record(hr_admin, e, indemnity, today, Check.Outcome.CLEAR, expires_on=today + timedelta(days=20))
-    assert checks.summary(e, today) == {"current": 1, "due_soon": 1, "lapsed": 0, "missing": 0,
+    assert checks.summary(e, today) == {"current": 1, "due_soon": 1, "lapsed": 0, "missing": 0, "awaiting": 0,
                                         "next_expiry": today + timedelta(days=20)}
 
 
@@ -349,3 +350,110 @@ def test_compliance_sidebar_lists_check_types_and_checks(admin_client):
     request.user = type("U", (), {"is_active": True, "is_hr_admin": True, "is_superuser": False})()
     group = next(g for g in navigation(request) if g["title"] == "Compliance")
     assert [i["title"] for i in group["items"]][:3] == ["Check types", "Checks", "Files"]
+
+
+# ---- review fixes ------------------------------------------------------------
+
+@pytest.mark.parametrize("code", ["occupational_health", "hep_b"])
+def test_health_evidence_is_filed_as_occupational_health(code, hr_admin):
+    t = CheckType.objects.get(code=code)
+    c = checks.ask(hr_admin, _receptionist(), t)
+    checks.upload_evidence(hr_admin, c, SimpleUploadedFile("oh.pdf", PDF))
+    c.refresh_from_db()
+    assert c.evidence.category == "occupational_health" and not c.evidence.hr_only
+
+
+def test_other_file_evidence_is_a_certificate(hr_admin):
+    c = checks.ask(hr_admin, _receptionist(), CheckType.objects.get(code="indemnity"))
+    checks.upload_evidence(hr_admin, c, SimpleUploadedFile("i.pdf", PDF))
+    c.refresh_from_db()
+    assert c.evidence.category == "certificate"
+
+
+def test_an_hr_admin_records_their_own_check_with_evidence(hr_admin, admin_client):
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist(user=hr_admin)
+    r = admin_client.post("/admin/checks/check/add/", {
+        "employee": e.pk, "check_type": rtw.pk, "done_on": timezone.localdate().isoformat(), "outcome": "clear",
+        "upload": SimpleUploadedFile("passport.pdf", PDF)})
+    assert r.status_code == 302
+    c = Check.objects.get()
+    assert c.evidence is not None and c.evidence.employee == e
+
+
+def test_an_hr_admin_records_the_result_of_their_own_awaiting_check(hr_admin, admin_client):
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist(user=hr_admin)
+    c = checks.ask(hr_admin, e, rtw)
+    r = admin_client.post(f"/admin/checks/check/{c.pk}/complete/", {
+        "done_on": timezone.localdate().isoformat(), "outcome": "clear",
+        "upload": SimpleUploadedFile("passport.pdf", PDF)})
+    assert r.status_code == 302
+    c.refresh_from_db()
+    assert not c.awaiting and c.evidence is not None
+
+
+def test_a_refusal_at_save_is_a_message_not_a_500(hr_admin, admin_client, monkeypatch):
+    from django.core.exceptions import ValidationError as VE
+    rtw = CheckType.objects.get(code="right_to_work")
+    e = _receptionist()
+
+    def refuse(*a, **kw):
+        raise VE("Refused at save.")
+    monkeypatch.setattr(checks, "upload_evidence", refuse)
+    r = admin_client.post("/admin/checks/check/add/", {
+        "employee": e.pk, "check_type": rtw.pk, "done_on": timezone.localdate().isoformat(), "outcome": "clear",
+        "upload": SimpleUploadedFile("passport.pdf", PDF)}, follow=True)
+    assert r.status_code == 200 and "Refused at save." in r.content.decode()
+    assert not Check.objects.exists()                     # the record rolled back with it
+    c = checks.ask(hr_admin, e, rtw)
+    r = admin_client.post(f"/admin/checks/check/{c.pk}/complete/", {
+        "done_on": timezone.localdate().isoformat(), "outcome": "clear",
+        "upload": SimpleUploadedFile("passport.pdf", PDF)})
+    assert r.status_code == 200 and "Refused at save." in r.content.decode()
+    c.refresh_from_db()
+    assert c.awaiting
+
+
+def test_a_renewal_request_shows_the_upload_form_and_takes_the_file(hr_admin, employee_user, employee_client):
+    indemnity = CheckType.objects.get(code="indemnity")
+    indemnity.positions.add(titles.get_or_create("Receptionist"))
+    e = _receptionist(user=employee_user)
+    today = timezone.localdate()
+    clear = checks.record(hr_admin, e, indemnity, today - timedelta(days=360), Check.Outcome.CLEAR)
+    asked = checks.ask(hr_admin, e, indemnity)
+    row = checks.state(e, today)[0]
+    assert row.status == "due_soon" and row.latest == clear and row.asked == asked
+    body = employee_client.get("/people/me/").content.decode()
+    assert "Due soon" in body and f'action="/checks/{asked.pk}/upload/"' in body
+    employee_client.post(f"/checks/{asked.pk}/upload/", {"file": SimpleUploadedFile("i.pdf", PDF)})
+    asked.refresh_from_db(); clear.refresh_from_db()
+    assert asked.evidence is not None and clear.evidence is None
+    assert checks.state(e, today)[0].asked == asked
+    assert f'action="/checks/{asked.pk}/upload/"' not in employee_client.get("/people/me/").content.decode()
+
+
+def test_the_person_cannot_upload_twice(hr_admin, employee_user):
+    rtw = CheckType.objects.get(code="right_to_work")
+    c = checks.ask(hr_admin, _receptionist(user=employee_user), rtw)
+    checks.upload_evidence(employee_user, c, SimpleUploadedFile("p.pdf", PDF))
+    with pytest.raises(ValidationError, match="Already uploaded"):
+        checks.upload_evidence(employee_user, c, SimpleUploadedFile("p.pdf", PDF))
+
+
+def test_summary_counts_awaiting_and_the_team_line_shows_it(dbs, hr_admin, employee_user, client):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    checks.ask(hr_admin, e, dbs)
+    assert checks.summary(e, today)["awaiting"] == 1
+    mgr_user = type(employee_user).objects.create_user(email="mo@example.com", password="pw")
+    mgr = make_employee(first="Mo", last="Khan", user=mgr_user)
+    pos = e.employments.first().positions.first(); pos.line_manager = mgr; pos.save()
+    client.force_login(mgr_user)
+    assert "1 awaiting" in client.get("/people/team/").content.decode()
+
+
+def test_validity_months_cannot_be_zero():
+    t = CheckType(name="Zero", code="zero", validity_months=0)
+    with pytest.raises(ValidationError):
+        t.full_clean()

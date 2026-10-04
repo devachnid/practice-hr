@@ -3,6 +3,7 @@ position titles need it and how long it lasts; a Check is one recorded
 instance. Checks are append-only: a renewal is a new row, and the latest
 by done_on is the one that counts (checks.services.checks.state)."""
 from django.conf import settings
+from django.core.validators import MinValueValidator
 from django.db import models
 
 
@@ -14,7 +15,7 @@ class CheckType(models.Model):
 
     name = models.CharField(max_length=60, unique=True)
     code = models.SlugField(max_length=40, unique=True)
-    validity_months = models.PositiveSmallIntegerField(null=True, blank=True,
+    validity_months = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1)],
                                                        help_text="Blank: a one-off check that never expires.")
     evidence = models.CharField(max_length=9, choices=Evidence.choices, default=Evidence.NONE)
     remind_person = models.BooleanField(default=False, help_text="Remind the person as well as HR.")

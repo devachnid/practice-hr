@@ -44,8 +44,8 @@ anything. Open each type and move the titles across in **Positions**.
 DBS rules below key on `dbs`, the evidence category on `right_to_work`): set
 when a type is added, never changed after.
 
-**Validity months** is how long a check lasts from the date it was done.
-Blank means a one-off check that never expires. The expiry is the same day
+**Validity months** is how long a check lasts from the date it was done,
+at least one. Blank means a one-off check that never expires. The expiry is the same day
 that many calendar months later, or the month's last day when that month is
 shorter (a check done on 31 January with one month's validity expires on
 the last day of February).
@@ -79,10 +79,11 @@ stay. A type cannot be deleted once it exists: make it inactive instead.
   clear check of a type whose evidence is a reference number.
 - **Note** — HR only. It is never shown to the person or to their manager.
 - **Evidence file** — PDF, JPEG, PNG or DOCX, for a type whose evidence is
-  a file. It is stored under Files (a right-to-work document as
-  *Identity*, anything else as *Certificate*) and downloads from the check's
-  page through the audited download. A type whose evidence is not a file
-  refuses one.
+  a file. It is stored under Files against the person, not HR only: a
+  right-to-work document as *Identity*, occupational health and Hep B
+  immunity evidence as *Occupational health*, anything else as
+  *Certificate*. It downloads from the check's page through the audited
+  download. A type whose evidence is not a file refuses one.
 - **DBS disclosure level** — Basic, Standard, Enhanced, or Enhanced with
   barred lists. Required on a clear DBS check.
 - **On the DBS update service** — tick when the person subscribes.
@@ -123,9 +124,11 @@ For a check the person supplies (their passport for right to work, say):
    asks the same person for the same type again (a renewal). One request per
    person and type can be waiting at a time.
 2. **They upload.** The person sees the check as *Awaiting* on My record ›
-   Checks, with an upload form when the type's evidence is a file. Their
-   file is stored under Files against them. For a type whose evidence is not
-   a file they are told HR will record it with them.
+   Checks, with an upload form when the type's evidence is a file. A renewal
+   request shows the same form under the type's current status (*Due soon*,
+   say), which stays as it is until you record the new check. They can
+   upload once; their file is stored under Files against them. For a type
+   whose evidence is not a file they are told HR will record it with them.
 3. **You record the result.** Open the waiting check and choose **Record
    the result**: the same fields as recording a check, with the uploaded
    file linked at the top. You can attach a file here too, if they handed
@@ -136,5 +139,5 @@ For a check the person supplies (their passport for right to work, say):
 | Who | Sees |
 |---|---|
 | The person | My record › Checks: each type, its status, the dates and the outcome. Never the note or the reference. |
-| Their line manager | My team: per report, the counts (current, due soon, lapsed, missing) and the next expiry date. Never which checks. |
+| Their line manager | My team: per report, the counts (current, due soon, lapsed, missing, and awaiting when any) and the next expiry date. Never which checks. |
 | HR admins | Everything, here. |

@@ -82,13 +82,30 @@ class CheckAdmin(ModelAdmin):
         # never obj.save(): the service validates, defaults the expiry, audits
         # and runs the hooks; an upload is stored last, through upload_evidence
         d = form.cleaned_data
-        with transaction.atomic():
-            c = checks.record(request.user, d["employee"], d["check_type"], d["done_on"], d["outcome"],
-                              expires_on=d["expires_on"], reference=d["reference"], note=d["note"],
-                              dbs_level=d["dbs_level"], dbs_update_service=d["dbs_update_service"])
-            if d.get("upload"):
-                checks.upload_evidence(request.user, c, d["upload"])
+        try:
+            with transaction.atomic():
+                c = checks.record(request.user, d["employee"], d["check_type"], d["done_on"], d["outcome"],
+                                  expires_on=d["expires_on"], reference=d["reference"], note=d["note"],
+                                  dbs_level=d["dbs_level"], dbs_update_service=d["dbs_update_service"])
+                if d.get("upload"):
+                    checks.upload_evidence(request.user, c, d["upload"])
+        except ValidationError as e:
+            # the form checked everything it could; a refusal here (a race)
+            # rolls the whole record back and is shown, not a 500
+            request._check_not_saved = True
+            messages.error(request, " ".join(e.messages))
+            return
         obj.pk = c.pk
+
+    def log_addition(self, request, obj, message):
+        if getattr(request, "_check_not_saved", False):
+            return None                        # refused: nothing added to log
+        return super().log_addition(request, obj, message)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        if getattr(request, "_check_not_saved", False):
+            return HttpResponseRedirect(request.path)
+        return super().response_add(request, obj, post_url_continue)
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         # an HR view of a person's check is audited, like their bank details

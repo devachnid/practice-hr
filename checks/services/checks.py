@@ -18,6 +18,11 @@ from people.services import access, audit, employments, positions
 
 RECORDED_HOOKS = []          # callables(check) run after a clear check is recorded or completed
 CLEAR = (Check.Outcome.CLEAR, Check.Outcome.CLEAR_WITH_NOTES)
+CATEGORY = {  # check type code -> the File category its evidence is stored under; else CERTIFICATE
+    "right_to_work": File.Category.IDENTITY,
+    "occupational_health": File.Category.OCCUPATIONAL_HEALTH,
+    "hep_b": File.Category.OCCUPATIONAL_HEALTH,
+}
 LABELS = {"current": "Current", "due_soon": "Due soon", "lapsed": "Lapsed", "missing": "Missing",
           "not_required": "Not required", "awaiting": "Awaiting"}
 
@@ -28,6 +33,7 @@ class Row:
     latest: Check | None
     status: str
     expires_on: date | None
+    asked: Check | None = None       # the request still waiting on the person, whatever the status
 
     @property
     def label(self):
@@ -80,6 +86,12 @@ def _latest(employee, check_type):
             .order_by("awaiting", "-done_on", "-id").first())
 
 
+def _asked(employee, check_type):
+    return (Check.objects.filter(employee=employee, check_type=check_type, awaiting=True)
+            .select_related("check_type", "evidence")
+            .order_by("-id").first())
+
+
 def state(employee, today, window_days=60):
     required = required_for(employee, today)
     required_ids = {t.pk for t in required}
@@ -89,13 +101,14 @@ def state(employee, today, window_days=60):
     for t in [*required, *extra]:
         latest = _latest(employee, t)
         rows.append(Row(t, latest, _status(latest, t.pk in required_ids, today, window_days),
-                        latest.expires_on if latest else None))
+                        latest.expires_on if latest else None, _asked(employee, t)))
     return rows
 
 
 def summary(employee, today, window_days=60):
     rows = state(employee, today, window_days)
-    counts = {k: sum(1 for r in rows if r.status == k) for k in ("current", "due_soon", "lapsed", "missing")}
+    counts = {k: sum(1 for r in rows if r.status == k)
+              for k in ("current", "due_soon", "lapsed", "missing", "awaiting")}
     expiries = [r.expires_on for r in rows if r.expires_on and r.status in ("current", "due_soon")]
     counts["next_expiry"] = min(expiries) if expiries else None
     return counts
@@ -156,19 +169,23 @@ def ask(actor, employee, check_type):
 
 @transaction.atomic
 def upload_evidence(actor, check, upload):
-    """The person, on their own awaiting check; HR, on any. Only a type
+    """The person, once, on their own awaiting check; HR, on any (their own too). Only a type
     whose evidence is a file takes one: a DBS certificate, for one, is not
     kept (its reference number is). files.add is the last fallible step
     before the link: its bytes are not rolled back with the transaction."""
+    hr = access.can_view_restricted(actor)
     me = access.employee_for(actor)
     own = me is not None and me.pk == check.employee_id
-    if not (own or access.can_view_restricted(actor)):
+    if not (own or hr):
         raise PermissionDenied
-    if own and not check.awaiting:
-        raise ValidationError("This check is not waiting for anything from you.")
+    if not hr:                            # the person: once, on a check asked of them
+        if not check.awaiting:
+            raise ValidationError("This check is not waiting for anything from you.")
+        if check.evidence_id is not None:
+            raise ValidationError("Already uploaded; HR will record it.")
     if check.check_type.evidence != CheckType.Evidence.FILE:
         raise ValidationError(f"{check.check_type} takes no file.")
-    category = File.Category.IDENTITY if check.check_type.code == "right_to_work" else File.Category.CERTIFICATE
+    category = CATEGORY.get(check.check_type.code, File.Category.CERTIFICATE)
     f = files.add(actor, check.employee, category, f"{check.check_type} evidence", upload)
     check.evidence = f
     check.save(update_fields=["evidence"])

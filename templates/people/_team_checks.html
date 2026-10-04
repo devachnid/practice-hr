@@ -1,3 +1,3 @@
 {% comment %}My team's per-report checks summary: counts and the next expiry
 from checks.summary, never the names of the checks. Expects s.{% endcomment %}
-{{ s.current }} current, {{ s.due_soon }} due soon, {{ s.lapsed }} lapsed, {{ s.missing }} missing{% if s.next_expiry %}; next expiry {{ s.next_expiry|date:"d M Y" }}{% endif %}
+{{ s.current }} current, {{ s.due_soon }} due soon, {{ s.lapsed }} lapsed, {{ s.missing }} missing{% if s.awaiting %}, {{ s.awaiting }} awaiting{% endif %}{% if s.next_expiry %}; next expiry {{ s.next_expiry|date:"d M Y" }}{% endif %}
