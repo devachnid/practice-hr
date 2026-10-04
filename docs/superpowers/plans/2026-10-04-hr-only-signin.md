@@ -58,3 +58,21 @@ Branch `claude/keen-fermat-c5fsc4` at `/home/user/rota`, reset onto `origin/mast
 **2d. Break-glass.** `docs/admin/sign-in.md`: rewrite "The rota's password form is for the superuser" as "There is no rota password while the practice account is on", and add "If the HR system is unreachable": remove `PRACTICE_HR_URL` from `/etc/rota.env` and restart the rota; the local password form and passkeys return for accounts that still have them (the superuser's, and anyone whose password was never cleared); put the line back once HR is up. Also the sign-in doc's first-sign-in section: `admin` claim sets rota admin; superusers included. `docs/admin/people.md` Login accounts: rota admin is set on the HR system when the practice account is on. README's deploy/sign-in paragraph if it mentions the superuser form.
 
 **2e. Tests.** Update `tests/test_oidc_signin.py` (and any login/passkey/reset tests) for the new rules: the login page with and without the setting; password sign-in refused for the superuser too with no axes row; reset link sends nobody; passkey endpoints 404; account page sentence; backend signs in a superuser; `is_rota_admin` follows the claim both ways and survives a missing claim as False; export command tests from 2a. Keep the existing "five staff typing right passwords leave no axes rows" regression.
+
+---
+
+## Execution notes
+
+Executed as two subagent-driven tasks run in parallel, one per repository, each with a full review and one fix wave: practice-hr PR #11 (branch `feature/app-roles-signin`, 945 tests) and rota PR #54 (branch `claude/keen-fermat-c5fsc4`, 1835 tests).
+
+**Rulings made while executing:**
+
+- Superusers sign in through HR like everyone else; `is_superuser` stays a local rota flag for feedback emails and the sign-in logs. Break-glass is removing `PRACTICE_HR_URL` and restarting.
+- The per-app role carries admin only; access to an app is any active HR login. An access flag can be added later if wanted.
+- The import sets a password only where the HR login has none, so a password chosen on HR is never overwritten.
+- The two tasks ran in parallel in separate repositories with the claim name and the file shape pinned in both briefs; the one contract gap found (an empty rota password aborting the import) was closed on the rota side by exporting it as unusable.
+- The rota checks the claim with `is True` rather than truthiness, so a stray string could never grant admin.
+- Each branch being one task with its own review, those reviews stood as the whole-branch reviews, followed by one fix wave and one scoped re-review each.
+- The rota's own routes while HR sign-in is on: password form, reset and invitation links, passkey endpoints, `password_change/` and the locked-out page's alternatives are all closed; admin "add login" sends no invitation. The admin page's send buttons remain and send links that open the invalid-link page (documented).
+
+**Deferred (recorded, not blocking):** the admin's AppRole writes leave no audit entry beyond Django's own log; an empty `sub` claim would apply the admin flag to an email-matched row that never binds (OIDC requires `sub`); the HR docs could say a rota whose hashes used an unconfigured algorithm would be refused wholesale.
