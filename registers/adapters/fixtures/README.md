@@ -53,6 +53,11 @@ them.
      "GMC number", "PIN", "Registration number"). The name is read from the
      line just before it and must look like a name.
 
+   The Welsh list (`mpl_wales`) has no `LABELS`, `RESTRICTION_LABELS` or
+   `NAME_MARKER`: it finds the row by the number, and expects the number,
+   the name and the status on consecutive lines. It is tuned by `CLEAR`,
+   `PROBLEM`, `NOT_FOUND` and that row layout.
+
    Keep the tests in `tests/test_registers_adapters.py` passing, and run the
    parser again.
 7. Run the suite: `.venv/bin/python -m pytest -q tests/test_registers_adapters.py`.

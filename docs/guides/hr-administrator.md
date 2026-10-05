@@ -554,13 +554,15 @@ home page counts them, and opens the people concerned. Every lookup is under
   in the admin guide. Nobody is chased about this until it has lasted 14
   days.
 - Checks are paused: after three lookups in a row could not be read, the
-  weekly lookups for that register stop and you are told once, in the email,
-  under "The registers". Run **Check now** on one registration. If it reads
-  the page, open **Compliance**, **Register bodies**, choose the register and
-  choose **Unpause**, then choose **Unpause** on the page that asks you to
-  confirm. After an unpause, run **Check now** on one registration straight
-  away: the three earlier failures still count, so if the next lookup fails
-  too the register pauses again.
+  weekly lookups for that register stop. You are told in the morning email,
+  under "The registers", and again every *Every days overdue* days while the
+  register stays paused. A **Check now** that reads the page, on any
+  registration of that register, lifts the pause by itself. **Unpause** is
+  for when you want the weekly lookups back before a check has succeeded: open
+  **Compliance**, **Register bodies**, choose the register, choose
+  **Unpause**, then choose **Unpause** on the page that asks you to confirm.
+  After an Unpause, run **Check now** once: the three old failures still
+  count until then, so if the next lookup fails the register pauses again.
 - A number is not recorded: you are reminded from the person's start
   date. Add it as above.
 
