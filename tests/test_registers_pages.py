@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 import pytest
@@ -171,6 +172,11 @@ def test_check_now_on_an_unverified_body_says_so_and_runs(admin_client, hr_admin
 
 # ---- the dashboard and My record ------------------------------------------------------------------
 
+def _count(body, key):
+    """The number the compliance card shows for one key."""
+    return re.search(rf"compliance={key}\"[^>]*><strong[^>]*>(\d+)</strong>", body).group(1)
+
+
 def test_the_dashboard_counts_standing_problems_and_opens_the_people(admin_client, hr_admin, gp_bodies, monkeypatch):
     gmc, _ = gp_bodies
     e = _gp(hr_admin)
@@ -178,11 +184,15 @@ def test_the_dashboard_counts_standing_problems_and_opens_the_people(admin_clien
     monkeypatch.setattr(adapters, "lookup", lambda *a: Result("problem", "Suspended", "Priya Patel", "b" * 64))
     lookups.run(reg, "scheduled")
     body = admin_client.get("/admin/").content.decode()
-    assert "Registration problems" in body
+    assert "Registration problems" in body and _count(body, "registration_problems") == "1"
     listed = admin_client.get("/admin/people/employee/?compliance=registration_problems").content.decode()
     assert e.work_email in listed
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("not_found", "No such number", "", "c" * 64))
+    lookups.run(reg, "scheduled")
+    assert _count(admin_client.get("/admin/").content.decode(), "registration_problems") == "1"
     monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
     lookups.run(reg, "scheduled")
+    assert _count(admin_client.get("/admin/").content.decode(), "registration_problems") == "0"
     listed = admin_client.get("/admin/people/employee/?compliance=registration_problems").content.decode()
     assert e.work_email not in listed
 
@@ -214,3 +224,28 @@ def test_my_record_has_no_registrations_card_for_a_title_that_needs_none(hr_admi
     c = Client()
     c.force_login(employee_user)
     assert "Registrations" not in c.get("/people/me/").content.decode()
+
+
+def test_my_record_has_no_registrations_card_when_only_a_held_number_remains(hr_admin, gp_bodies):
+    gmc, mpl = gp_bodies
+    user = User.objects.create_user(email="priya@example.com", password="pw")
+    e = _gp(hr_admin, user=user)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    gmc.positions.clear()
+    mpl.positions.clear()                      # the fixture gives the title both bodies: now it needs none
+    c = Client()
+    c.force_login(user)
+    assert "Registrations" not in c.get("/people/me/").content.decode()
+
+
+def test_my_record_says_not_checked_yet_when_the_lookup_could_not_be_read(hr_admin, gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    user = User.objects.create_user(email="priya@example.com", password="pw")
+    e = _gp(hr_admin, user=user)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("unreadable", "HTTP 503", "", "e" * 64))
+    lookups.run(reg, "scheduled")
+    c = Client()
+    c.force_login(user)
+    body = c.get("/people/me/").content.decode()
+    assert "Not checked yet" in body and "HTTP 503" not in body

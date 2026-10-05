@@ -75,7 +75,7 @@ def me(request):
            # listing titles is not opening a file: no audit until files.open
            "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
            "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else [],
-           "registrations": registrations.rows(employee, today)}
+           "registrations": [r for r in registrations.rows(employee, today) if r.needed]}
     if emp:
         from onboarding.services import checklists   # onboarding imports people's services
         ctx["checklist_items"] = [i for i in checklists.own_items(employee, today)

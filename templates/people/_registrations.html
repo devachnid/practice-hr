@@ -1,7 +1,8 @@
 {# templates/people/_registrations.html #}
 {% comment %}My record's Registrations card: one row per body the person's
 title needs, in plain words. HR runs the checks; nothing here is a control.
-Expects registrations (registers.services.registrations.rows).{% endcomment %}
+Expects registrations: the needed rows of
+registers.services.registrations.rows.{% endcomment %}
 {% if registrations %}
 <section class="card">
   <h2>Registrations</h2>
@@ -9,7 +10,7 @@ Expects registrations (registers.services.registrations.rows).{% endcomment %}
   <table class="list">
     <thead><tr><th scope="col">Body</th><th scope="col">Number</th><th scope="col">Status</th></tr></thead>
     <tbody>
-    {% for row in registrations %}{% if row.needed %}
+    {% for row in registrations %}
       <tr>
         <th scope="row">{{ row.body.name }}</th>
         <td>{{ row.registration.number|default:"" }}</td>
@@ -18,7 +19,7 @@ Expects registrations (registers.services.registrations.rows).{% endcomment %}
             {% elif row.registration.last_outcome == "" or row.registration.last_outcome == "unreadable" %}Not checked yet.
             {% else %}HR will be in touch about your {{ row.body.name }} registration.{% endif %}</td>
       </tr>
-    {% endif %}{% endfor %}
+    {% endfor %}
     </tbody>
   </table>
   </div>
