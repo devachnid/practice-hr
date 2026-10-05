@@ -2,6 +2,7 @@
 service so the audit log and the rules hold whether a change comes from
 here or from a page."""
 
+from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -10,6 +11,7 @@ from django.utils import timezone
 from django.utils.formats import date_format
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline, TabularInline
+from unfold.widgets import UnfoldAdminTextInputWidget
 
 from accounts.admin_messages import report_send
 from accounts.mail import send_password_link
@@ -18,6 +20,7 @@ from people import admin_forms
 from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
                            Employment, PatternDay, PayRecord, Position, PositionTitle, Team, WorkingPattern)
 from people.services import access, audit, contracts, employees, employments, pay, positions
+from registers.models import Registration
 
 
 class EmergencyContactInline(TabularInline):
@@ -94,6 +97,12 @@ class EmployeeAdmin(ModelAdmin):
         if not access.can_view_restricted(request.user):
             for restricted in ("ni_number", *BANK_FIELDS):
                 fields.remove(restricted)
+        if obj is not None and access.can_view_restricted(request.user):
+            from registers.services import registrations
+            names = [n for n, _, _ in registrations.number_fields(obj, timezone.localdate())]
+            fields = [f for f in fields if f not in names]
+            at = fields.index("ni_number") + 1 if "ni_number" in fields else len(fields)
+            fields[at:at] = names
         login = [f for f in admin_forms.EmployeeForm.LOGIN_FIELDS if f in fields]
         fields = [f for f in fields if f not in login]
         if obj is None and login:
@@ -104,13 +113,27 @@ class EmployeeAdmin(ModelAdmin):
         return fields
 
     def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
+        # Built before super() and passed as form=, so the per-person number
+        # fields are declared fields on base_fields for get_fields, the
+        # fieldsets and the POST alike. The change page drops the declared
+        # login fields (a declared field set to None is removed, as Django's
+        # own readonly handling does) and, for HR, declares one number field
+        # per body the person's title needs.
+        attrs = {"actor": request.user}
         if obj is not None:
-            # Drop the declared login fields from the change page's form (a
-            # declared field set to None is removed, as Django's own
-            # readonly handling does).
-            return type(form.__name__, (form,), dict.fromkeys(admin_forms.EmployeeForm.LOGIN_FIELDS))
-        return type(form.__name__, (form,), {"actor": request.user})
+            attrs.update(dict.fromkeys(admin_forms.EmployeeForm.LOGIN_FIELDS))
+            if access.can_view_restricted(request.user):
+                from registers.services import registrations
+                held = {r.body_id: r.number for r in obj.registrations.all()}
+                fields = registrations.number_fields(obj, timezone.localdate())
+                for name, body, label in fields:
+                    attrs[name] = forms.CharField(
+                        label=label, required=False, max_length=20, widget=UnfoldAdminTextInputWidget,
+                        initial=held.get(body.pk, ""),
+                        help_text=f"{body.name}; checked on the register tonight and every few days after.")
+                attrs["registration_fields"] = tuple(fields)
+        kwargs["form"] = type(admin_forms.EmployeeForm.__name__, (admin_forms.EmployeeForm,), attrs)
+        return super().get_form(request, obj, **kwargs)
 
     def get_readonly_fields(self, request, obj=None):
         return ("compliance_summary",) if obj is not None else ()
@@ -145,6 +168,26 @@ class EmployeeAdmin(ModelAdmin):
                 link = _link(f"{reverse('admin:checks_check_add')}?employee={obj.pk}&check_type={r.check_type.pk}",
                              "Record")
             check_rows.append((r.check_type, r.label, _day(r.expires_on), link))
+        from registers import adapters
+        from registers.services import registrations
+        reg_rows = []
+        for row in registrations.rows(obj, today):
+            reg, body = row.registration, row.body
+            note = "" if row.needed else " (their title no longer needs it)"
+            if reg is None:
+                reg_rows.append((body.name + note, "No number recorded", "", "", "", "",
+                                 _link(reverse("admin:people_employee_change", args=[obj.pk]), "Add it under Details")))
+                continue
+            state = ("paused" if body.paused else "") or ("not verified" if not body.verified else "")
+            outcome = (f"{reg.last_status_text}" if reg.last_outcome in ("clear", "problem")
+                       else reg.get_last_outcome_display() if reg.last_outcome else "Not checked yet")
+            if state:
+                outcome = f"{outcome} ({state})"
+            links = format_html('{} {}', _link(reverse("registers:check_now", args=[reg.pk]), "Check now"),
+                                _link(adapters.url(body.code, reg.number), "On the register"))
+            reg_rows.append((body.name + note, reg.number, outcome, reg.last_name_on_register,
+                             _day(timezone.localtime(reg.last_checked_at).date()) if reg.last_checked_at else "",
+                             _day(reg.next_check_on), links))
         policy_rows = []
         for r in policies.state(obj, today):
             if r["signature"] is not None:
@@ -163,9 +206,12 @@ class EmployeeAdmin(ModelAdmin):
         starts = (format_html('<p class="mb-2">They start on {}: their checks are shown as they will stand '
                               'that day.</p>', _day(as_of)) if upcoming else "")
         return format_html(
+            '<h3 class="font-semibold mb-2">Registrations</h3>{}'
             '<h3 class="font-semibold mb-2">Checks</h3>{}{}'
             '<h3 class="font-semibold mb-2">Policies</h3>{}'
             '<h3 class="font-semibold mb-2">Open checklist items</h3>{}',
+            _table(("Body", "Number", "Last result", "Name shown", "Checked", "Next check", ""), reg_rows,
+                   "Their position needs no professional registration."),
             starts,
             _table(("Check", "Status", "Expires", ""), check_rows,
                    "Their position needs no checks, and none are recorded." if employed or upcoming
@@ -210,6 +256,21 @@ class EmployeeAdmin(ModelAdmin):
             fresh = Employee.objects.get(pk=obj.pk)
             employees.update(request.user, fresh, **data)
             obj.refresh_from_db()
+            from registers.services import registrations
+            for name, body, _ in form.registration_fields:
+                if name not in form.changed_data:
+                    continue
+                value = form.cleaned_data.get(name) or ""
+                if value:
+                    registrations.set_number(request.user, fresh, body, value)
+                    others = (Registration.objects.filter(body=body, number=value).exclude(employee=fresh)
+                              .select_related("employee"))
+                    for other in others:
+                        messages.warning(request, f"The {body.name} number {value} is also recorded for "
+                                                  f"{other.employee.name}. The register's name check will "
+                                                  "tell them apart; check the numbers if that is not intended.")
+                else:
+                    registrations.clear_number(request.user, fresh, body)
         else:
             data = {k: v for k, v in form.cleaned_data.items() if k in employees.EDITABLE}
             new = employees.create(request.user, **data)
