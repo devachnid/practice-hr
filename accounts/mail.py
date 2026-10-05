@@ -102,7 +102,8 @@ def send_password_link(request, user, *, invite, throttle=False, to=None):
         # 500 — so the traceback goes to the journal, an admin gets the
         # link, and a public request stays unstamped so its next attempt
         # is not throttled.
-        logger.exception("password link to %s could not be sent", to or user.email)
+        logger.exception("password link for login %s could not be sent%s", user.pk,
+                         " (to a personal address)" if to else "")
         if not throttle:
             _stamp(user, now)
         return LinkToCopy(link, str(exc) or exc.__class__.__name__)

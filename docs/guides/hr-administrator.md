@@ -73,7 +73,7 @@ Work through this in order. The rest of this guide explains each step.
 4. **Check the login list** under **Access**, **Login accounts**: everyone
    should be there, with an **Admin status** tick only for HR admins.
 5. **Add each person's employment**, with a **position** naming their team
-   and line manager, and a **contract**. Finish step 4 for everyone first,
+   and line manager, and a **contract**. Finish step 3 for everyone first,
    so every manager is there to choose.
 6. **Add each person's working pattern.**
 7. **Record everyone's existing checks first, then assign position titles
@@ -168,8 +168,9 @@ login should not be their work email.
 1. In the admin, under **Access**, open **Login accounts** and choose **+** (Add login account).
 2. Type their **Email** and tick **Admin status** only if they are to be an HR admin.
 3. Choose **Save**. The invitation is sent straight away.
-4. On their employee record, untick **Create a login account** and choose
-   the login in **User**.
+4. When adding their employee record, untick **Create a login account**
+   and choose the login in **User**. On an existing record just choose the
+   login in **User**.
 
 A warning that the linked login's email is not the same as the work email
 means you should make the two match.

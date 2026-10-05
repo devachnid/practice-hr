@@ -62,6 +62,8 @@ class EmployeeForm(forms.ModelForm):
                   "phone", "date_of_birth", "address_line1", "address_line2", "town", "postcode",
                   "ni_number", "bank_account_name", "bank_sort_code", "bank_account_number", "user"]
 
+    actor = None            # EmployeeAdmin.get_form sets the requester: whose add this is
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if "ni_number" in self.fields:     # left out for someone not shown it (EmployeeAdmin.get_fields)
@@ -80,7 +82,7 @@ class EmployeeForm(forms.ModelForm):
             self.add_error("invite_to", "Enter their personal email, or send the invitation to the work email.")
         if data.get("work_email"):
             try:
-                logins.check_available(data["work_email"])
+                logins.check_available(data["work_email"], self.actor, data.get("invite_to") or logins.WORK)
             except ValidationError as exc:
                 self.add_error("work_email", exc)
         return data
