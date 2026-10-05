@@ -24,36 +24,31 @@ items can go straight into a tidy-up branch.
    and approved absences from the HR read API instead of Breathe, and sends
    sessions worked back as TOIL earned lines. The HR side of the API exists;
    the rota side and the TOIL feed do not.
-3. **Professional registration checks.** For clinicians, record the
-   registration body and number, and check that the registration is valid
-   and active, both on demand (the result shown to the person who asked) and
-   on a schedule (an email to the managers only when something is wrong:
-   lapsed, suspended, conditions, not found, or a number that does not match
-   the name). Spec 3 added `professional_registration` as a check type
-   with an expiry, so the number, body and renewal date can be recorded
-   now; this item adds the lookup. Registers by role:
-   - GPs: the GMC register, and the medical performers list for Wales (held
-     by NHS Wales Shared Services Partnership).
-   - Nurses: the NMC register.
-   - Pharmacists and pharmacy technicians: the GPhC register.
-
-   To settle at design time: which of these offer a lookup an application
-   may use (the GMC has a data service under agreement; the NMC and GPhC
-   publish web searches and employer confirmation routes rather than public
-   APIs; the Welsh performers list is published as a document), how often to
-   check, what to store from a check (date, outcome, the register's own
-   status text), and how a failed lookup feeds the compliance reminders
-   (spec 3's `compliance` app: each app contributes `due_items`, the
-   nightly digest sends them on the practice's cadence).
-4. **Training compliance (spec 4).** Role-to-course matrix, evidence,
+3. **Training compliance (spec 4).** Role-to-course matrix, evidence,
    renewals. The reminder engine, the evidence store and the expiry
    pattern all exist from spec 3 (checks with validity, files, the
    compliance digest), so this is a new app contributing `due_items`
    rather than new plumbing.
-5. **Later.** Sickness case management, appraisals, restricted case files.
+4. **Later.** Sickness case management, appraisals, restricted case files.
+   The GMC sells a full-register download service; if the practice ever
+   wants a sanctioned machine interface in place of reading the public
+   search page, that is the route (an agreement, and a new adapter).
 
 ## Smaller items
 
+- Capture the register page fixtures per
+  `registers/adapters/fixtures/README.md`, so the four register bodies
+  become verified and their scheduled lookups start. The registration
+  checks themselves are built (spec
+  `2026-10-05-professional-registrations-design.md`); until the pages are
+  saved, every lookup is on demand.
+- Accept a known name difference (married or maiden name) on a
+  registration so it stops alerting: today a register name that does not
+  match the record's surname is a *Name does not match* alert on every
+  lookup until the record or the register changes.
+- The Welsh medical performers list URL is plain `http` and, like the
+  other three, unverified against a real page; confirm its address (and an
+  `https` one) when its pages are captured.
 - Alternating-week working patterns (the field exists; the UI and costing
   do not).
 - Delegated approval while a manager is away.
@@ -100,6 +95,7 @@ and Bradford factor; automatic deletion under retention; multi-practice.
 
 ## Technical loose ends (recorded, low risk)
 
+- Registration lookups are never pruned (with the `ReminderSent` log).
 - `charge_again` checks the passed row's status rather than a locked
   re-read; its only caller re-reads first.
 - No test for the API rate limiter's "unknown address" fallback.

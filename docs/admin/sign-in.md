@@ -139,7 +139,11 @@ Employment spell is added.
 
 It prints one line per app with what it did. **people:** `logins_disabled`.
 **absence:** the leave-year, pot and bank-holiday counts and `chased`
-([Year end](year-end.md), [Absence](absence.md)). **compliance:** the
+([Year end](year-end.md), [Absence](absence.md)). **registrations:** the
+night's [registration lookups](compliance.md#the-schedule), run before the
+reminders so that what they find is in the same morning's digest; this
+step never fails the run (see
+[In the nightly output](compliance.md#in-the-nightly-output)). **compliance:** the
 morning [reminders](compliance.md#reminders): `reminders_sent` (emails
 that went, one per recipient), `reminders_failed` (emails the relay
 refused, also listed as email failures) and `items` (lines in the emails

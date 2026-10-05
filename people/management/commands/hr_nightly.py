@@ -6,6 +6,7 @@ from django.utils import timezone
 from absence.services import nightly as absence_nightly
 from compliance.services import nightly as compliance_nightly
 from people.services import nightly as people_nightly
+from registers.services import nightly as registers_nightly
 
 log = logging.getLogger("hr.nightly")
 
@@ -21,6 +22,13 @@ class Command(BaseCommand):
         # cannot lose an earlier step's line from the journal.
         self.stdout.write(f"people: {people_nightly.run(today)}")
         self.stdout.write(f"absence: {absence_nightly.run(today)}")
+        # The registrations before the reminders, so tonight's lookups are in
+        # this morning's digest. It never fails the run: the next night retries.
+        try:
+            self.stdout.write(f"registrations: {registers_nightly.run(today)}")
+        except Exception as exc:  # noqa: BLE001 - the class only; the next night retries
+            log.error("nightly registrations step failed: %s", exc.__class__.__name__)
+            self.stdout.write("registrations: failed")
         try:
             result = compliance_nightly.run(today)
         except Exception as exc:  # noqa: BLE001 - reported below; the class only, its message may name someone

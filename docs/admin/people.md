@@ -67,6 +67,19 @@ Employee page that has an NI number, the audit log records the view (kind
 that depends on its format being checked, so a typo here has no effect
 beyond being wrong on a report that reads it.
 
+### Registration numbers
+
+**Visible to HR admins only**, like the NI number. Below **NI number** there
+is one box for each professional register the person's current position
+title needs: **GMC number** (which also covers the Welsh medical performers
+list), **NMC PIN number** or **GPhC number**. A title that needs none shows
+none. The format is checked when you save, and a number that does not fit
+is refused. Each change is written to the [audit log](#audit-log) as field
+`registration:<code>`, such as `registration:gmc`, with the old and new
+number. A saved number is looked up on the register that night. See
+[Professional registrations](compliance.md#professional-registrations) for
+the formats, what the lookups do and what to do when one fails.
+
 ### Bank details
 
 Account name, sort code and account number, for the payroll
@@ -103,11 +116,20 @@ a contact detail that is wrong is simply wrong, not history.
 
 ### The Compliance tab
 
-Read-only: a summary of where the person stands, with a link beside each
-row to act on it. Nothing on it is saved. Opening it writes a *Viewed*
+A summary of where the person stands, with a link beside each row to act on
+it. Nothing on it is saved, and its only button, **Check now** beside a
+registration, asks you to confirm on a page of its own before it does
+anything. Opening it writes a *Viewed*
 entry (*checks*) to the [audit log](#audit-log) when it lists any check,
 as opening a check does; nothing else.
 
+- **Registrations** — first: one row per professional register their title
+  needs, with the number, the last result in the register's words, the name
+  the register showed, when it was checked and when it is next due.
+  **Check now** looks the number up this minute; **On the register** opens
+  the register's own page for it. A row with no number says so and links to
+  the Details tab. See
+  [Check now and On the register](compliance.md#check-now-and-on-the-register).
 - **Checks** — one row per check type their title needs, plus any other
   type they have a check of, with its [status](compliance.md#what-each-status-means)
   and expiry. **Open** goes to the recorded check, **Open the request** to a

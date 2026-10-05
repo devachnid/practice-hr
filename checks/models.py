@@ -54,7 +54,9 @@ class Check(models.Model):
     dbs_level = models.CharField(max_length=15, choices=DbsLevel.choices, blank=True, default="")
     dbs_update_service = models.BooleanField(default=False)
     awaiting = models.BooleanField(default=False, help_text="Asked of the person; not yet a recorded check.")
-    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    recorded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+",
+                                    help_text="Nobody when the register lookups recorded it.")
     recorded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

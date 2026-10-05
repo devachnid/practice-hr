@@ -9,6 +9,7 @@ from django.views.decorators.http import require_safe
 from checks.services import checks
 from people.models import Employee
 from people.services import access, contracts, employees, employments, patterns, positions, retention
+from registers.services import registrations
 
 
 class PersonalDetailsForm(forms.ModelForm):
@@ -73,7 +74,8 @@ def me(request):
     ctx = {"employee": employee, "employment": emp, "form": form,
            # listing titles is not opening a file: no audit until files.open
            "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
-           "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else []}
+           "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else [],
+           "registrations": [r for r in registrations.rows(employee, today) if r.needed]}
     if emp:
         from onboarding.services import checklists   # onboarding imports people's services
         ctx["checklist_items"] = [i for i in checklists.own_items(employee, today)

@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% comment %}RegisterBodyAdmin.unpause: confirm before the schedule runs again.
+GET only shows this page; the POST calls lookups.unpause.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:registers_registerbody_change' body.pk %}" class="underline">{{ body }}</a></p>
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    <p>Scheduled lookups against this register stopped after three in a row could not read its page. Unpausing lets them run again tonight.</p>
+    <div class="flex items-center gap-4">
+      <button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Unpause</button>
+      <a href="{% url 'admin:registers_registerbody_change' body.pk %}" class="underline">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
