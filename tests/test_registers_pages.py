@@ -167,3 +167,50 @@ def test_check_now_on_an_unverified_body_says_so_and_runs(admin_client, hr_admin
     r = admin_client.post(f"/registers/{reg.pk}/check/", follow=True)
     body = r.content.decode()
     assert "could not be read" in body and "not yet verified" in body and Lookup.objects.count() == 1
+
+
+# ---- the dashboard and My record ------------------------------------------------------------------
+
+def test_the_dashboard_counts_standing_problems_and_opens_the_people(admin_client, hr_admin, gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    e = _gp(hr_admin)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("problem", "Suspended", "Priya Patel", "b" * 64))
+    lookups.run(reg, "scheduled")
+    body = admin_client.get("/admin/").content.decode()
+    assert "Registration problems" in body
+    listed = admin_client.get("/admin/people/employee/?compliance=registration_problems").content.decode()
+    assert e.work_email in listed
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    lookups.run(reg, "scheduled")
+    listed = admin_client.get("/admin/people/employee/?compliance=registration_problems").content.decode()
+    assert e.work_email not in listed
+
+
+def test_my_record_shows_the_persons_registrations_in_plain_words(hr_admin, gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    user = User.objects.create_user(email="priya@example.com", password="pw")
+    e = _gp(hr_admin, user=user)
+    c = Client()
+    c.force_login(user)
+    body = c.get("/people/me/").content.decode()
+    assert "Registrations" in body and "GMC" in body and "HR has not recorded your number yet" in body
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    body = c.get("/people/me/").content.decode()
+    assert "1234567" in body and "Not checked yet" in body and "Check now" not in body
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    lookups.run(reg, "scheduled")
+    body = c.get("/people/me/").content.decode()
+    assert "Registered, checked " in body
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("problem", "Suspended", "Priya Patel", "b" * 64))
+    lookups.run(reg, "scheduled")
+    body = c.get("/people/me/").content.decode()
+    assert "HR will be in touch about your GMC registration" in body and "Suspended" not in body
+
+
+def test_my_record_has_no_registrations_card_for_a_title_that_needs_none(hr_admin, employee_user):
+    e = make_employee(user=employee_user)
+    employments.start(hr_admin, e, timezone.localdate() - timedelta(days=10))
+    c = Client()
+    c.force_login(employee_user)
+    assert "Registrations" not in c.get("/people/me/").content.decode()
