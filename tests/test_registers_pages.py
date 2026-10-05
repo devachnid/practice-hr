@@ -213,6 +213,7 @@ def test_check_now_on_an_unverified_body_records_the_lookup_but_no_check(admin_c
     e = _gp(hr_admin)
     reg = registrations.set_number(hr_admin, e, gmc, "1234567")
     monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    assert "only the lookup is recorded, not a check" in admin_client.get(f"/registers/{reg.pk}/check/").content.decode()
     body = admin_client.post(f"/registers/{reg.pk}/check/", follow=True).content.decode()
     assert "No check was recorded: this register&#x27;s parser is not yet verified." in body
     assert Lookup.objects.count() == 1 and not Check.objects.filter(employee=e).exists()

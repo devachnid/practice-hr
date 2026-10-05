@@ -42,6 +42,13 @@ items can go straight into a tidy-up branch.
   checks themselves are built (spec
   `2026-10-05-professional-registrations-design.md`); until the pages are
   saved, every lookup is on demand.
+- Accept a known name difference (married or maiden name) on a
+  registration so it stops alerting: today a register name that does not
+  match the record's surname is a *Name does not match* alert on every
+  lookup until the record or the register changes.
+- The Welsh medical performers list URL is plain `http` and, like the
+  other three, unverified against a real page; confirm its address (and an
+  `https` one) when its pages are captured.
 - Alternating-week working patterns (the field exists; the UI and costing
   do not).
 - Delegated approval while a manager is away.

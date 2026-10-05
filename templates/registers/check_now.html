@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% comment %}registers:check_now, GET — confirm before the lookup runs
-(the POST writes a Lookup and, on a clear or problem result, a check).{% endcomment %}
+(the POST writes a Lookup and, on a clear or problem result from a verified
+body, a check).{% endcomment %}
 {% block title %}Check {{ registration.employee.name }}'s {{ registration.body }} registration{% endblock %}
 {% block content %}
 <div class="stack">
@@ -8,7 +9,8 @@
 <section class="card">
   <p>This looks up {{ registration.body }} number <strong>{{ registration.number }}</strong> on the register
   this minute and records what it says.{% if not registration.body.verified %} This register's parser is not yet
-  verified against a saved page, so read the result with care.{% endif %}</p>
+  verified against a saved page, so only the lookup is recorded, not a check: read the result with
+  care.{% endif %}</p>
   <form method="post">{% csrf_token %}
     <div class="form-actions">
       <button type="submit" class="btn btn-primary">Check now</button>

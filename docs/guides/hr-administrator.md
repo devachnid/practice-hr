@@ -495,9 +495,10 @@ nobody needs a registration.
 
 Repeat for **NMC** (nurses) and **GPhC** (pharmacists and pharmacy technicians).
 
-Until someone has saved a real page from each register for the parsers to be
+Until someone has saved real pages from each register for the parsers to be
 tested against, the weekly lookups do not run, and **Register bodies** shows
-the register as not verified. **Check now** still works. See
+the register as not verified. **Check now** still works, but it records only
+the lookup, not a professional registration check. See
 [Register bodies](../admin/compliance.md#register-bodies) in the admin
 guide.
 
@@ -548,7 +549,9 @@ home page counts them, and opens the people concerned. Every lookup is under
   number is looked up that night, or choose **Check now**.
 - Not found: check the number with the person, then look at the register
   by hand with **On the register**.
-- The page could not be read: try **Check now** again later. If it keeps
+- The page could not be read: the last result the register gave still
+  stands (a problem is still reminded of), and the **Registrations** table
+  says when the page could not be read. Try **Check now** again later. If it keeps
   failing, the register's page may have changed; see
   [When a page cannot be read](../admin/compliance.md#when-a-page-cannot-be-read)
   in the admin guide. Nobody is chased about this until it has lasted 14
