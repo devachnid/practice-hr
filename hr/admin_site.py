@@ -115,6 +115,8 @@ def navigation(request):
         {"title": "Compliance", "separator": True, "items": [
             _nav_item("Check types", "fact_check", "admin:checks_checktype_changelist"),
             _nav_item("Checks", "verified_user", "admin:checks_check_changelist"),
+            _nav_item("Register bodies", "badge", "admin:registers_registerbody_changelist"),
+            _nav_item("Registration lookups", "manage_search", "admin:registers_lookup_changelist"),
             _nav_item("Files", "folder", "admin:documents_file_changelist"),
             _nav_item("Policies", "policy", "admin:documents_policy_changelist"),
             _nav_item("Signatures", "draw", "admin:documents_signature_changelist"),
