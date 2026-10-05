@@ -16,6 +16,7 @@ login has **Admin status** ticked.
 - [Working the leaver list](#working-the-leaver-list)
 - [Recording a check](#recording-a-check)
 - [Asking someone for evidence](#asking-someone-for-evidence)
+- [Professional registrations](#professional-registrations)
 - [Issuing a policy](#issuing-a-policy)
 - [Reminder settings](#reminder-settings)
 - [Leave policies in plain words](#leave-policies-in-plain-words)
@@ -404,6 +405,9 @@ Checks are the things someone must have for their job, such as a DBS check,
 right to work, references or professional registration. Which checks a
 person needs depends on their job title.
 
+Professional registration is recorded for you by the register checks when a
+number is on file: see [Professional registrations](#professional-registrations).
+
 ### How to say which titles need a check
 
 Do this once for each check, before anyone is chased for it. Until you do,
@@ -472,6 +476,94 @@ see **My record** until their first day, so for their right-to-work document
 before then use the upload on their **Getting started** page, or record the
 check yourself from the copy they bring.
 
+## Professional registrations
+
+Doctors, nurses and pharmacists must stay on their professional register.
+Practice HR keeps each person's registration number, looks it up on the
+register every week without anyone logging in, and emails you and their line
+manager the next morning if something is wrong. You can also look one up
+yourself, any time.
+
+### How to say which titles need a registration
+
+Do this once for each register, before anyone is checked. Until you do,
+nobody needs a registration.
+
+1. Under **Compliance**, open **Register bodies** and choose a register, such as **GMC**.
+2. In **Positions**, move each title that needs it across to the chosen side. For a GP title, do the same for the Welsh medical performers list.
+3. Choose **Save**.
+
+Repeat for **NMC** (nurses) and **GPhC** (pharmacists and pharmacy technicians).
+
+Until someone has saved a real page from each register for the parsers to be
+tested against, the weekly lookups do not run, and **Register bodies** shows
+the register as not verified. **Check now** still works. See
+[Register bodies](../admin/compliance.md#register-bodies) in the admin
+guide.
+
+### How to record someone's registration number
+
+1. Open the person's record under **People**, **Employees**, on the **Details** tab.
+2. Find the number box below **NI number**: **GMC number**, **NMC PIN number** or **GPhC number**. It is there only when their job title needs that register.
+3. Type the number and choose **Save**.
+
+A GMC number is seven digits. An NMC PIN is two digits, a letter, four digits
+and a letter, such as 12A3456B. A GPhC number is seven digits. Spaces and
+small letters do not matter. The **GMC number** is also used for the Welsh
+list, so a GP needs only the one box.
+
+What you will see: if the number is not in that form, the page says so (for
+example "A GMC number is seven digits.") and nothing is saved. If someone
+else already has the same number, it is saved with a warning naming them:
+check you have the right one. A new number is looked up that night.
+
+If a box you expect is missing, check that their current position's title is
+set under **Register bodies** (see above).
+
+### How to check a registration now
+
+1. Open the person's record and choose the **Compliance** tab. The **Registrations** table is first.
+2. Beside the register, choose **Check now**.
+3. Choose **Check now** again on the page that asks you to confirm.
+4. Read the message at the top of their record.
+
+What you will see: for a clear result, the register's own words and the name
+it shows, such as "GMC: Registered with a licence to practise (Priya Patel)".
+Anything else is shown in amber. Choose **On the register** on the same row
+to open the register's own page for that number and see it yourself.
+
+### When a registration check fails
+
+You are told in the morning email, under the person's name, with the
+register and its words. The **Registration problems** number on the admin
+home page counts them, and opens the people concerned. Every lookup is under
+**Compliance**, **Registration lookups**, with the register's words.
+
+- A problem (for example "Suspended", "Lapsed" or "conditions"): speak to
+  the person and their manager the same day, and record what you decide in
+  the person's file. The lookup has recorded a **Not clear** professional
+  registration check for you. Their manager gets the same email.
+- The register shows a different name: the number is probably wrong.
+  Check it with the person and correct it on the **Details** tab; the new
+  number is looked up that night, or choose **Check now**.
+- Not found: check the number with the person, then look at the register
+  by hand with **On the register**.
+- The page could not be read: try **Check now** again later. If it keeps
+  failing, the register's page may have changed; see
+  [When a page cannot be read](../admin/compliance.md#when-a-page-cannot-be-read)
+  in the admin guide. Nobody is chased about this until it has lasted 14
+  days.
+- Checks are paused: after three lookups in a row could not be read, the
+  weekly lookups for that register stop and you are told once, in the email,
+  under "The registers". Run **Check now** on one registration. If it reads
+  the page, open **Compliance**, **Register bodies**, choose the register and
+  choose **Unpause**, then choose **Unpause** on the page that asks you to
+  confirm. After an unpause, run **Check now** on one registration straight
+  away: the three earlier failures still count, so if the next lookup fails
+  too the register pauses again.
+- A number is not recorded: you are reminded from the person's start
+  date. Add it as above.
+
 ## Issuing a policy
 
 The practice policies staff must read and sign are under **Compliance**,
@@ -521,10 +613,11 @@ checks has lapsed, but not which one.
 2. Set **Start days before**: how many days before something is due the first reminder goes.
 3. Set **Every days before**: how often it is repeated until the day it is due.
 4. Set **Every days overdue**: how often it is repeated once it is overdue.
-5. Choose **Save**.
+5. Set **Check professional registrations every (days)**: how often each person's registration is looked up on its register, from 1 to 90.
+6. Choose **Save**.
 
 A reminder always goes on the day something is due, whatever you set. The
-settings start as 60, 30 and 7.
+settings start as 60, 30 and 7, and registrations are looked up every 7 days.
 
 If something goes wrong: if nobody is getting reminders, check the admin home
 page. "Outgoing email is not configured" means no emails go at all (see
