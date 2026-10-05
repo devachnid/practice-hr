@@ -66,6 +66,10 @@ class Lookup(models.Model):
 
 
 class Registration(models.Model):
+    """One person's number with one body. The last_outcome, last_status_text
+    and last_name_on_register fields are the latest READABLE lookup's: an
+    unreadable one sets last_checked_at and last_unreadable_at and leaves
+    them, so a site that is down never hides a standing problem."""
     employee = models.ForeignKey("people.Employee", on_delete=models.PROTECT, related_name="registrations")
     body = models.ForeignKey(RegisterBody, on_delete=models.PROTECT, related_name="registrations")
     number = models.CharField(max_length=20)
@@ -74,6 +78,9 @@ class Registration(models.Model):
     last_status_text = models.CharField(max_length=200, blank=True, default="")
     last_name_on_register = models.CharField(max_length=120, blank=True, default="")
     last_checked_at = models.DateTimeField(null=True, blank=True)
+    last_unreadable_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the latest lookup could not read the page; cleared by a readable one.")
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["employee", "body"], name="registration_one_per_body")]

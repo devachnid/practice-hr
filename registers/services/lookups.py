@@ -1,7 +1,10 @@
 """Running lookups against the registers: one on demand, or everything due
 tonight. The one writer of Lookup rows and of the registration's
-denormalised "last" fields; a clear or problem result also records a
-Professional registration check through the checks service. Never raises."""
+denormalised "last" fields, which hold the latest READABLE result (an
+unreadable lookup sets only last_checked_at and last_unreadable_at); a
+clear or problem result on a verified body also records a Professional
+registration check through the checks service, one result per person.
+Never raises."""
 import logging
 import random
 import time
@@ -44,11 +47,42 @@ def _next_check(today):
     return today + timedelta(days=every + jitter())
 
 
+STANDING = ("problem", "not_found", "name_mismatch")      # a readable result that is an alert
+
+
+def words(outcome, status_text, name):
+    """A readable result in plain words, from its own fields, with fallbacks for empty ones."""
+    if outcome == "problem":
+        return status_text or "a problem on the register"
+    if outcome == "not_found":
+        return "not found on the register"
+    if outcome == "name_mismatch":
+        return f"the register shows {name or 'someone else'}, not this person"
+    return status_text
+
+
+def latest_readable(registration):
+    """The newest lookup of the registration that read the page (any outcome but unreadable), or None."""
+    return (registration.lookups.exclude(outcome=Lookup.Outcome.UNREADABLE).order_by("-run_at", "-pk").first())
+
+
 def _record_check(registration, outcome, status_text, today):
+    """One compliance result per person: a Clear check only when no other
+    needed registration of theirs stands at a problem, not found or a wrong
+    name (its latest readable result); otherwise Not clear with both bodies' words."""
     check_type = CheckType.objects.get(code="professional_registration")
+    note = f"{registration.body.name}: {status_text}"
     result = Check.Outcome.CLEAR if outcome == "clear" else Check.Outcome.NOT_CLEAR
+    if outcome == "clear":
+        needed = [b.pk for b in registrations.needed(registration.employee, today) if b.pk != registration.body_id]
+        others = (Registration.objects.filter(employee=registration.employee, body_id__in=needed,
+                                              last_outcome__in=STANDING)
+                  .select_related("body").order_by("body__display_order", "body_id"))
+        for other in others:
+            result = Check.Outcome.NOT_CLEAR
+            note += f"; {other.body.name}: {words(other.last_outcome, other.last_status_text, other.last_name_on_register)}"
     checks.record(None, registration.employee, check_type, today, result, reference=registration.number,
-                  note=f"{registration.body.name}: {status_text}"[:2000])
+                  note=note[:2000])
 
 
 def _pause_if_dead(body):
@@ -73,12 +107,16 @@ def run(registration, trigger, requested_by=None, today=None):
             registration=registration, trigger=trigger, requested_by=requested_by, outcome=result.outcome,
             status_text=result.status_text[:200], name_on_register=result.name_on_register[:120],
             page_hash=result.page_hash, error=result.status_text[:80] if result.outcome == "unreadable" else "")
-        registration.last_outcome, registration.last_status_text = result.outcome, result.status_text[:200]
-        registration.last_name_on_register, registration.last_checked_at = result.name_on_register[:120], lk.run_at
-        registration.next_check_on = _next_check(today)
+        registration.last_checked_at, registration.next_check_on = lk.run_at, _next_check(today)
+        if result.outcome == "unreadable":          # the last readable result stands
+            registration.last_unreadable_at = lk.run_at
+        else:
+            registration.last_outcome, registration.last_status_text = result.outcome, result.status_text[:200]
+            registration.last_name_on_register = result.name_on_register[:120]
+            registration.last_unreadable_at = None
         registration.save(update_fields=["last_outcome", "last_status_text", "last_name_on_register",
-                                         "last_checked_at", "next_check_on"])
-        if result.outcome in ("clear", "problem"):
+                                         "last_checked_at", "last_unreadable_at", "next_check_on"])
+        if result.outcome in ("clear", "problem") and body.verified:      # a trial run records the lookup only
             try:
                 with transaction.atomic():
                     _record_check(registration, result.outcome, result.status_text, today)
@@ -127,7 +165,11 @@ def scheduled(today):
         if last_body == reg.body_id:
             sleep(PAUSE_BETWEEN_SECONDS)
         last_body = reg.body_id
-        lk = run(reg, Lookup.Trigger.SCHEDULED, today=today)
+        try:
+            outcome = run(reg, Lookup.Trigger.SCHEDULED, today=today).outcome
+        except Exception as exc:  # noqa: BLE001 - one registration's fault must not stop the rest
+            log.error("registration %s (%s): lookup failed: %s", reg.pk, reg.body.code, exc.__class__.__name__)
+            outcome = "unreadable"
         counts["run"] += 1
-        counts[lk.outcome] += 1
+        counts[outcome] += 1
     return counts

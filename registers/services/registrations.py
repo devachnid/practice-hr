@@ -88,6 +88,7 @@ def set_number(actor, employee, body, number):
     if not created and reg.number != value:
         reg.number, reg.next_check_on = value, today
         reg.last_outcome, reg.last_status_text, reg.last_name_on_register, reg.last_checked_at = "", "", "", None
+        reg.last_unreadable_at = None
         reg.save()
     if before != value:
         audit.record(actor, employee, {f"registration:{body.code}": (before, value)})

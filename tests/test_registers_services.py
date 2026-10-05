@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from checks.models import Check
+from checks.services import checks
 from compliance.models import ReminderSchedule
 from people.models import AuditEntry
 from people.services import employments, positions, titles
@@ -168,7 +169,8 @@ def test_a_problem_records_a_not_clear_check_and_the_rest_record_none(hr_admin, 
         assert lk.outcome == result.outcome and lk.requested_by == hr_admin
     assert Check.objects.filter(employee=e).count() == 1
     r.refresh_from_db()
-    assert r.last_outcome == "unreadable" and r.last_status_text == "HTTP 503"
+    assert r.last_outcome == "name_mismatch" and r.last_name_on_register == "Amir Khan"   # the last readable result
+    assert r.last_unreadable_at is not None
 
 
 def test_run_spreads_the_next_check_and_never_raises(hr_admin, gmc_only, monkeypatch):
@@ -318,3 +320,147 @@ def test_a_scheduled_run_on_a_paused_body_never_happens_but_on_demand_does(hr_ad
     _answer(monkeypatch, CLEAR)
     assert lookups.scheduled(timezone.localdate())["skipped"] >= 1
     assert lookups.run(r, "on_demand", hr_admin).outcome == "clear"
+
+
+# ---- the latest readable result -------------------------------------------------------------------
+
+def test_an_unreadable_lookup_keeps_the_last_readable_result_and_a_readable_one_clears_the_mark(hr_admin, gmc_only,
+                                                                                             monkeypatch):
+    r = registrations.set_number(hr_admin, _gp(hr_admin), gmc_only, "1234567")
+    assert lookups.latest_readable(r) is None
+    _answer(monkeypatch, PROBLEM)
+    problem = lookups.run(r, "scheduled")
+    _answer(monkeypatch, UNREADABLE)
+    failed = lookups.run(r, "scheduled")
+    r.refresh_from_db()
+    assert (r.last_outcome, r.last_status_text, r.last_name_on_register) == ("problem", "Suspended", "Priya Patel")
+    assert r.last_checked_at == failed.run_at and r.last_unreadable_at == failed.run_at
+    assert lookups.latest_readable(r) == problem
+    _answer(monkeypatch, CLEAR)
+    clear = lookups.run(r, "scheduled")
+    r.refresh_from_db()
+    assert r.last_outcome == "clear" and r.last_unreadable_at is None and lookups.latest_readable(r) == clear
+
+
+def test_a_changed_number_clears_the_unreadable_mark(hr_admin, gmc_only, monkeypatch):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc_only, "1234567")
+    _answer(monkeypatch, UNREADABLE)
+    lookups.run(r, "scheduled")
+    r = registrations.set_number(hr_admin, e, gmc_only, "7654321")
+    r.refresh_from_db()
+    assert r.last_unreadable_at is None and r.last_checked_at is None
+
+
+# ---- one compliance result per person -------------------------------------------------------------
+
+def _registration_check(e):
+    [row] = [x for x in checks.state(e, timezone.localdate()) if x.check_type.code == "professional_registration"]
+    return row.latest
+
+
+def _by_body(results):
+    def answer(code, number, surname):
+        return results[code]
+    return answer
+
+
+@pytest.mark.parametrize("order", [("gmc", "mpl_wales"), ("mpl_wales", "gmc")])
+def test_a_clear_on_one_body_never_masks_a_problem_on_another(hr_admin, gp_bodies, monkeypatch, order):
+    gmc, mpl = gp_bodies
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", _by_body({"gmc": PROBLEM, "mpl_wales": Result(
+        "clear", "Included", "Priya Patel", "f" * 64)}))
+    for code in order:
+        lookups.run(Registration.objects.get(employee=e, body__code=code), "scheduled")
+    latest = _registration_check(e)
+    assert latest.outcome == Check.Outcome.NOT_CLEAR
+    expected = f"{mpl.name}: Included; {gmc.name}: Suspended" if order[-1] == "mpl_wales" else f"{gmc.name}: Suspended"
+    assert latest.note == expected
+
+
+def test_a_clear_with_another_body_not_found_or_a_wrong_name_is_not_clear(hr_admin, gp_bodies, monkeypatch):
+    gmc, mpl = gp_bodies
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    welsh = Result("clear", "Included", "Priya Patel", "f" * 64)
+    monkeypatch.setattr(adapters, "lookup", _by_body({"gmc": MISMATCH, "mpl_wales": welsh}))
+    lookups.run(Registration.objects.get(employee=e, body=gmc), "scheduled")
+    lookups.run(Registration.objects.get(employee=e, body=mpl), "scheduled")
+    latest = _registration_check(e)
+    assert latest.outcome == Check.Outcome.NOT_CLEAR
+    assert latest.note == f"{mpl.name}: Included; {gmc.name}: the register shows Amir Khan, not this person"
+
+
+def test_both_bodies_clear_is_clear(hr_admin, gp_bodies, monkeypatch):
+    gmc, mpl = gp_bodies
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", _by_body({"gmc": CLEAR, "mpl_wales": Result(
+        "clear", "Included", "Priya Patel", "f" * 64)}))
+    lookups.run(Registration.objects.get(employee=e, body=gmc), "scheduled")
+    lookups.run(Registration.objects.get(employee=e, body=mpl), "scheduled")
+    latest = _registration_check(e)
+    assert latest.outcome == Check.Outcome.CLEAR and latest.note == f"{mpl.name}: Included"
+
+
+def test_a_body_the_title_no_longer_needs_does_not_hold_back_a_clear(hr_admin, gp_bodies, monkeypatch):
+    gmc, mpl = gp_bodies
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", _by_body({"gmc": CLEAR, "mpl_wales": PROBLEM}))
+    lookups.run(Registration.objects.get(employee=e, body=mpl), "scheduled")
+    mpl.positions.clear()
+    lookups.run(Registration.objects.get(employee=e, body=gmc), "scheduled")
+    assert _registration_check(e).outcome == Check.Outcome.CLEAR
+
+
+# ---- an unverified body ------------------------------------------------------------------------------
+
+def test_no_check_is_recorded_while_the_body_is_unverified(hr_admin, gmc_only, monkeypatch):
+    gmc = gmc_only
+    gmc.verified = False
+    gmc.save()
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    for result in (CLEAR, PROBLEM):
+        _answer(monkeypatch, result)
+        assert lookups.run(r, "on_demand", hr_admin).outcome == result.outcome
+    assert not Check.objects.filter(employee=e).exists() and Lookup.objects.count() == 2
+    gmc.verified = True
+    gmc.save()
+    lookups.run(r, "on_demand", hr_admin)
+    assert Check.objects.filter(employee=e).count() == 1
+
+
+# ---- the schedule never stops on one registration -------------------------------------------------------
+
+def test_scheduled_counts_a_failing_run_as_unreadable_and_carries_on(hr_admin, gmc_only, monkeypatch, caplog):
+    first = registrations.set_number(hr_admin, _gp(hr_admin, last="Patel"), gmc_only, "1111111")
+    registrations.set_number(hr_admin, _gp(hr_admin, last="Khan"), gmc_only, "2222222")
+    _answer(monkeypatch, CLEAR)
+    real = lookups.run
+
+    def flaky(reg, *args, **kwargs):
+        if reg.pk == first.pk:
+            raise RuntimeError("Priya Patel 1111111")
+        return real(reg, *args, **kwargs)
+    monkeypatch.setattr(lookups, "run", flaky)
+    with caplog.at_level("ERROR", logger="hr.registers"):
+        counts = lookups.scheduled(timezone.localdate())
+    assert counts["run"] == 2 and counts["unreadable"] == 1 and counts["clear"] == 1
+    assert f"registration {first.pk} (gmc)" in caplog.text and "RuntimeError" in caplog.text
+    assert "Priya" not in caplog.text and "1111111" not in caplog.text
+
+
+# ---- the verified flag ------------------------------------------------------------------------------------
+
+def test_an_unverified_body_is_logged_every_night(db, monkeypatch, caplog):
+    from registers.services import nightly
+    monkeypatch.setattr(adapters, "verified", lambda code: code != "nmc")
+    with caplog.at_level("INFO", logger="hr.registers"):
+        nightly.sync_verified()
+        nightly.sync_verified()
+    lines = [r.getMessage() for r in caplog.records if "is not verified" in r.getMessage()]
+    assert lines == ["register body nmc is not verified: no saved pages to test its parser"] * 2
