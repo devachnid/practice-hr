@@ -52,13 +52,14 @@ Plain-language guides: [for HR administrators](docs/guides/hr-administrator.md) 
    employee's first [Employment](docs/admin/people.md#employment) with its
    [Position](docs/admin/people.md#position),
    [Contract](docs/admin/people.md#contract) and
-   [Working pattern](docs/admin/people.md#working-pattern).
-4. Create everyone's login accounts under **Login accounts › Add** — an
-   email and whether they are an admin, nothing else. Each person receives
-   an invitation, chooses their own password from its link, and can then
-   add a passkey. The superuser's from step 1 is the only password an admin
-   ever types. See [Login accounts](docs/admin/sign-in.md#login-accounts).
-5. Set up [absence and leave](docs/admin/absence.md): check each contract
+   [Working pattern](docs/admin/people.md#working-pattern). Saving a
+   record makes the person's login account from their work email and
+   sends the invitation; they choose their own password from its link and
+   can then add a passkey. The superuser's from step 1 is the only
+   password an admin ever types. **Login accounts › Add** remains for an
+   admin with no employee record, and the **Admin status** tick lives
+   there. See [Login accounts](docs/admin/sign-in.md#login-accounts).
+4. Set up [absence and leave](docs/admin/absence.md): check each contract
    type's annual-leave [policy](docs/admin/absence.md#policies) (the seeded
    ones carry nothing over until you set a
    [carry cap](docs/admin/absence.md#carry-over-max-weeks-carry_over_max_weeks)),
@@ -66,7 +67,7 @@ Plain-language guides: [for HR administrators](docs/guides/hr-administrator.md) 
    [earned by claims](docs/admin/absence.md#accrues)), and set each
    person's line manager, who approves their leave and TOIL claims. If you enter balances by
    hand, run the [year end](docs/admin/year-end.md#running-it-by-hand) first.
-6. If the rota (or another relying party) is signing in against this
+5. If the rota (or another relying party) is signing in against this
    system, register it — see [Registering a relying
    party](docs/admin/sign-in.md#registering-a-relying-party); that needs
    `OIDC_RSA_PRIVATE_KEY_FILE` set first (below).
@@ -264,7 +265,7 @@ locally.
        install -D deploy/hr-backup-pbs.conf /etc/systemd/system/hr-backup.service.d/pbs.conf
        systemctl daemon-reload
 
-5. **Test it, including a restore.** Run a backup, check the snapshot appears
+4. **Test it, including a restore.** Run a backup, check the snapshot appears
    under the `practice-hr` namespace, then restore it on another machine with
    only the key, and open the copy:
 

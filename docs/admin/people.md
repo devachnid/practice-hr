@@ -83,8 +83,14 @@ and the account number is eight digits, and anything else is refused.
 Links this Employee to a **login account** — see
 [Login accounts](sign-in.md#login-accounts). This link, not the work email,
 is what sign-in uses: the `employee_id` a relying party receives is this
-Employee's, found through it. Optional: leave it blank for
-someone who has no need to sign in. Without it, `hr_nightly` cannot find an
+Employee's, found through it. The add page fills it in: **Create a login
+account** (ticked by default) makes the login from the work email, or
+links the unlinked login that already has that email, and sends the
+invitation to the work email or, by **Send the invitation to**, the
+personal email (`accounts.services.logins.create_for_employee`, audited on
+the employee as a change of `user`). A work email that is already another
+person's login is refused. Untick it to choose an existing login here, or
+to give them none: leave it blank for someone who has no need to sign in. Without it, `hr_nightly` cannot find an
 account to disable when they leave (there is nothing to disable), and they
 cannot appear as themselves anywhere the app checks who is signed in.
 

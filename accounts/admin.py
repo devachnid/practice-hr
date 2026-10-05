@@ -5,12 +5,12 @@ from django.contrib.auth.admin import UserAdmin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Prefetch
 from django.utils import timezone
-from django.utils.html import format_html
 from oauth2_provider.models import Application
 from unfold.admin import ModelAdmin, TabularInline
 from unfold.decorators import action
 from unfold.forms import AdminPasswordChangeForm, UserChangeForm
 
+from .admin_messages import report_send
 from .mail import link_expires, send_password_link
 from .models import AppRole, Passkey, User
 
@@ -60,22 +60,6 @@ class LoginChangeForm(UserChangeForm):
                     user=self.instance, application=app, defaults={"is_admin": True})
             else:
                 AppRole.objects.filter(user=self.instance, application=app).update(is_admin=False)
-
-
-def _report(request, user, result, *, invite):
-    """The three outcomes of a send, as the message the admin reads. A link
-    is shown here, once, and nowhere else."""
-    what = "Invitation" if invite else "Password-reset link"
-    if result is None:
-        messages.success(request, f"{what} sent to {user.email}.")
-    elif not result.reason:
-        messages.warning(request, format_html(
-            "Email isn't set up — copy this link and send it to {} yourself: "
-            '<a href="{}">{}</a>', user.email, result.link, result.link))
-    else:
-        messages.error(request, format_html(
-            "Sending to {} failed ({}) — copy this link and send it yourself: "
-            '<a href="{}">{}</a>', user.email, result.reason, result.link, result.link))
 
 
 class PasskeyInline(TabularInline):
@@ -234,7 +218,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         if change:
             form.save_app_roles()
         else:
-            _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+            report_send(request, obj, send_password_link(request, obj, invite=True), invite=True)
 
     def get_actions_submit_line(self, request, object_id):
         """One button, chosen by state: an account with no usable password
@@ -253,11 +237,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
 
     @action(description="Send invitation again")
     def send_invitation(self, request, obj):
-        _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+        report_send(request, obj, send_password_link(request, obj, invite=True), invite=True)
 
     @action(description="Send password-reset link")
     def send_reset_link(self, request, obj):
-        _report(request, obj, send_password_link(request, obj, invite=False), invite=False)
+        report_send(request, obj, send_password_link(request, obj, invite=False), invite=False)
 
     @admin.action(description="Send invitation or reset link", permissions=["change"])
     def send_links(self, request, queryset):
@@ -277,7 +261,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
                 sent += 1
             else:
                 copies += 1
-                _report(request, user, result, invite=invite)
+                report_send(request, user, result, invite=invite)
         messages.info(request, f"{sent} sent, {copies} to copy.")
 
     @admin.display(description="Apps")

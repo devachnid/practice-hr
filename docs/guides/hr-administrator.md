@@ -65,13 +65,15 @@ Work through this in order. The rest of this guide explains each step.
 2. **Add your teams** under **People**, **Teams**, and **your job titles**
    under **People**, **Position titles** (Receptionist, Practice nurse and so
    on). A position's title is chosen from that list.
-3. **Create a login for each person** (see [How to give someone a login](#how-to-give-someone-a-login)).
-   Adding a login sends its invitation straight away and the link lasts
-   seven days. If you are not ready for staff to sign in yet, that is fine:
-   you can send fresh links later in one go.
-4. **Add each person's employee record** and link it to their login.
+3. **Add each person's employee record** (see [How to add their employee record](#how-to-add-their-employee-record)).
+   Saving it creates their login from the work email and sends its
+   invitation straight away; the link lasts seven days. If you are not
+   ready for staff to sign in yet, that is fine: you can send fresh links
+   later in one go.
+4. **Check the login list** under **Access**, **Login accounts**: everyone
+   should be there, with an **Admin status** tick only for HR admins.
 5. **Add each person's employment**, with a **position** naming their team
-   and line manager, and a **contract**. Finish step 4 for everyone first,
+   and line manager, and a **contract**. Finish step 3 for everyone first,
    so every manager is there to choose.
 6. **Add each person's working pattern.**
 7. **Record everyone's existing checks first, then assign position titles
@@ -132,33 +134,46 @@ wrong, and nothing on the page has been saved. Fix that row and save again.
 
 ## Setting someone up
 
-A person needs four things: a login, an employee record, an employment
-(with a position and a contract), and a working pattern.
-
-### How to give someone a login
-
-1. In the admin, under **Access**, open **Login accounts** and choose **+** (Add login account).
-2. Type their **Email** and tick **Admin status** only if they are to be an HR admin.
-3. Choose **Save**.
-
-What you will see: their page with a **State** such as "Invited 4 Sep, link
-expires 11 Sep". They are emailed a link to choose their own password. You
-never see or set anyone's password.
-
-If something goes wrong: if you see "Email isn't set up — copy this link…" or
-"Sending to … failed … — copy this link and send it yourself", the email did
-not go. Copy the link shown and email it to them yourself. It is shown only
-once.
+A person needs three things: an employee record (which makes their login),
+an employment (with a position and a contract), and a working pattern.
 
 ### How to add their employee record
 
 1. Under **People**, open **Employees** and choose **+** (Add employee).
 2. Fill in **First name**, **Last name** and **Work email**. Add **Preferred name** if they go by another name; it is shown everywhere instead of their first name.
-3. In **User**, choose their login.
+3. Leave **Create a login account** ticked. Their login is the work email.
+   **Send the invitation to** is the work email unless they cannot read
+   that mailbox yet, in which case fill in **Personal email** and choose
+   it here; the login is still the work email.
 4. Add personal details and emergency contacts if you have them, then choose **Save**.
 
-If something goes wrong: a warning that the linked login's email is not the
-same as the work email means you should make the two match.
+What you will see: "Invitation sent to …". They are emailed a link to
+choose their own password; the link lasts seven days. You never see or set
+anyone's password. Their login appears under **Access**, **Login accounts**
+with a **State** such as "Invited 4 Sep, link expires 11 Sep".
+
+If something goes wrong: if you see "Email isn't set up — copy this link…" or
+"Sending to … failed … — copy this link and send it yourself", the email did
+not go, but the record and the login were saved. Copy the link shown and
+email it to them yourself. It is shown only once; after that, use **Send
+invitation again** on their login account. "A login account with this email
+already belongs to …" means that work email is someone else's login:
+correct the email.
+
+### How to give someone a login by hand
+
+Only for the odd case: an HR admin with no employee record, or someone whose
+login should not be their work email.
+
+1. In the admin, under **Access**, open **Login accounts** and choose **+** (Add login account).
+2. Type their **Email** and tick **Admin status** only if they are to be an HR admin.
+3. Choose **Save**. The invitation is sent straight away.
+4. When adding their employee record, untick **Create a login account**
+   and choose the login in **User**. On an existing record just choose the
+   login in **User**.
+
+A warning that the linked login's email is not the same as the work email
+means you should make the two match.
 
 ### How to add their employment, position and contract
 
@@ -207,15 +222,17 @@ part from home before they start.
 
 ### How to set up a starter
 
-1. Give them a login (see [How to give someone a login](#how-to-give-someone-a-login)). They are emailed a link to choose a password.
-2. Add their employee record and choose their login in **User** (see [How to add their employee record](#how-to-add-their-employee-record)).
-3. Add their employment with their real **Start date**, even though it is in the future, and in **Positions** their **Title**, **Team** and **Line manager**, with **Primary** ticked (see [How to add their employment, position and contract](#how-to-add-their-employment-position-and-contract)).
-4. Choose **Save**.
+1. Add their employee record (see [How to add their employee record](#how-to-add-their-employee-record)).
+   Fill in **Personal email** and choose it under **Send the invitation
+   to**, since they cannot read the work mailbox yet. They are emailed a
+   link to choose a password; their login is the work email.
+2. Add their employment with their real **Start date**, even though it is in the future, and in **Positions** their **Title**, **Team** and **Line manager**, with **Primary** ticked (see [How to add their employment, position and contract](#how-to-add-their-employment-position-and-contract)).
+3. Choose **Save**.
 
 What you will see: under **Compliance**, **Starters and leavers** lists them,
 with the date they start and how many items are done. Open them to see the
 whole checklist and who does each item. If the page lists **Gaps**, such as
-"no line manager on the primary position", something in step 3 is missing;
+"no line manager on the primary position", something in step 2 is missing;
 the line manager's items then come to you.
 
 ### What the starter sees
