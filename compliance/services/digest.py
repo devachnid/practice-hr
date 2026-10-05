@@ -20,13 +20,18 @@ from compliance.models import ReminderSchedule, ReminderSent
 from compliance.services import schedule
 from documents.services import due as documents_due
 from onboarding.services import due as onboarding_due
+from registers.services import due as registers_due
 
 log = logging.getLogger("hr.compliance")
-SOURCES = (checks_due.due_items, documents_due.due_items, onboarding_due.due_items)
+SOURCES = (checks_due.due_items, documents_due.due_items, onboarding_due.due_items, registers_due.due_items)
 SUBJECT = "Practice HR: things due"
 
 
 def _when(item):
+    if item.kind == "registration":
+        if item.state == "missing":
+            return "not recorded"
+        return f"found {item.due_on:%-d %b %Y}"
     if item.state == "due_today":
         return "due today"
     if item.state == "due_soon":
@@ -70,9 +75,12 @@ def pending(today):
 
 
 def _body(rows, today):
-    rows = sorted(rows, key=lambda i: (i.employee.last_name, i.employee.first_name, i.employee.pk,
-                                       i.due_on, i.label))
-    lines = [{"item": i, "when": _when(i)} for i in rows]
+    def person(i):
+        e = i.employee
+        return (e.last_name, e.first_name, e.pk) if e is not None else ("", "", 0)
+    rows = sorted(rows, key=lambda i: (*person(i), i.due_on, i.label))
+    lines = [{"item": i, "when": _when(i), "who": i.employee.name if i.employee is not None else "The registers"}
+             for i in rows]
     return render_to_string("email/compliance_digest.txt", {"lines": lines, "today": today})
 
 

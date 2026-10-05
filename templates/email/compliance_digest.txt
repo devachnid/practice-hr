@@ -1,8 +1,8 @@
 {% autoescape off %}Hello,
 
 These are due, or past due, as of {{ today|date:"j M Y" }}.
-{% regroup lines by item.employee as people %}{% for person in people %}
-{{ person.grouper.name }}
+{% regroup lines by who as people %}{% for person in people %}
+{{ person.grouper }}
 {% for line in person.list %}- {{ line.item.label }}: {{ line.when }}
   {{ line.item.url }}
 {% endfor %}{% endfor %}

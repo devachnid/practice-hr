@@ -6,6 +6,7 @@ from django.utils import timezone
 from absence.services import nightly as absence_nightly
 from compliance.services import nightly as compliance_nightly
 from people.services import nightly as people_nightly
+from registers.services import nightly as registers_nightly
 
 log = logging.getLogger("hr.nightly")
 
@@ -28,3 +29,8 @@ class Command(BaseCommand):
             self.stdout.write("compliance: failed")
             raise CommandError(f"compliance step failed: {exc.__class__.__name__}") from None
         self.stdout.write(f"compliance: {result}")
+        try:
+            self.stdout.write(f"registrations: {registers_nightly.run(today)}")
+        except Exception as exc:  # noqa: BLE001 - the class only; the next night retries
+            log.error("nightly registrations step failed: %s", exc.__class__.__name__)
+            self.stdout.write("registrations: failed")
