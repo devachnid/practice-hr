@@ -334,12 +334,13 @@ def test_an_unreadable_lookup_keeps_the_last_readable_result_and_a_readable_one_
     failed = lookups.run(r, "scheduled")
     r.refresh_from_db()
     assert (r.last_outcome, r.last_status_text, r.last_name_on_register) == ("problem", "Suspended", "Priya Patel")
-    assert r.last_checked_at == failed.run_at and r.last_unreadable_at == failed.run_at
+    assert r.last_checked_at == problem.run_at and r.last_unreadable_at == failed.run_at   # when it was last READ
     assert lookups.latest_readable(r) == problem
     _answer(monkeypatch, CLEAR)
     clear = lookups.run(r, "scheduled")
     r.refresh_from_db()
     assert r.last_outcome == "clear" and r.last_unreadable_at is None and lookups.latest_readable(r) == clear
+    assert r.last_checked_at == clear.run_at
 
 
 def test_a_changed_number_clears_the_unreadable_mark(hr_admin, gmc_only, monkeypatch):

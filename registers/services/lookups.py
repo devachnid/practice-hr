@@ -1,7 +1,7 @@
 """Running lookups against the registers: one on demand, or everything due
 tonight. The one writer of Lookup rows and of the registration's
-denormalised "last" fields, which hold the latest READABLE result (an
-unreadable lookup sets only last_checked_at and last_unreadable_at); a
+denormalised "last" fields, which hold the latest READABLE result and
+when it was read (an unreadable lookup sets only last_unreadable_at); a
 clear or problem result on a verified body also records a Professional
 registration check through the checks service, one result per person.
 Never raises."""
@@ -66,6 +66,21 @@ def latest_readable(registration):
     return (registration.lookups.exclude(outcome=Lookup.Outcome.UNREADABLE).order_by("-run_at", "-pk").first())
 
 
+def run_start(registration):
+    """The oldest lookup of the unbroken run of readable lookups, newest
+    first, that share the latest readable outcome (unreadable ones are
+    passed over); None when there is no readable lookup. A standing
+    problem is dated and keyed by it, so a repeat of the same result keeps
+    its key and a changed result, or one that returns after a clear,
+    starts afresh."""
+    start = None
+    for lk in registration.lookups.exclude(outcome=Lookup.Outcome.UNREADABLE).order_by("-run_at", "-pk"):
+        if start is not None and lk.outcome != start.outcome:
+            break
+        start = lk
+    return start
+
+
 def _record_check(registration, outcome, status_text, today):
     """One compliance result per person: a Clear check only when no other
     needed registration of theirs stands at a problem, not found or a wrong
@@ -107,13 +122,13 @@ def run(registration, trigger, requested_by=None, today=None):
             registration=registration, trigger=trigger, requested_by=requested_by, outcome=result.outcome,
             status_text=result.status_text[:200], name_on_register=result.name_on_register[:120],
             page_hash=result.page_hash, error=result.status_text[:80] if result.outcome == "unreadable" else "")
-        registration.last_checked_at, registration.next_check_on = lk.run_at, _next_check(today)
-        if result.outcome == "unreadable":          # the last readable result stands
+        registration.next_check_on = _next_check(today)
+        if result.outcome == "unreadable":          # the last readable result, and when it was read, stand
             registration.last_unreadable_at = lk.run_at
         else:
             registration.last_outcome, registration.last_status_text = result.outcome, result.status_text[:200]
             registration.last_name_on_register = result.name_on_register[:120]
-            registration.last_unreadable_at = None
+            registration.last_checked_at, registration.last_unreadable_at = lk.run_at, None
         registration.save(update_fields=["last_outcome", "last_status_text", "last_name_on_register",
                                          "last_checked_at", "last_unreadable_at", "next_check_on"])
         if result.outcome in ("clear", "problem") and body.verified:      # a trial run records the lookup only

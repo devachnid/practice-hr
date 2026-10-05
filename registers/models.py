@@ -67,9 +67,10 @@ class Lookup(models.Model):
 
 class Registration(models.Model):
     """One person's number with one body. The last_outcome, last_status_text
-    and last_name_on_register fields are the latest READABLE lookup's: an
-    unreadable one sets last_checked_at and last_unreadable_at and leaves
-    them, so a site that is down never hides a standing problem."""
+    and last_name_on_register fields are the latest READABLE lookup's, and
+    last_checked_at is when it ran: an unreadable one sets only
+    last_unreadable_at and leaves them, so a site that is down never hides a
+    standing problem."""
     employee = models.ForeignKey("people.Employee", on_delete=models.PROTECT, related_name="registrations")
     body = models.ForeignKey(RegisterBody, on_delete=models.PROTECT, related_name="registrations")
     number = models.CharField(max_length=20)

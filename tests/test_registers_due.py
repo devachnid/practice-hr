@@ -66,7 +66,7 @@ def test_a_problem_goes_to_hr_and_the_manager_with_the_body_and_the_words(hr_adm
     hr_item = by[("hr@example.com", "GMC: Suspended")]
     assert hr_item.kind == "registration" and hr_item.state == "overdue"
     assert hr_item.due_on == timezone.localtime(lk.run_at).date()
-    assert hr_item.key == f"registration:{e.pk}:gmc:problem" and hr_item.once is False
+    assert hr_item.key == f"registration:{e.pk}:gmc:problem:{lk.pk}" and hr_item.once is False
     assert hr_item.url.endswith(reverse("admin:people_employee_change", args=[e.pk]))
     mgr_item = by[("mo@example.com", "GMC: Suspended")]
     assert mgr_item.url.endswith(reverse("people:team")) and mgr_item.once is False
@@ -90,14 +90,15 @@ def test_a_changed_number_drops_the_old_numbers_alert_until_the_new_one_is_looke
     e = _gp(hr_admin)
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
     monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
-    lookups.run(r, "scheduled")
+    first = lookups.run(r, "scheduled")
     assert len(_items()) == 1
     r = registrations.set_number(hr_admin, e, gmc, "7654321")
     assert _items() == []                                    # the new number has not been looked up yet
     lookups.run(r, "scheduled")
     [item] = _items()
     assert item.recipient == "hr@example.com" and item.label == "GMC: Suspended"
-    assert item.key == f"registration:{e.pk}:gmc:problem"
+    # the same result runs on unbroken (lookups do not carry the number), so its key and date stand
+    assert item.key == f"registration:{e.pk}:gmc:problem:{first.pk}"
 
 
 def test_the_label_comes_from_the_lookup_with_fallbacks_for_empty_words():
@@ -133,7 +134,7 @@ def test_unreadable_is_hrs_only_after_fourteen_days_or_a_pause(hr_admin, gmc, mo
     today = timezone.localdate()
     assert _items(today) == []
     Lookup.objects.filter(pk=lk.pk).update(run_at=lk.run_at - timedelta(days=14))
-    Registration.objects.filter(pk=r.pk).update(last_checked_at=lk.run_at - timedelta(days=14))
+    Registration.objects.filter(pk=r.pk).update(last_unreadable_at=lk.run_at - timedelta(days=14))
     [item] = _items(today)
     assert item.recipient == "hr@example.com" and item.label.startswith("GMC: could not be read since ")
     assert item.state == "overdue" and item.url.endswith(reverse("admin:registers_lookup_changelist"))
@@ -203,19 +204,56 @@ def test_the_nightly_output_has_a_registrations_line(db, capsys):
     assert "registrations: {'run': 0" in out
 
 
-def test_a_repeat_of_the_same_problem_keeps_its_key_and_a_new_kind_starts_afresh(hr_admin, gmc, monkeypatch):
+def test_a_repeat_of_the_same_problem_keeps_its_key_and_date_and_a_new_run_starts_afresh(hr_admin, gmc,
+                                                                                        monkeypatch):
     e = _gp(hr_admin)
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
     monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
-    lookups.run(r, "scheduled")
+    start = lookups.run(r, "scheduled")
+    Lookup.objects.filter(pk=start.pk).update(run_at=start.run_at - timedelta(days=3))
+    found = timezone.localtime(start.run_at - timedelta(days=3)).date()
     [first] = _items()
     lookups.run(r, "scheduled")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
+    lookups.run(r, "scheduled")                             # passed over: the run is unbroken
     [second] = _items()
-    assert first.key == second.key == f"registration:{e.pk}:gmc:problem"
+    assert first.key == second.key == f"registration:{e.pk}:gmc:problem:{start.pk}"
+    assert first.due_on == second.due_on == found           # the run's first lookup, not each repeat's
     monkeypatch.setattr(adapters, "lookup", lambda *a: Result("not_found", "No results", "", "c" * 64))
-    lookups.run(r, "scheduled")
+    changed = lookups.run(r, "scheduled")
     [third] = _items()
-    assert third.key == f"registration:{e.pk}:gmc:not_found"
+    assert third.key == f"registration:{e.pk}:gmc:not_found:{changed.pk}"
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    lookups.run(r, "scheduled")
+    assert _items() == []
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    back = lookups.run(r, "scheduled")
+    [fourth] = _items()                                      # a return after a clear is a new run
+    assert fourth.key == f"registration:{e.pk}:gmc:problem:{back.pk}" and fourth.key != first.key
+
+
+def test_a_repeat_follows_the_overdue_cadence_and_a_new_run_goes_the_next_morning(hr_admin, gmc, monkeypatch,
+                                                                                   configured):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    first = lookups.run(r, "scheduled")
+    Lookup.objects.filter(pk=first.pk).update(run_at=first.run_at - timedelta(days=1))
+    today = timezone.localdate()
+    assert digest.run(today - timedelta(days=1))["items"] == 1
+    lookups.run(r, "scheduled")                             # the same result again today: not sent again
+    assert digest.run(today)["items"] == 0
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("not_found", "No results", "", "c" * 64))
+    lookups.run(r, "scheduled")                             # a different result: a new run, sent at once
+    assert digest.run(today)["items"] == 1
+
+
+def test_run_start_is_none_without_a_readable_lookup(hr_admin, gmc, monkeypatch):
+    r = registrations.set_number(hr_admin, _gp(hr_admin), gmc, "1234567")
+    assert lookups.run_start(r) is None
+    monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
+    lookups.run(r, "scheduled")
+    assert lookups.run_start(r) is None
 
 
 def test_a_problem_then_an_unreadable_page_still_alerts(hr_admin, gmc, monkeypatch):

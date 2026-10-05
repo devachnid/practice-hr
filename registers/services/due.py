@@ -45,13 +45,14 @@ def due_items(today, sched):
                     out.append(DueItem(e, r, KIND, f"{row.body.name} number not recorded", emp.start_date, "missing",
                                        hr_url, f"registration:{e.pk}:{row.body.code}:missing"))
                 continue
-            if reg.last_checked_at is None:      # the current number has not been looked up yet: tonight
+            if reg.last_checked_at is None and reg.last_unreadable_at is None:   # not looked up yet: tonight
                 continue
             # last_outcome is "" until the current number has a readable result: an old number's is no evidence
             readable = lookups.latest_readable(reg) if reg.last_outcome else None
             if readable is not None and readable.outcome in lookups.STANDING:
-                key = f"registration:{e.pk}:{row.body.code}:{readable.outcome}"
-                found = timezone.localtime(readable.run_at).date()
+                start = lookups.run_start(reg)           # the first lookup of this run of the same result
+                key = f"registration:{e.pk}:{row.body.code}:{readable.outcome}:{start.pk}"
+                found = timezone.localtime(start.run_at).date()
                 for r in hr:
                     out.append(DueItem(e, r, KIND, _label(row.body.name, readable), found, "overdue", hr_url, key))
                 manager = active_email(access.line_manager(e, today))

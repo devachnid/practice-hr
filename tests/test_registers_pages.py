@@ -327,3 +327,26 @@ def test_a_problem_then_an_unreadable_page_still_counts_and_still_reads_hr_will_
     c = Client()
     c.force_login(user)
     assert "HR will be in touch about your GMC registration" in c.get("/people/me/").content.decode()
+
+
+def test_a_clear_then_an_unreadable_page_names_the_day_it_was_read(admin_client, hr_admin, gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    user = User.objects.create_user(email="priya@example.com", password="pw")
+    e = _gp(hr_admin, user=user)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    read = lookups.run(reg, "scheduled")
+    read_on = timezone.localtime(read.run_at) - timedelta(days=5)
+    Lookup.objects.filter(pk=read.pk).update(run_at=read_on)
+    Registration.objects.filter(pk=reg.pk).update(last_checked_at=read_on)
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("unreadable", "HTTP 503", "", "e" * 64))
+    failed = lookups.run(Registration.objects.get(pk=reg.pk), "scheduled")
+    reg.refresh_from_db()
+    assert reg.last_checked_at == read_on and reg.last_unreadable_at == failed.run_at
+    c = Client()
+    c.force_login(user)
+    assert f"Registered, checked {read_on:%-d %b %Y}." in c.get("/people/me/").content.decode()
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    failed_on = f"{timezone.localtime(failed.run_at):%-d %b %Y}"
+    assert f"Could not be read on {failed_on}; last result: Registered with a licence to practise" in body
+    assert f"{read_on:%-d %b %Y}" in body                   # the Checked column: the day it was read

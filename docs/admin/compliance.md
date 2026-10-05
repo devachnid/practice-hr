@@ -271,9 +271,10 @@ former, expir, pending, investigat, "not ", without, unregist or deregist,
 or one of the body's own problem wordings (whole words); anything else is
 *unreadable*. So a wording the parser does not know is never read as clear.
 The GMC's GP Register field is read the same way: only "Yes", "On the GP
-Register" (or "On the GP Register since" a date), "GP Register" or
-"Included" counts as on it; anything else, or no such field, is "not on the
-GP Register". A restriction field is found under its singular or plural
+Register" (or "On the GP Register since" followed by a date and nothing
+more), "GP Register" or "Included" counts as on it; anything else, such as
+"On the GP Register since 2010 - suspended", or no such field, is "not on
+the GP Register". A restriction field is found under its singular or plural
 label ("Warning" or "Warnings", "Condition" or "Conditions"). A page that is not a result
 at all is *unreadable* too, never *not found*: *not found* needs the
 register's own no-results wording, and is looked for only when the page has
@@ -291,7 +292,8 @@ There are five results:
   side. A one-word surname is compared with the last word of the
   register's name only, so "Mary Ann Lee" matches Lee and not Ann; a
   surname of several words is compared with every word after the given
-  name. The person's preferred name is never used. The name the register
+  name. Letters after the register's name (MBE, OBE, CBE, FRCGP, MRCGP,
+  FRCP, MRCP, PhD, MD) are ignored. The person's preferred name is never used. The name the register
   showed is kept on the lookup and shown on the Compliance tab.
   A clear result whose name cannot be found on the page is *unreadable*
   rather than accepted; a problem whose name cannot be found stays a
@@ -328,8 +330,8 @@ A title that needs a body but has no number recorded is listed to HR as
 
 On the person's [Compliance tab](#the-compliance-tab) the **Registrations**
 table is first. Each row shows the body, the number, the last result in the
-register's words, the name the register showed, when it was checked and the
-next check. Two links end each row:
+register's words, the name the register showed, when the register last
+answered (**Checked**) and the next check. Two links end each row:
 
 - **Check now** opens a confirmation page ("Check *name*'s *body*
   registration now?"). Nothing happens until you choose **Check now** on
@@ -373,7 +375,7 @@ registration checks)`).
 ### When a page cannot be read
 
 A page that comes back but is not a result, an error page, a reply that
-times out, or a site that has changed its layout, is recorded as **Could
+times out or is larger than 2 MB, or a site that has changed its layout, is recorded as **Could
 not read the page**, with the error's class and no more. It is not an alert
 for the person: a site change is not a clinical risk. Nor does it end one:
 the person's standing result stays the last one the register answered, so
@@ -785,7 +787,7 @@ is recorded.
 | A check that has lapsed | Once, the first time it lapses. | The person's line manager, told only that *a check has lapsed*, never which one (a manager sees counts of a report's checks, not the checks). |
 | A policy to sign | Inside the window before its sign-by date, then overdue. | The person, if their login is switched on; every HR admin as well once it is overdue, whether the person has a login or not. |
 | A checklist item | Inside the window before its due date, then overdue, until it is done or not needed. Items of a leaver checklist stop 90 days after the leaving date. | Its owner: the person, the line manager it was given to, or every HR admin. An item whose owner has no login that is switched on, or a line manager item with no manager, goes to HR instead. |
-| A registration problem: the latest readable lookup shows a problem, *not found* or the wrong name | The morning it is found (the night's lookups run just before the digest), with the body and the register's words ("found 3 Oct 2026"), then again every *Every days overdue* days while the latest readable lookup still shows it; a lookup that cannot read the page changes nothing. Another lookup with the same result does not start it afresh; a different one (a problem that becomes *not found*) does. A fresh lookup that is clear ends it; a changed number drops it until the new number has been looked up. | Every HR admin and the person's line manager, who is told the body and the words, unlike a lapsed check, because it needs acting on that day. Only for someone employed today. |
+| A registration problem: the latest readable lookup shows a problem, *not found* or the wrong name | The morning it is found (the night's lookups run just before the digest), with the body and the register's words ("found 3 Oct 2026"), then again every *Every days overdue* days while the latest readable lookup still shows it; a lookup that cannot read the page changes nothing. Another lookup with the same result does not start it afresh, and the date shown stays the day that result was first found; a different result (a problem that becomes *not found*), or a problem that comes back after a clear lookup, starts it afresh and goes the next morning. A fresh lookup that is clear ends it; a changed number drops it until the new number has been looked up. | Every HR admin and the person's line manager, who is told the body and the words, unlike a lapsed check, because it needs acting on that day. Only for someone employed today. |
 | A registration number not recorded | For a body the person's title needs and no number is recorded: from the day their employment starts, on the same cadence as an overdue item ("not recorded"). | Every HR admin. |
 | A registration page that cannot be read | A registration unreadable for 14 days, or a body that has paused, on the overdue cadence. The line carries its own date ("could not be read since 3 Oct 2026"), with nothing after it. A paused body is listed under the heading "The registers", not under a person. | Every HR admin only. |
 
@@ -805,7 +807,8 @@ again only when the numbers above say so, counted from the last time that
 recipient had it. A change to the thing itself starts it afresh: a renewed
 check (new expiry), a check that moves from *Due soon* to *Lapsed*, a
 policy's new version, a checklist item whose due date moved, a
-registration whose result changes from one kind of problem to another.
+registration whose result changes from one kind of problem to another, or
+a problem that comes back after a clear result.
 
 **Once a day.** The digest assumes it runs once a day, from `hr_nightly`:
 run again the same day, it sends only what the first run did not.
