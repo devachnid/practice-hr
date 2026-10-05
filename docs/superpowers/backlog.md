@@ -14,7 +14,12 @@ items can go straight into a tidy-up branch.
    variants before migrating, read the NI-number migration's report,
    make the media root writable by the app user, and record everyone's
    existing checks before assigning titles to the check types (the HR
-   guide's Going live section has the order).
+   guide's Going live section has the order). Since #18, adding an
+   employee record makes and invites their login from the work email, so
+   logins are no longer a separate step; the login migration from the
+   rota still runs first for people who already have rota passwords
+   (`import_logins` links by email, and the add page links an unlinked
+   login that already has the work email rather than making another).
 2. **Rota integration (spec 2).** The rota reads people, working patterns
    and approved absences from the HR read API instead of Breathe, and sends
    sessions worked back as TOIL earned lines. The HR side of the API exists;
@@ -82,6 +87,11 @@ items can go straight into a tidy-up branch.
   would be refused wholesale by `import_logins`.
 - A Breathe CSV import, only if typing opening balances is too slow.
 - Anniversary-year policy moves that straddle a window.
+- An **Admin status** tick on the employee add page, so an HR admin's
+  login need not be edited under Login accounts after it is made.
+- Reopen or re-invite from the employee page: a **Send invitation again**
+  there, rather than through Login accounts, for a starter whose link
+  expired.
 
 ## Excluded on purpose (spec §"Not done")
 
@@ -109,3 +119,7 @@ and Bradford factor; automatic deletion under retention; multi-practice.
   awaiting count.
 - A password signature on a policy also opens the passkey-enrolment
   window, as any password confirmation does.
+- Login accounts › Add still sends its invitation inside the add
+  transaction (the relay call holds SQLite's write lock for up to the
+  email timeout); the employee add page sends on commit instead. Move the
+  Login accounts send to `transaction.on_commit` the same way.
