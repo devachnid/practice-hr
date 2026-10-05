@@ -1,7 +1,8 @@
 """One adapter per register body: url(number) for the public page and
-parse(lines) -> (outcome, status_text, name). lookup() is the only entry
-point the services use; verified() says whether a body's parser has saved
-real pages to test against (registers/adapters/fixtures/README.md)."""
+parse(lines, number) -> (outcome, status_text, name). lookup() is the only
+entry point the services use; verified() says whether a body's parser has
+saved real pages to test against (the fixtures folder; its README arrives
+with the capture command)."""
 from dataclasses import dataclass
 from pathlib import Path
 

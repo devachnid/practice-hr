@@ -16,7 +16,7 @@ class FetchError(Exception):
 
 def user_agent():
     site = settings.SITE_URL.rstrip("/")
-    if site.startswith("http"):
+    if site.startswith(("http://", "https://")):
         return f"PracticeHR/1.0 (+{site}; registration checks)"
     return "PracticeHR/1.0 (registration checks)"
 
