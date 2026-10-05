@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% comment %}FileAdmin.supersede_file: mark this file replaced by another of the
+same person's files, through files.supersede. Both are kept.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:documents_file_change' file.pk %}" class="underline">{{ file }}</a> ({{ file.employee }})</p>
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    {% if form.non_field_errors %}<div role="alert" class="text-red-600">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    {% for field in form %}
+      <div class="flex flex-col gap-1">
+        <label for="{{ field.id_for_label }}" class="font-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% for e in field.errors %}<p role="alert" class="text-red-600">{{ e }}</p>{% endfor %}
+        <p class="text-font-subtle-light dark:text-font-subtle-dark">{{ field.help_text }}</p>
+      </div>
+    {% endfor %}
+    <p>Both files are kept. From now on the person's record shows the replacement, not this one. This cannot be undone here.</p>
+    <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Supersede</button></div>
+  </form>
+</div>
+{% endblock %}

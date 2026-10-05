@@ -28,6 +28,14 @@
       <p>No current employment.</p>
     {% endif %}
   </section>
+  {% if checklist_items %}
+  <section class="card">
+    <h2>Your checklist</h2>
+    {% include "onboarding/_checklist.html" with items=checklist_items back="me" %}
+  </section>
+  {% endif %}
+  {% include "people/_checks.html" %}
+  {% include "people/_documents.html" %}
   <section class="card">
     <h2>Personal details</h2>
     <form method="post">{% csrf_token %}{{ form.as_div }}<div class="form-actions"><button type="submit" class="btn btn-primary">Save</button></div></form>

@@ -97,6 +97,7 @@ def navigation(request):
         {"title": "People", "separator": False, "items": [
             _nav_item("Employees", "badge", "admin:people_employee_changelist"),
             _nav_item("Employments", "work", "admin:people_employment_changelist"),
+            _nav_item("Position titles", "work_outline", "admin:people_positiontitle_changelist"),
             _nav_item("Teams", "groups", "admin:people_team_changelist"),
             _nav_item("Contract types", "description", "admin:people_contracttype_changelist"),
             _nav_item("Audit log", "history", "admin:people_auditentry_changelist"),
@@ -110,6 +111,17 @@ def navigation(request):
             _nav_item("Absences", "beach_access", "admin:absence_absence_changelist"),
             _nav_item("Payroll", "payments", "absence:payroll"),
             _nav_item("Retention", "auto_delete", "people:retention"),
+        ]},
+        {"title": "Compliance", "separator": True, "items": [
+            _nav_item("Check types", "fact_check", "admin:checks_checktype_changelist"),
+            _nav_item("Checks", "verified_user", "admin:checks_check_changelist"),
+            _nav_item("Files", "folder", "admin:documents_file_changelist"),
+            _nav_item("Policies", "policy", "admin:documents_policy_changelist"),
+            _nav_item("Signatures", "draw", "admin:documents_signature_changelist"),
+            _nav_item("Checklist templates", "checklist", "admin:onboarding_checklisttemplate_changelist"),
+            _nav_item("Checklists", "task_alt", "admin:onboarding_checklist_changelist"),
+            _nav_item("Starters and leavers", "how_to_reg", "onboarding:hr_list"),
+            _nav_item("Reminder settings", "notifications", "admin:compliance_reminderschedule_changelist"),
         ]},
         {"title": "Access", "separator": True, "items": [
             _nav_item("Login accounts", "key", "admin:accounts_user_changelist"),

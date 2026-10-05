@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% comment %}PolicyAdmin.issue_version: a new version of one policy, through
+policies.issue.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:documents_policy_change' policy.pk %}" class="underline">{{ policy }}</a></p>
+  <form method="post" enctype="multipart/form-data" class="flex flex-col gap-4">{% csrf_token %}
+    {% if form.non_field_errors %}<div role="alert" class="text-red-600">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    {% for field in form %}
+      <div class="flex flex-col gap-1">
+        <label for="{{ field.id_for_label }}" class="font-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% for e in field.errors %}<p role="alert" class="text-red-600">{{ e }}</p>{% endfor %}
+        <p class="text-font-subtle-light dark:text-font-subtle-dark">{{ field.help_text }}</p>
+      </div>
+    {% endfor %}
+    <p>Issued as you. From now on this is the version people sign: everyone the policy applies to is asked to sign it, including those who signed an earlier one.</p>
+    <div><button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Issue this version</button></div>
+  </form>
+</div>
+{% endblock %}

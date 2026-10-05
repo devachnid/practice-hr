@@ -3,13 +3,13 @@ from django.db import transaction
 from django.db.models import Q
 
 from people.models import Position
-from people.services import audit
+from people.services import audit, titles
 
 
 def on(employment, day):
     return Position.objects.filter(
         employment=employment, from_date__lte=day
-    ).filter(Q(to_date__isnull=True) | Q(to_date__gte=day)).select_related("team", "line_manager")
+    ).filter(Q(to_date__isnull=True) | Q(to_date__gte=day)).select_related("title", "team", "line_manager")
 
 
 def primary_on(employment, day):
@@ -76,12 +76,18 @@ def check_end(position, to_date):
 
 @transaction.atomic
 def add(actor, employment, title, team, line_manager, from_date, primary=True, to_date=None):
+    """`title` is a PositionTitle; a name is accepted and looked up."""
+    if isinstance(title, str):
+        title = titles.get_or_create(title)
     check_add(employment, line_manager, from_date, primary, to_date)
     pos = Position(employment=employment, title=title, team=team, line_manager=line_manager,
                    primary=primary, from_date=from_date, to_date=to_date)
     pos.full_clean()
     pos.save()
     audit.record(actor, pos, {"created": ("", f"{title}, {team}, reports to {line_manager or 'nobody'}")})
+    from onboarding.services import checklists   # here: onboarding imports this module
+    # a starter checklist picks up its title and manager; an error there never stops the save
+    checklists.guarded(actor, employment, "starter", checklists.position_added, pos)
     return pos
 
 

@@ -67,3 +67,43 @@ def may_record_for(user, employment, day):
     if can_view_restricted(user):
         return True
     return me is not None and route_for(employment, day) == me
+
+
+def can_view_file(user, file):
+    """HR always; the person their own unless HR-only; any employee a
+    policy version's file (category Policy, no person: the policies page's
+    Read link); nobody else (managers never see documents)."""
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    if me is None:
+        return False
+    if file.category == "policy" and file.employee_id is None and not file.hr_only:
+        return True
+    return file.employee_id == me.pk and not file.hr_only
+
+
+def can_view_checks(user, employee):
+    """A person's checks in detail: HR always, and the person themselves
+    (never HR's note: the page leaves it out). A line manager sees only a
+    per-report summary (checks.summary) on My team, never the detail."""
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    return me is not None and me.pk == employee.pk
+
+
+def is_pre_start(user, day):
+    """A starter before their first day: a login linked to an employee with
+    no current employment and one that starts after `day`. Never an HR
+    admin (or superuser): HR is never gated, whatever their own record says."""
+    if can_view_restricted(user):
+        return False
+    me = employee_for(user)
+    return me is not None and employee_is_pre_start(me, day)
+
+
+def employee_is_pre_start(employee, day):
+    """The person has no current employment and one that starts after `day`."""
+    return (employments.current(employee, day) is None
+            and employee.employments.filter(start_date__gt=day).exists())

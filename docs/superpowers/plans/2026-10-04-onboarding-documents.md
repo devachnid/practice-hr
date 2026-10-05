@@ -2269,3 +2269,26 @@ def test_retention_report_lists_the_new_categories(admin_client, hr_admin, setti
 - **Type consistency.** `checks.state` returns `Row` objects (`.status`, `.latest`, `.check_type`, `.expires_on`) everywhere; `policies.owed` returns `Owed` (`.version`, `.due_on`, `.state`); link strings are exact in Tasks 6 and 7; `DueItem` fields match between Task 8's contract and each app's producer; `ReminderSchedule.get()` is the only way to read the cadence.
 - **Review Focus pins:** 1 → `test_a_pdf_that_is_really_html_is_refused_and_nothing_written` (Task 3); 2 → `test_a_starter_without_a_manager_is_a_gap_not_a_failure` (Task 6); 3 → `test_a_new_version_is_owed_again_and_the_old_one_never_is` (Task 5); 4 → `test_y_bigger_than_x_still_sends_at_window_start_and_on_the_day` (Task 8); 5 → `test_renaming_a_title_moves_every_position_with_it` (Task 1).
 - **Known judgement calls for the executor:** `RECENT_DAYS = 30` for "recent start"; the manager's lapsed notice uses `once=True`; policy files are readable by any signed-in employee the policy applies to (extend `can_view_file` for `category == POLICY`); the self-service `details` item is closed by HR's Done, not by the form submit.
+
+## Execution notes (2026-10-04)
+
+Executed as nine subagent-driven tasks in sequence on branch `feature/onboarding-documents`, each with its own review and fix rounds, then a whole-branch review, one fix wave and one scoped re-review. The whole-branch review found the Task 7 "must fix" (NI-number normalisation) had been queued but never executed, so the fix wave carried it; the wave also added evidence requests before day one, the details item routing to HR once submitted, unanswered requests counting as missing, gapped and empty checklists staying visible, the required evidence file on a clear outcome, guarded checklist building, and the Supersede action. Suite: 1272 tests (52 added by the fix wave, 1220 before it); ruff and makemigrations --check clean.
+
+**Rulings made while executing:**
+
+- `compliance` is a Django app (models for the schedule and the sent log) rather than the plain package the spec named.
+- Occupational-health and Hep B evidence is filed under the person's own occupational-health category, not as a certificate, so it is not HR-only; managers never see files and HR views are audited.
+- Clearing a leaving date closes the leaver checklist (open items become not needed with the note "leaving date cleared"); a later leaving date keeps those items and appends fresh ones, nothing is deleted.
+- A checklist built after its conditions are already met starts with those linked items done; a `check:` item counts as met, at build or by hook, only by a clear check that has not expired.
+- The self-service details form is reachable only while the person has an open details item; after it is sent the item shows "Sent – HR will check it" and the reminder goes to HR, who closes it with Done. Contact details stay editable on My record.
+- A pre-start starter cannot sign in to the rota; before day one they see Getting started, the details form and any evidence HR has asked for.
+- An unanswered evidence request on a required check, once the employment has started, is chased as missing by the digest and the dashboard; the pages keep the Awaiting label.
+- A clear outcome on a file-evidence check needs its file; DBS never stores one. HR cannot repoint evidence already recorded.
+- A checklist is never auto-completed while it has no items; empty and gapped checklists stay on Starters and leavers until HR completes them. Templates are deactivated, never deleted.
+- Checklist building runs inside a savepoint: a failure is logged by class and recorded as a gap, and never fails the employment save.
+- Any signed-in employee may read any policy version file (policies are staff-facing documents).
+- HR's view of a person's checks on the Compliance tab is audited as "checks"; the Checks changelist is not.
+- Retention keeps listing checks, files and signatures per category; deletion has no path yet (backlog).
+- Stored NI numbers are normalised by a data migration (strip, uppercase); rows that still fail the format are left and reported by pk; typed values are normalised on both forms; a stale value shows as a form error on My record.
+
+**Deferred (recorded, not blocking):** whitespace and case variants of existing position titles become separate rows (de-duplicate on live data before deploy); `checks.state` and `policies.state` run a query per row; a renewal request on a due-soon or lapsed type is outside the manager's awaiting count; a password signature also opens the passkey-enrolment window; Signature and File rows protect their employee, so deleting someone under retention needs its own path; leaver and starter manager items keep an owner who has since left; a historical end date builds an overdue leaver checklist; the gate and nav flag cost a few queries per page; Remove on the HR checklist page has no confirmation; employees past the recent-start window with no checklist cannot self-edit bank details (HR does it); `ReminderSchedule.get()` bootstraps the singleton on an admin GET; `ReminderSent` is never pruned; the pages use a fixed 60-day window for "due soon" while reminders use the setting; the dashboard card recomputes on every load.

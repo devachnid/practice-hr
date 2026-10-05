@@ -10,7 +10,7 @@ returns None); axes and ModelBackend do that.
 
 from django.contrib.auth.backends import BaseBackend
 
-HR_APPS = {"accounts", "people", "absence"}
+HR_APPS = {"accounts", "people", "absence", "documents", "checks", "onboarding", "compliance"}
 
 
 def _is_hr_admin(user):

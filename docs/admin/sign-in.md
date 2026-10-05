@@ -133,6 +133,17 @@ disabled, does nothing extra. It never re-enables anyone — a returner's
 login is turned back on by hand, from their account page, once their new
 Employment spell is added.
 
+It prints one line per app with what it did. **people:** `logins_disabled`.
+**absence:** the leave-year, pot and bank-holiday counts and `chased`
+([Year end](year-end.md), [Absence](absence.md)). **compliance:** the
+morning [reminders](compliance.md#reminders): `reminders_sent` (emails
+that went, one per recipient), `reminders_failed` (emails the relay
+refused, also listed as email failures) and `items` (lines in the emails
+that went). With no outgoing email configured all three are 0. Each line
+is printed as its step finishes; if the reminders step fails it prints
+`compliance: failed`, logs the kind of error, and the run exits with an
+error so the timer's status shows it.
+
 ## The OpenID Connect provider
 
 This system is an OpenID Connect **provider** for the practice's other

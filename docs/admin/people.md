@@ -1,6 +1,7 @@
 # People
 
-**Where:** sidebar › People › Employees / Employments / Working patterns / Teams / Contract types.
+**Where:** sidebar › People › Employees / Employments / Position titles / Teams / Contract types / Audit log.
+Working patterns are on the admin home page, under People.
 
 ## The mental model
 
@@ -16,13 +17,20 @@ below. A change is a new row, not an edit to the old one, so the record
 always shows what was true on any past day, not just what is true now.
 
 **Nothing is deleted.** There is no delete button anywhere in this section
-of the admin. An Employee, Employment, Position, Contract, Team, Contract
-type or Working pattern stays in the database forever; ending a spell or
+of the admin. An Employee, Employment, Position, Position title, Contract,
+Team, Contract type or Working pattern stays in the database forever; ending a spell or
 role is done with its end date, never by removing the row.
 
 ## Employee
 
 `/admin/people/employee/`
+
+An existing person's page has two tabs: **Details** (the fields below) and
+**Compliance** (see [The Compliance tab](#the-compliance-tab)). The list
+has a **Compliance** filter: *Lapsed checks*, *Missing checks*, *Overdue
+signatures* or *Overdue checklist items* shows only the people with one or
+more. The numbers on the admin home page's **Compliance** card open this
+list with that filter chosen.
 
 ### Name fields
 
@@ -59,6 +67,17 @@ Employee page that has an NI number, the audit log records the view (kind
 that depends on its format being checked, so a typo here has no effect
 beyond being wrong on a report that reads it.
 
+### Bank details
+
+Account name, sort code and account number, for the payroll
+[Starters sheet](payroll.md#the-sheets). **Visible to HR admins only**, like the
+NI number: anyone without [HR admin status](sign-in.md#admin-status) sees the
+page with the three fields absent. Each time an HR admin opens an Employee page
+that has a sort code or account number, the audit log records the view (kind
+*Viewed*, field `bank`). The starter can enter them in self-service, or HR
+can enter them here. They are checked: the sort code is stored as `NN-NN-NN`
+and the account number is eight digits, and anything else is refused.
+
 ### User
 
 Links this Employee to a **login account** — see
@@ -75,6 +94,31 @@ An inline list on the Employee page: name, relationship, phone, and a
 priority (lower is contacted first). Add, edit or remove as many as needed;
 these are the one exception to "nothing is deleted" in this section, because
 a contact detail that is wrong is simply wrong, not history.
+
+### The Compliance tab
+
+Read-only: a summary of where the person stands, with a link beside each
+row to act on it. Nothing on it is saved. Opening it writes a *Viewed*
+entry (*checks*) to the [audit log](#audit-log) when it lists any check,
+as opening a check does; nothing else.
+
+- **Checks** — one row per check type their title needs, plus any other
+  type they have a check of, with its [status](compliance.md#what-each-status-means)
+  and expiry. **Open** goes to the recorded check, **Open the request** to a
+  request for evidence still waiting, and **Record** to the record form with
+  the person and the type filled in. Someone who has not started yet is
+  shown as they will stand on their first day: what their title will need,
+  and whether each check will be current then.
+- **Policies** — each policy that applies to them, the version they are
+  asked to sign, *Signed on* a date, *Awaiting signature* or *Overdue*, and
+  the sign-by date. **Open** goes to the signature, **Open the policy** to a
+  policy not yet signed.
+- **Open checklist items** — every open item on their starter and leaver
+  checklists, whoever owns it, with its due date (marked *overdue* once it
+  has passed). **Open the checklist** goes to its page under Starters and
+  leavers, where it can be closed.
+
+See [Compliance](compliance.md) for what each part means.
 
 ## Employment
 
@@ -131,7 +175,9 @@ is the **primary** one.
 
 ### Title / Team
 
-Free text and a link to [Team](#team). Team drives the [team headcount
+Title is chosen from **People › Position titles**; add a new title there
+first. Renaming a title renames it on every position. Team is a link to
+[Team](#team). Team drives the [team headcount
 warning](#team) and nothing else in this release.
 
 ### Primary
@@ -160,6 +206,20 @@ admin group instead of a named person. Two rules are enforced when saving:
 
 The position's own dated span, independent of the employment's. **Existing
 positions only end** — see [Changing something](#changing-something).
+
+## Position title
+
+`/admin/people/positiontitle/` — the job titles the practice uses:
+Receptionist, Practice nurse, Salaried GP and so on. A position's title is
+chosen from this list, so add a title here before the first position that
+needs it. Check types, policies and checklist templates say who they apply
+to by title, which is why a title is a row here rather than free text.
+
+**Name** is what everyone sees; each is used once. Renaming a title renames
+it on every position that has it, past and present, and everything aimed at
+it follows, so rename only to correct a title, not to give someone a new
+job (that is a new position: see [Changing something](#changing-something)).
+**Display order** sorts the list. A title cannot be deleted.
 
 ## Team
 
@@ -336,7 +396,8 @@ deleted here by hand. One row is written automatically for every field a
 service function changes (a **Change** entry, with the before and after
 values) and for every view of a restricted section (a **Viewed** entry —
 opening an Employment page with pay records, see [Pay record](#pay-record),
-or an Employee page with an NI number, see [NI number](#ni-number)). Filter
+or an Employee page with an NI number, see [NI number](#ni-number), or
+with checks on its [Compliance tab](#the-compliance-tab)). Filter
 by kind or model, or search the actor's email, the field, before/after and
 note columns.
 
@@ -356,16 +417,25 @@ deleting is a manual decision in this release.
 The period runs from the end of the person's **last employment**. Anyone with
 a current or future employment (a returner) is never listed. Each row is one
 person with the categories that are overdue, since when, and by how many days.
-No figures or absence detail appear. The four categories and their defaults:
+No figures or absence detail appear. The categories and their defaults:
 
-| Category | Default |
-|---|---|
-| Personal record | 2190 days (six years) |
-| Pay records | 2190 days |
-| Health records | 2190 days |
-| Audit log | 2555 days (seven years) |
+| Category | Shown as | Default | Variable |
+|---|---|---|---|
+| `personal` | Personal record | 2190 days (six years) | `RETENTION_DAYS_PERSONAL` |
+| `pay` | Pay records | 2190 days | `RETENTION_DAYS_PAY` |
+| `health` | Health records | 2190 days | `RETENTION_DAYS_HEALTH` |
+| `audit` | Audit log | 2555 days (seven years) | `RETENTION_DAYS_AUDIT` |
+| `checks` | Pre-employment and other checks | 2190 days | `RETENTION_DAYS_CHECKS` |
+| `files` | Stored files | 2190 days | `RETENTION_DAYS_FILES` |
+| `signatures` | Policy signatures | 2190 days | `RETENTION_DAYS_SIGNATURES` |
 
-Change one with `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`,
-`RETENTION_DAYS_HEALTH` or `RETENTION_DAYS_AUDIT` in `/etc/practice-hr.env`. The
+*Checks* are the person's [recorded checks](compliance.md#checks), *files*
+the documents stored against them under [Files](compliance.md#files), and
+*signatures* their [policy signatures](compliance.md#what-a-signature-records).
+A DBS certificate is never stored, so there is none to remove. Every
+category is listed for every leaver once its period has passed, whether or
+not they have anything in it.
+
+Change one with its variable in `/etc/practice-hr.env`. The
 value is a whole number of days, 1 or more; anything else stops the app
 starting, with a message naming the variable.

@@ -1,0 +1,13 @@
+{% comment %}The person's answer to an awaiting check (asked): the upload form
+for a type that takes a file, once; otherwise what happens next.{% endcomment %}
+{% if asked.evidence_id %}
+  Sent. HR will record it.
+{% elif asked.check_type.evidence == "file" %}
+  <form method="post" action="{% url 'checks:upload' asked.pk %}" enctype="multipart/form-data" class="check-upload">{% csrf_token %}
+    <label for="check-file-{{ asked.pk }}">Upload your {{ asked.check_type.name|lower }} evidence</label>
+    <input type="file" name="file" id="check-file-{{ asked.pk }}" accept=".pdf,.jpg,.jpeg,.png,.docx" required>
+    <button type="submit" class="btn btn-primary">Upload</button>
+  </form>
+{% else %}
+  HR will record this with you.
+{% endif %}

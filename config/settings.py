@@ -70,6 +70,10 @@ INSTALLED_APPS = [
     "accounts",
     "people",
     "absence",
+    "documents",
+    "checks",
+    "onboarding",
+    "compliance",
 ]
 
 MIDDLEWARE = [
@@ -85,6 +89,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
+    # after authentication and axes: request.user is set (onboarding/middleware.py)
+    "onboarding.middleware.PreStartGate",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -101,6 +107,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "people.context_processors.roles",
                 "accounts.context_processors.signed_in_recently",
+                "onboarding.context_processors.pre_start",
             ],
             # hr/ is admin-site wiring, not an installed app (see hr/admin_site.py's
             # own docstring), so its {% load design %} tag library needs this
@@ -193,14 +200,16 @@ UNFOLD = {
 CHASE_AFTER_WORKING_DAYS = int(os.environ.get("CHASE_AFTER_WORKING_DAYS", "3"))
 
 # How long after an employment ends each category of record may be kept, in
-# days: six years, and seven for the audit trail. Each is overridable by a
+# days: six years (checks, files and policy signatures included), and seven
+# for the audit trail. Each is overridable by a
 # RETENTION_DAYS_<CATEGORY> environment variable. The retention report only
 # lists what is past its period; nothing is deleted automatically.
 def _retention_days():
     from django.core.exceptions import ImproperlyConfigured
 
     days = {}
-    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555)):
+    for category, default in (("personal", 2190), ("pay", 2190), ("health", 2190), ("audit", 2555),
+                             ("checks", 2190), ("files", 2190), ("signatures", 2190)):
         name = f"RETENTION_DAYS_{category.upper()}"
         raw = os.environ.get(name)
         if raw is None:
@@ -232,6 +241,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # code tree is read-only there; backup.sh archives it.
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT") or BASE_DIR / "media")
 MEDIA_URL = "media/"
+# Uploaded documents (documents.services.files): PDF, JPEG, PNG or DOCX, at
+# most this size. They live under MEDIA_ROOT/documents and are streamed only
+# by files.open, which checks access and audits the view.
+DOCUMENT_MAX_BYTES = 10 * 1024 * 1024
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     # The manifest storage requires a collectstatic run, which the test suite

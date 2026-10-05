@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% comment %}documents:policies — the person's policies (policies.state): each
+that applies to them, its current version, a status, the Read link (the
+audited download) and, until they have signed it, Sign.{% endcomment %}
+{% block title %}Policies{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Policies</h1></div>
+{% if employee is None %}
+  <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
+{% else %}
+<p class="muted">The practice's policies that apply to you. Read each one, then sign to confirm you have read and understood it. When a policy is updated you are asked to sign the new version.</p>
+<section class="card">
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Policy</th><th scope="col">Version</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <th scope="row">{{ row.policy.title }}</th>
+        <td>{{ row.version.label }}</td>
+        <td>{% if row.status == "signed" %}<span class="badge badge-ok">Signed on {{ row.signature.signed_at|date:"j M Y" }}</span>
+          {% elif row.status == "overdue" %}<span class="badge badge-warning">Overdue</span> <span class="muted">due {{ row.due_on|date:"j M Y" }}</span>
+          {% else %}<span class="badge badge-muted">Awaiting signature</span> <span class="muted">by {{ row.due_on|date:"j M Y" }}</span>{% endif %}</td>
+        <td class="row-actions">
+          <a href="{% url 'documents:download' row.version.file_id %}" class="btn btn-quiet" download>Read</a>
+          {% if not row.signature %}<a href="{% url 'documents:sign' row.version.pk %}" class="btn btn-primary">Sign</a>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No policies to sign.</p>
+  {% endif %}
+</section>
+{% endif %}
+</div>
+{% endblock %}

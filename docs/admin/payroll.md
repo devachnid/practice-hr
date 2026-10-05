@@ -11,7 +11,7 @@ same and prints where the file went.
 
 | Sheet | Holds |
 |---|---|
-| Starters | Employments that began in the month, with their contract on the first day |
+| Starters | Employments that began in the month, with their contract on the first day and their bank details |
 | Leavers | Employments that ended in the month, with the reason, and each leaver's balance in every allowance-backed leave type at the end of their last day (other ledger lines dated after it are left out; the entitlement, pro-rated for leaving, is always counted). A negative balance is leave taken beyond the allowance; a positive one is leave unused. Blank means no allowance was open then |
 | Contract changes | Contracts that began or ended in the month, with their notes |
 | Pay changes | [Pay records](people.md) that began in the month |
@@ -22,7 +22,9 @@ same and prints where the file went.
 
 Columns, in order:
 
-- **Starters:** Name, Start, Contract type, Weekly amount, Unit.
+- **Starters:** Name, Start, Contract type, Weekly amount, Unit, Account name,
+  Sort code, Account number (the starter's [bank details](people.md#bank-details),
+  blank until entered).
 - **Leavers:** Name, Last day, Reason, Unit, then one "*type* balance" column
   per allowance-backed type ([the rule](#the-leaver-balance-rule)).
 - **Contract changes:** Name, From, To, Weekly amount, Unit, Basis, Notes.

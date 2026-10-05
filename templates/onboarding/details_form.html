@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% comment %}onboarding:details — the person's own details and emergency
+contacts (employees.update, employees.set_emergency_contacts), while the
+details item is open. Saving does not tick the item off: HR does, after
+checking, and then the page is gone.{% endcomment %}
+{% block title %}Your details{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Your details</h1><a href="{% url 'onboarding:getting_started' %}">Getting started</a></div>
+  <p class="muted">What the practice needs to pay you and to reach you and your contacts in an emergency. Only you and HR see these. You can come back and change them until HR has checked them and ticked this off your list.</p>
+  <form method="post">{% csrf_token %}
+    <section class="card">
+      <h2>About you</h2>
+      {{ form.as_div }}
+    </section>
+    <section class="card">
+      <h2>Emergency contacts</h2>
+      <p class="muted">Up to three, the first the one to call first.</p>
+      {{ contacts.management_form }}
+      {% for f in contacts.non_form_errors %}<p class="field-error" role="alert">{{ f }}</p>{% endfor %}
+      {% for cf in contacts %}
+        <fieldset class="field-group">
+          <legend>Contact {{ forloop.counter }}</legend>
+          {{ cf.as_div }}
+        </fieldset>
+      {% endfor %}
+    </section>
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Save</button></div>
+  </form>
+</div>
+{% endblock %}

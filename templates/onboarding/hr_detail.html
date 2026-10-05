@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% comment %}onboarding:hr_detail — one checklist for HR: every item with its
+owner and state; a linked item says what closes it and links to where HR
+does it (views._linked); Done (with a note), Not needed (a reason is
+required) and Remove on each; and Add item. The details item is closed here, by Done,
+once HR has checked the person's details in the admin.{% endcomment %}
+{% block title %}{{ checklist.get_kind_display }} checklist: {{ employee.name }}{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>{{ checklist.get_kind_display }} checklist: {{ employee.name }}</h1><a href="{% url 'onboarding:hr_list' %}">Starters and leavers</a></div>
+<p class="muted">{% if checklist.kind == "starter" %}Starts {{ checklist.employment.start_date|date:"j M Y" }}{% else %}Leaves {{ checklist.employment.end_date|date:"j M Y" }}{% endif %}. {{ summary.done }} of {{ summary.total }} done{% if summary.overdue %}, {{ summary.overdue }} overdue{% endif %}{% if checklist.completed_at %}; complete since {{ checklist.completed_at|date:"j M Y" }}{% endif %}. <a href="{{ employee_admin_url }}">Their record</a></p>
+{% if gaps %}
+<section class="card">
+  <h2>Gaps</h2>
+  <ul>{% for g in gaps %}<li>{{ g }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+<section class="card">
+  <h2>Items</h2>
+  {% if items %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Item</th><th scope="col">Owner</th><th scope="col">Due</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>
+    {% for item in items %}
+      <tr>
+        <th scope="row">{{ item.title }}{% if item.instruction %}<br><span class="muted">{{ item.instruction }}</span>{% endif %}{% if item.link == "details" and item.state == "open" %}<br><span class="muted">{% if item.submitted_at %}Sent {{ item.submitted_at|date:"j M Y" }}. {% else %}They fill in their details form. {% endif %}Check <a href="{{ employee_admin_url }}">their details</a>, then mark it done.</span>{% elif item.linked %}<br><span class="muted">{{ item.linked.text }}{% if item.linked.url %} <a href="{{ item.linked.url }}">{{ item.linked.label }}</a>{% endif %}</span>{% endif %}</th>
+        <td>{{ item.get_owner_display }}{% if item.owner != "hr" %}: {{ item.owner_employee.name|default:"nobody" }}{% endif %}</td>
+        <td>{{ item.due_on|date:"j M Y" }}</td>
+        <td>{% if item.state == "open" %}{% if item.due_on < today %}<span class="badge badge-warning">Overdue</span>{% else %}<span class="badge badge-muted">Open</span>{% endif %}
+          {% else %}<span class="badge {% if item.state == 'done' %}badge-ok{% else %}badge-muted{% endif %}">{{ item.get_state_display }}</span>
+          <span class="muted">{{ item.done_at|date:"j M Y" }}{% if item.done_by %}, {{ item.done_by.email }}{% endif %}{% if item.note %}: {{ item.note }}{% endif %}</span>{% endif %}</td>
+        <td class="row-actions">
+          {% if item.state == "open" %}
+          <form method="post" action="{% url 'onboarding:complete' item.pk %}" class="kit-form">{% csrf_token %}
+            <input type="hidden" name="next" value="hr">
+            <label for="done-note-{{ item.pk }}" class="visually-hidden">Note for {{ item.title }}</label>
+            <input type="text" name="note" id="done-note-{{ item.pk }}" maxlength="200" class="inline-input" placeholder="Note (optional)">
+            <button type="submit" class="btn btn-primary">Done</button>
+          </form>
+          <form method="post" action="{% url 'onboarding:not_needed' item.pk %}" class="kit-form">{% csrf_token %}
+            <label for="nn-note-{{ item.pk }}" class="visually-hidden">Why {{ item.title }} is not needed</label>
+            <input type="text" name="note" id="nn-note-{{ item.pk }}" maxlength="200" class="inline-input" placeholder="Why not" required>
+            <button type="submit" class="btn btn-quiet">Not needed</button>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'onboarding:remove_item' item.pk %}">{% csrf_token %}
+            <button type="submit" class="btn btn-quiet">Remove</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No items.</p>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Add an item</h2>
+  <form method="post" action="{% url 'onboarding:add_item' checklist.pk %}">{% csrf_token %}
+    {{ add_form.as_div }}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Add</button></div>
+  </form>
+</section>
+</div>
+{% endblock %}

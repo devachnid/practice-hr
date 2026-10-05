@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% comment %}onboarding:getting_started — the person's own checklist items
+(_checklist.html), the checks HR has asked them for evidence of
+(people/_check_upload.html, as on My record) and the policies they still
+have to sign. Before their
+start date this is the one page a starter sees (onboarding.middleware), and
+base.html leaves the navigation out.{% endcomment %}
+{% block title %}Getting started{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Getting started</h1></div>
+{% if employee is None %}
+  <p class="notice">There is no employee record linked to your login yet. Ask the practice manager.</p>
+{% else %}
+  <p class="muted">{% if is_pre_start and start_date %}Welcome. You start on {{ start_date|date:"l j F" }}. {% endif %}Here is what to do before and after your first day. Each item is ticked off when it is done: some by themselves, some by HR once they have checked.{% if is_pre_start %} The rest of Practice HR opens on your first day.{% endif %}</p>
+  <section class="card">
+    <h2>Your checklist</h2>
+    {% include "onboarding/_checklist.html" with back="start" %}
+  </section>
+  {% if asked %}
+  <section class="card">
+    <h2>Checks</h2>
+    <p class="muted">HR has asked you for these.</p>
+    <div class="table-scroll">
+    <table class="list">
+      <thead><tr><th scope="col">Check</th><th scope="col"><span class="visually-hidden">What to do</span></th></tr></thead>
+      <tbody>
+      {% for asked_check in asked %}
+        <tr><th scope="row">{{ asked_check.check_type.name }}</th>
+          <td>{% include "people/_check_upload.html" with asked=asked_check %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+  {% endif %}
+  <section class="card">
+    <h2>Policies</h2>
+    {% if owed %}
+    <ul>
+      {% for o in owed %}<li><a href="{% url 'documents:sign' o.version.pk %}">{{ o.version.policy.title }}</a> <span class="muted">by {{ o.due_on|date:"j M Y" }}</span></li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="empty">Nothing to sign.</p>
+    {% endif %}
+    <p><a href="{% url 'documents:policies' %}">All your policies</a></p>
+  </section>
+{% endif %}
+</div>
+{% endblock %}

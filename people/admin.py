@@ -4,11 +4,15 @@ here or from a page."""
 
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.formats import date_format
+from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline, TabularInline
 
 from people import admin_forms
 from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
-                           Employment, PatternDay, PayRecord, Position, Team, WorkingPattern)
+                           Employment, PatternDay, PayRecord, Position, PositionTitle, Team, WorkingPattern)
 from people.services import access, audit, contracts, employees, employments, pay, positions
 
 
@@ -26,22 +30,131 @@ class EmploymentInline(TabularInline):
     can_delete = False
 
 
+BANK_FIELDS = ("bank_account_name", "bank_sort_code", "bank_account_number")
+
+
+class ComplianceFilter(admin.SimpleListFilter):
+    """The people behind each number on the dashboard's Compliance card."""
+    title = "Compliance"
+    parameter_name = "compliance"
+
+    def lookups(self, request, model_admin):
+        from absence.admin_dashboard import COMPLIANCE
+        return COMPLIANCE
+
+    def queryset(self, request, queryset):
+        from absence.admin_dashboard import compliance_people
+        if self.value() is None:
+            return queryset
+        pks = compliance_people(timezone.localdate()).get(self.value(), [])
+        return queryset.filter(pk__in=set(pks))
+
+
+def _table(head, rows, empty):
+    if not rows:
+        return format_html('<p class="mb-4">{}</p>', empty)
+    return format_html(
+        '<table class="mb-4 w-full text-left"><thead><tr>{}</tr></thead><tbody>{}</tbody></table>',
+        format_html_join("", '<th class="pr-4 font-semibold">{}</th>', ((h,) for h in head)),
+        format_html_join("", "<tr>{}</tr>", ((format_html_join("", '<td class="pr-4">{}</td>',
+                                                              ((c,) for c in r)),) for r in rows)))
+
+
+def _link(url, text):
+    return format_html('<a class="underline" href="{}">{}</a>', url, text)
+
+
+def _day(d):
+    return date_format(d, "j M Y") if d else ""
+
+
+def _as_of(employee, today):
+    """(current employment, upcoming employment, the day the Compliance tab
+    shows). Someone not started yet is shown as they will stand on their
+    first day: what their title will need, and whether it will be current."""
+    employed = employments.current(employee, today)
+    upcoming = None if employed else employee.employments.filter(start_date__gt=today).order_by("start_date").first()
+    return employed, upcoming, (upcoming.start_date if upcoming else today)
+
+
 @admin.register(Employee)
 class EmployeeAdmin(ModelAdmin):
     form = admin_forms.EmployeeForm
     list_display = ("name", "work_email", "current_position")
+    list_filter = (ComplianceFilter,)
     search_fields = ("first_name", "last_name", "preferred_name", "work_email")
     inlines = [EmergencyContactInline, EmploymentInline]
 
     def get_fields(self, request, obj=None):
         fields = list(super().get_fields(request, obj))
         if not access.can_view_restricted(request.user):
-            fields.remove("ni_number")
+            for restricted in ("ni_number", *BANK_FIELDS):
+                fields.remove(restricted)
         return fields
+
+    def get_readonly_fields(self, request, obj=None):
+        return ("compliance_summary",) if obj is not None else ()
+
+    def get_fieldsets(self, request, obj=None):
+        # An existing person's page has two tabs: their details, and the
+        # read-only Compliance summary.
+        fields = [f for f in self.get_fields(request, obj) if f != "compliance_summary"]
+        if obj is None:
+            return [(None, {"fields": fields})]
+        return [("Details", {"classes": ["tab"], "fields": fields}),
+                ("Compliance", {"classes": ["tab"], "fields": ["compliance_summary"]})]
+
+    @admin.display(description="Compliance")
+    def compliance_summary(self, obj):
+        """Their checks (checks.state), their policies (policies.state) and
+        the open items of their checklists, each with a link to act on it.
+        Reads only; change_view audits the view of the checks."""
+        from checks.services import checks
+        from documents.services import policies
+        from onboarding.models import ChecklistItem
+
+        today = timezone.localdate()
+        employed, upcoming, as_of = _as_of(obj, today)
+        check_rows = []
+        for r in checks.state(obj, as_of):
+            if r.latest is not None and not r.latest.awaiting:
+                link = _link(reverse("admin:checks_check_change", args=[r.latest.pk]), "Open")
+            elif r.asked is not None:
+                link = _link(reverse("admin:checks_check_change", args=[r.asked.pk]), "Open the request")
+            else:
+                link = _link(f"{reverse('admin:checks_check_add')}?employee={obj.pk}&check_type={r.check_type.pk}",
+                             "Record")
+            check_rows.append((r.check_type, r.label, _day(r.expires_on), link))
+        policy_rows = []
+        for r in policies.state(obj, today):
+            if r["signature"] is not None:
+                status = f"Signed on {_day(timezone.localtime(r['signature'].signed_at).date())}"
+                link = _link(reverse("admin:documents_signature_change", args=[r["signature"].pk]), "Open")
+            else:
+                status = r["label"]
+                link = _link(reverse("admin:documents_policy_change", args=[r["policy"].pk]), "Open the policy")
+            policy_rows.append((r["policy"], r["version"].label, status, _day(r["due_on"]), link))
+        items = (ChecklistItem.objects.filter(checklist__employment__employee=obj, state=ChecklistItem.State.OPEN)
+                 .select_related("checklist").order_by("due_on", "order", "pk"))
+        item_rows = [(i.title, i.checklist.get_kind_display(), i.get_owner_display(),
+                      _day(i.due_on) + (" (overdue)" if i.due_on < today else ""),
+                      _link(reverse("onboarding:hr_detail", args=[i.checklist_id]), "Open the checklist"))
+                     for i in items]
+        starts = (format_html('<p class="mb-2">They start on {}: their checks are shown as they will stand '
+                              'that day.</p>', _day(as_of)) if upcoming else "")
+        return format_html(
+            '<h3 class="font-semibold mb-2">Checks</h3>{}{}'
+            '<h3 class="font-semibold mb-2">Policies</h3>{}'
+            '<h3 class="font-semibold mb-2">Open checklist items</h3>{}',
+            starts,
+            _table(("Check", "Status", "Expires", ""), check_rows,
+                   "Their position needs no checks, and none are recorded." if employed or upcoming
+                   else "None recorded, and none are needed of someone not employed."),
+            _table(("Policy", "Version", "Status", "Sign by", ""), policy_rows, "No policies apply to them."),
+            _table(("Item", "Checklist", "Owner", "Due", ""), item_rows, "No open checklist items."))
 
     @admin.display(description="Position")
     def current_position(self, obj):
-        from django.utils import timezone
         today = timezone.localdate()
         emp = employments.current(obj, today)
         pos = positions.primary_on(emp, today) if emp else None
@@ -51,13 +164,24 @@ class EmployeeAdmin(ModelAdmin):
         return False
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
-        # An NI number shown is an NI number viewed: audited like pay. Only
-        # for someone the field is shown to (get_fields), and only when
-        # there is one to see.
+        # An NI number or bank details shown are viewed: audited like pay.
+        # Only for someone the fields are shown to (get_fields), and only
+        # when there is something to see.
         if access.can_view_restricted(request.user) and request.method == "GET":
             obj = self.get_object(request, object_id)
-            if obj is not None and self.has_view_permission(request, obj) and obj.ni_number:
-                audit.viewed(request.user, obj, "ni_number")
+            if obj is not None and self.has_view_permission(request, obj):
+                if obj.ni_number:
+                    audit.viewed(request.user, obj, "ni_number")
+                if obj.bank_account_number or obj.bank_sort_code:
+                    audit.viewed(request.user, obj, "bank")
+        # The Compliance tab shows their checks: a view of them, audited as
+        # opening a check is (CheckAdmin), when there is any row to see.
+        if request.method == "GET":
+            obj = self.get_object(request, object_id)
+            if obj is not None and self.has_view_permission(request, obj):
+                from checks.services import checks
+                if checks.state(obj, _as_of(obj, timezone.localdate())[2]):
+                    audit.viewed(request.user, obj, "checks")
         return super().change_view(request, object_id, form_url, extra_context)
 
     def save_model(self, request, obj, form, change):
@@ -280,6 +404,15 @@ class WorkingPatternAdmin(ModelAdmin):
 @admin.register(Team)
 class TeamAdmin(ModelAdmin):
     list_display = ("name", "display_order", "min_present")
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PositionTitle)
+class PositionTitleAdmin(ModelAdmin):
+    list_display = ("name", "display_order")
+    search_fields = ("name",)
 
     def has_delete_permission(self, request, obj=None):
         return False

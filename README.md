@@ -1,7 +1,9 @@
 # Practice HR
 
 HR software for a GP practice: people, contracts, working patterns, absence
-and leave, and the sign-in for the practice's apps. Replaces BreatheHR.
+and leave, compliance (pre-employment checks, stored documents, policies to
+sign, starter and leaver checklists, and the morning reminders), and the
+sign-in for the practice's apps. Replaces BreatheHR.
 
 The design specs live in `docs/superpowers/specs/`, one per piece of work in
 the order it was built. The first is the foundation and absence system. The
@@ -117,14 +119,14 @@ files the app has to read unreadable:
 | `SECRET_KEY` | Django's signing key. Required with `DEBUG` off. |
 | `DEBUG` | `0` in production (the default); `1` only for development. |
 | `DB_PATH` | Where the SQLite database lives. Unset, it sits beside `manage.py`, which is what development wants; production points it at `/var/lib/practice-hr/db.sqlite3`, out of the read-only code tree, because SQLite needs to write the directory its database is in. |
-| `MEDIA_ROOT` | Where the app writes files: the payroll changes reports, in `payroll/` beneath it. Unset, it is `media/` beside `manage.py`, which is what development wants (git-ignored); production points it at `/var/lib/practice-hr/media`, because the code tree is read-only. Django never serves it; the payroll page streams a report to an HR admin. The nightly backup archives it. |
+| `MEDIA_ROOT` | Where the app writes files: the payroll changes reports, in `payroll/` beneath it, and the documents HR and staff upload (checks' evidence, contracts, policies), in `documents/`, at most 10 MB each. Unset, it is `media/` beside `manage.py`, which is what development wants (git-ignored); production points it at `/var/lib/practice-hr/media`, because the code tree is read-only. Django never serves it; the payroll page streams a report to an HR admin. The nightly backup archives it. |
 | `ALLOWED_HOSTS` | Comma-separated hostnames the app answers for. |
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
 | `SITE_URL` | The address the site is served at, `https://hr.example.org`. The links in emails (a request waiting for a decision) are built from it; unset they are relative and unusable, and `check --deploy` warns (`hr.W002`). |
 | `HR_API_TOKENS` | Comma-separated bearer tokens the rota's read API accepts (`openssl rand -hex 32` makes one). Unset, the API refuses everything and `check --deploy` warns (`hr.W001`). See [the read API](docs/admin/api.md). |
 | `API_RATE_LIMIT_PER_MINUTE` | The most requests one client address may make to the rota's read API in a minute, counted before the token is checked so a guessing client is slowed too. Default `600`; `0` turns the limit off. A full poll by the rota costs 2 plus the number of people in `/people` requests, so keep the limit above that. See [the read API](docs/admin/api.md#the-rate-limit). |
 | `CHASE_AFTER_WORKING_DAYS` | A leave request undecided after this many working days (weekends, England and Wales bank holidays and closed days excluded) is shown on the admin dashboard and the HR admins are emailed once. Default `3`. |
-| `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`, `RETENTION_DAYS_HEALTH`, `RETENTION_DAYS_AUDIT` | Days after an employment ends that the [retention report](docs/admin/people.md#retention-report) starts listing that kind of record. Defaults 2190, 2190, 2190 and 2555 (six years, seven for the audit log). It only lists; nothing is deleted. |
+| `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`, `RETENTION_DAYS_HEALTH`, `RETENTION_DAYS_AUDIT`, `RETENTION_DAYS_CHECKS`, `RETENTION_DAYS_FILES`, `RETENTION_DAYS_SIGNATURES` | Days after an employment ends that the [retention report](docs/admin/people.md#retention-report) starts listing that kind of record. Defaults 2190 for each (six years), except 2555 for the audit log (seven). It only lists; nothing is deleted. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
 | `DEFAULT_FROM_EMAIL` | The From address on every email the app sends. |
 | `CSP_REPORT_ONLY` | `1` sends the Content-Security-Policy as report-only, blocking nothing — the way back if it blocks something after a deploy. Unset (the default), it is enforced. |
@@ -193,7 +195,8 @@ reports; until it exists the backup skips it rather than failing). Expired sessi
 cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
 runs `manage.py hr_nightly`, which disables the login of anyone whose
 employment has ended, closes each leave year that has ended, opens this
-year's and next year's leave pots, charges bank holidays and chases waiting leave requests
+year's and next year's leave pots, charges bank holidays, chases waiting leave requests and sends the
+morning compliance reminders
 — see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping) and
 [Year end](docs/admin/year-end.md). `deploy/manage absence_year_end` runs
 the year-end part by hand, and `deploy/manage payroll_report --period

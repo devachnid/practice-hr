@@ -1,11 +1,12 @@
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_safe
 
+from checks.services import checks
 from people.models import Employee
 from people.services import access, contracts, employees, employments, patterns, positions, retention
 
@@ -28,6 +29,21 @@ class PersonalDetailsForm(forms.ModelForm):
         }
 
 
+def _show_record_error(form, error):
+    """A service refusal on the form: beside its field where the form has
+    it, otherwise named, with who can put it right."""
+    if not hasattr(error, "error_dict"):
+        form.add_error(None, error.messages)
+        return
+    for field, messages_ in error.message_dict.items():
+        if field in form.fields:
+            form.add_error(field, messages_)
+            continue
+        label = Employee._meta.get_field(field).verbose_name if field != "__all__" else ""
+        for m in messages_:
+            form.add_error(None, f"{label[:1].upper()}{label[1:]}: {m} Ask HR to correct it." if label else m)
+
+
 @login_required
 def me(request):
     employee = access.employee_for(request.user)
@@ -40,15 +56,28 @@ def me(request):
             # The form has already copied its values onto `employee`
             # (ModelForm._post_clean), so diffing against it would find
             # nothing to audit. The service diffs a fresh row instead.
-            employees.update(request.user, Employee.objects.get(pk=employee.pk),
-                             **form.cleaned_data)
-            messages.success(request, "Saved.")
-            return redirect("people:me")
+            try:
+                employees.update(request.user, Employee.objects.get(pk=employee.pk),
+                                 **form.cleaned_data)
+            except ValidationError as e:
+                # the service checks the whole record: a stored value this
+                # form does not show (an NI number in an old format) is
+                # refused here, and said so, rather than a server error
+                _show_record_error(form, e)
+            else:
+                messages.success(request, "Saved.")
+                return redirect("people:me")
     else:
         form = PersonalDetailsForm(instance=employee)
     emp = employments.current(employee, today)
-    ctx = {"employee": employee, "employment": emp, "form": form}
+    ctx = {"employee": employee, "employment": emp, "form": form,
+           # listing titles is not opening a file: no audit until files.open
+           "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
+           "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else []}
     if emp:
+        from onboarding.services import checklists   # onboarding imports people's services
+        ctx["checklist_items"] = [i for i in checklists.own_items(employee, today)
+                                  if i.checklist.employment_id == emp.pk]
         ctx.update({
             "position": positions.primary_on(emp, today),
             "contracts": list(contracts.active_on(emp, today)),
@@ -63,7 +92,10 @@ def me(request):
 def team(request):
     me_ = access.employee_for(request.user)
     today = timezone.localdate()
-    if not (me_ and access.is_approver(request.user, today)):
+    from onboarding.services import checklists    # onboarding imports people's services
+    # a manager whose starter has not started yet has no report today, but has their items
+    todo = checklists.items_owned_by(me_, today) if me_ else []
+    if not (me_ and (todo or access.is_approver(request.user, today))):
         raise PermissionDenied
     rows = []
     for emp in access.direct_reports(me_, today):
@@ -74,8 +106,10 @@ def team(request):
             "contracted": contracts.contracted_amount(emp, today),
             "unit": contracts.unit(emp, today),
             "pattern_total": patterns.weekly_total(pattern) if pattern else None,
+            # counts and the next expiry only: a manager never sees which checks
+            "checks": checks.summary(emp.employee, today),
         })
-    return render(request, "people/team.html", {"rows": rows})
+    return render(request, "people/team.html", {"rows": rows, "todo": todo, "today": today})
 
 
 CATEGORY_LABELS = {
@@ -83,6 +117,9 @@ CATEGORY_LABELS = {
     "pay": "Pay records",
     "health": "Health records",
     "audit": "Audit log",
+    "checks": "Pre-employment and other checks",
+    "files": "Stored files",
+    "signatures": "Policy signatures",
 }
 
 

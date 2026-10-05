@@ -25,6 +25,9 @@ urlpatterns = [
     path("accounts/", include("accounts.urls")),
     path("people/", include("people.urls")),
     path("absence/", include("absence.urls")),
+    path("documents/", include("documents.urls")),
+    path("checks/", include("checks.urls")),
+    path("onboarding/", include("onboarding.urls")),
     path("api/v1/", include("api.urls")),
     path("", home, name="home"),
 ]

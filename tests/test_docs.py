@@ -8,7 +8,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs" / "admin"
-PAGES = ("people.md", "sign-in.md", "absence.md", "year-end.md", "payroll.md", "api.md")
+PAGES = ("people.md", "sign-in.md", "absence.md", "year-end.md", "payroll.md", "api.md", "compliance.md")
 GUIDES = ROOT / "docs" / "guides"
 GUIDE_PAGES = ("manager.md", "hr-administrator.md")
 LINK = re.compile(r"(?<!\!)\[[^\]]*\]\(([^)\s]+)\)")

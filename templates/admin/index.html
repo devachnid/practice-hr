@@ -1,6 +1,6 @@
 {% extends "admin/index.html" %}{% load absence_extras %}
 {% comment %}Extends unfold's own index (Django skips this file when it resolves
-the name again), adding the absence workflow's card above the app list.{% endcomment %}
+the name again), adding the absence workflow's and the compliance cards above the app list.{% endcomment %}
 {% block content %}
 <div class="mb-8 flex flex-col gap-6">
   <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
@@ -16,6 +16,16 @@ the name again), adding the absence workflow's card above the app list.{% endcom
     {% else %}
       <p>No requests or claims have waited more than {{ chase_after }} working day{{ chase_after|pluralize }}.</p>
     {% endif %}
+  </section>
+
+  <section class="border border-base-200 dark:border-base-800 rounded-default p-6">
+    <h2 class="text-lg font-semibold mb-2">Compliance</h2>
+    <p class="mb-4">Checks and signatures of the people employed today, and checklist items past their due date. Each number opens the people it counts.</p>
+    <ul class="flex flex-wrap gap-6">
+    {% for c in compliance %}
+      <li><a href="{{ c.url }}" class="flex flex-col"><strong class="text-2xl font-semibold">{{ c.count }}</strong><span class="underline">{{ c.label }}</span></a></li>
+    {% endfor %}
+    </ul>
   </section>
 
   {% if not email_configured %}

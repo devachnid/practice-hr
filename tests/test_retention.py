@@ -173,13 +173,15 @@ def _settings_run(expr, env):
 def test_retention_defaults():
     r = _settings_run("s.RETENTION_DAYS", {})
     assert r.returncode == 0, r.stderr
-    assert eval(r.stdout) == {"personal": 2190, "pay": 2190, "health": 2190, "audit": 2555}
+    assert eval(r.stdout) == {"personal": 2190, "pay": 2190, "health": 2190, "audit": 2555,
+                                 "checks": 2190, "files": 2190, "signatures": 2190}
 
 
 def test_retention_days_are_overridable_per_category_from_the_environment():
     r = _settings_run("s.RETENTION_DAYS", {"RETENTION_DAYS_PAY": "3650", "RETENTION_DAYS_AUDIT": "100"})
     assert r.returncode == 0, r.stderr
-    assert eval(r.stdout) == {"personal": 2190, "pay": 3650, "health": 2190, "audit": 100}
+    assert eval(r.stdout) == {"personal": 2190, "pay": 3650, "health": 2190, "audit": 100,
+                                 "checks": 2190, "files": 2190, "signatures": 2190}
 
 
 @pytest.mark.parametrize("bad", ["six years", "", "12.5", "0", "-30"])
