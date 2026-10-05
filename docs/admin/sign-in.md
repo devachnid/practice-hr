@@ -14,6 +14,10 @@ record at all.
 
 ### Adding someone
 
+Most logins are made by the **Add employee** page, from the work email,
+when the employee record is saved (see [User](people.md#user)); this page
+is for the rest — an HR admin with no employee record, say.
+
 **Add login account** asks for two things: their email, and whether they
 are an [HR admin](#admin-status). There is no password to type. Saving
 sends an **invitation** — an email with a link to choose their own password

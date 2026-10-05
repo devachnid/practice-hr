@@ -9,6 +9,9 @@ from django import forms
 from django.core.exceptions import ValidationError
 from django.forms.models import BaseInlineFormSet
 
+from unfold.widgets import UnfoldAdminSelectWidget, UnfoldBooleanSwitchWidget
+
+from accounts.services import logins
 from people import ni
 from people.models import Contract, Employee, Employment, Position
 from people.services import contracts, employments, positions
@@ -37,6 +40,22 @@ def _rows(formset):
 
 
 class EmployeeForm(forms.ModelForm):
+    """The employee page. On the add page two extra fields make their login
+    (accounts.services.logins): Create a login account, ticked by default,
+    and where the invitation goes. EmployeeAdmin leaves both out of the
+    change page."""
+    LOGIN_FIELDS = ("create_login", "invite_to")
+
+    create_login = forms.BooleanField(
+        label="Create a login account", required=False, initial=True, widget=UnfoldBooleanSwitchWidget,
+        help_text="Their login is the work email; they are emailed a link to choose a password. Untick to "
+                  "link a login that already exists in User, or to give them none.")
+    invite_to = forms.ChoiceField(
+        label="Send the invitation to", choices=[(logins.WORK, "Work email"), (logins.PERSONAL, "Personal email")],
+        initial=logins.WORK, required=False, widget=UnfoldAdminSelectWidget,
+        help_text="Personal email for a starter who cannot read the work mailbox yet; the login stays "
+                  "the work email.")
+
     class Meta:
         model = Employee
         fields = ["first_name", "last_name", "preferred_name", "work_email", "personal_email",
@@ -50,6 +69,21 @@ class EmployeeForm(forms.ModelForm):
 
     def clean_ni_number(self):
         return ni.normalise(self.cleaned_data.get("ni_number"))
+
+    def clean(self):
+        data = super().clean()
+        if "create_login" not in self.fields or not data.get("create_login"):
+            return data
+        if data.get("user") is not None:
+            self.add_error("user", "Untick Create a login account to link an existing one.")
+        if data.get("invite_to") == logins.PERSONAL and not data.get("personal_email"):
+            self.add_error("invite_to", "Enter their personal email, or send the invitation to the work email.")
+        if data.get("work_email"):
+            try:
+                logins.check_available(data["work_email"])
+            except ValidationError as exc:
+                self.add_error("work_email", exc)
+        return data
 
 
 def check_employment(form, employee, fresh, data, changed):

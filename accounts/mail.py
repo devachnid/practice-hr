@@ -54,8 +54,9 @@ def password_link(request, user):
     return request.build_absolute_uri(path)
 
 
-def send_password_link(request, user, *, invite, throttle=False):
-    """Mint a link for `user` and email it.
+def send_password_link(request, user, *, invite, throttle=False, to=None):
+    """Mint a link for `user` and email it: to `to` when given (a starter's
+    personal address), else to the account's own email.
 
     Returns None when the email went. Returns a LinkToCopy when it could not
     go — email not configured, or the relay refused — so an admin can pass
@@ -90,7 +91,7 @@ def send_password_link(request, user, *, invite, throttle=False):
     if not email_is_configured():
         _stamp(user, now)
         return LinkToCopy(link, "")
-    message = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [user.email],
+    message = EmailMessage(subject, body, settings.DEFAULT_FROM_EMAIL, [to or user.email],
                            headers=TRACKING_OFF)
     try:
         message.send(fail_silently=False)
@@ -101,7 +102,7 @@ def send_password_link(request, user, *, invite, throttle=False):
         # 500 — so the traceback goes to the journal, an admin gets the
         # link, and a public request stays unstamped so its next attempt
         # is not throttled.
-        logger.exception("password link to %s could not be sent", user.email)
+        logger.exception("password link to %s could not be sent", to or user.email)
         if not throttle:
             _stamp(user, now)
         return LinkToCopy(link, str(exc) or exc.__class__.__name__)

@@ -14,7 +14,6 @@ from unfold.forms import AdminPasswordChangeForm, UserChangeForm
 from .mail import link_expires, send_password_link
 from .models import AppRole, Passkey, User
 
-
 class InviteForm(forms.ModelForm):
     """The add form: who, and whether they are an HR admin. No password — the
     person chooses their own from the emailed link (save_model below)."""
@@ -23,16 +22,13 @@ class InviteForm(forms.ModelForm):
         model = User
         fields = ("email", "is_hr_admin")
 
-
 APP_ADMIN = "app_admin_"
-
 
 def _registered_clients():
     """The apps this system signs people in to: the ownerless clients
     register_oidc_client makes. A client someone registered for themselves
     is never one of them."""
     return Application.objects.filter(user__isnull=True).order_by("name")
-
 
 class LoginChangeForm(UserChangeForm):
     """The change form, plus one box per registered client: whether this
@@ -61,22 +57,22 @@ class LoginChangeForm(UserChangeForm):
             else:
                 AppRole.objects.filter(user=self.instance, application=app).update(is_admin=False)
 
-
-def _report(request, user, result, *, invite):
+def report_send(request, user, result, *, invite, to=None):
     """The three outcomes of a send, as the message the admin reads. A link
-    is shown here, once, and nowhere else."""
+    is shown here, once, and nowhere else. `to` names the address when it
+    was not the account's own (an invitation sent to a personal email)."""
     what = "Invitation" if invite else "Password-reset link"
+    address = to or user.email
     if result is None:
-        messages.success(request, f"{what} sent to {user.email}.")
+        messages.success(request, f"{what} sent to {address}.")
     elif not result.reason:
         messages.warning(request, format_html(
             "Email isn't set up — copy this link and send it to {} yourself: "
-            '<a href="{}">{}</a>', user.email, result.link, result.link))
+            '<a href="{}">{}</a>', address, result.link, result.link))
     else:
         messages.error(request, format_html(
             "Sending to {} failed ({}) — copy this link and send it yourself: "
-            '<a href="{}">{}</a>', user.email, result.reason, result.link, result.link))
-
+            '<a href="{}">{}</a>', address, result.reason, result.link, result.link))
 
 class PasskeyInline(TabularInline):
     """Show and delete, never add: a passkey can only be made by the
@@ -93,7 +89,6 @@ class PasskeyInline(TabularInline):
 
     def has_add_permission(self, request, obj=None):
         return False
-
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin, ModelAdmin):
@@ -234,7 +229,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
         if change:
             form.save_app_roles()
         else:
-            _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+            report_send(request, obj, send_password_link(request, obj, invite=True), invite=True)
 
     def get_actions_submit_line(self, request, object_id):
         """One button, chosen by state: an account with no usable password
@@ -253,11 +248,11 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
 
     @action(description="Send invitation again")
     def send_invitation(self, request, obj):
-        _report(request, obj, send_password_link(request, obj, invite=True), invite=True)
+        report_send(request, obj, send_password_link(request, obj, invite=True), invite=True)
 
     @action(description="Send password-reset link")
     def send_reset_link(self, request, obj):
-        _report(request, obj, send_password_link(request, obj, invite=False), invite=False)
+        report_send(request, obj, send_password_link(request, obj, invite=False), invite=False)
 
     @admin.action(description="Send invitation or reset link", permissions=["change"])
     def send_links(self, request, queryset):
@@ -277,7 +272,7 @@ class CustomUserAdmin(UserAdmin, ModelAdmin):
                 sent += 1
             else:
                 copies += 1
-                _report(request, user, result, invite=invite)
+                report_send(request, user, result, invite=invite)
         messages.info(request, f"{sent} sent, {copies} to copy.")
 
     @admin.display(description="Apps")

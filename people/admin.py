@@ -10,6 +10,8 @@ from django.utils.formats import date_format
 from django.utils.html import format_html, format_html_join
 from unfold.admin import ModelAdmin, StackedInline, TabularInline
 
+from accounts.admin import report_send
+from accounts.services import logins
 from people import admin_forms
 from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
                            Employment, PatternDay, PayRecord, Position, PositionTitle, Team, WorkingPattern)
@@ -90,7 +92,23 @@ class EmployeeAdmin(ModelAdmin):
         if not access.can_view_restricted(request.user):
             for restricted in ("ni_number", *BANK_FIELDS):
                 fields.remove(restricted)
+        login = [f for f in admin_forms.EmployeeForm.LOGIN_FIELDS if f in fields]
+        fields = [f for f in fields if f not in login]
+        if obj is None and login:
+            # The add page only, right after the two emails they act on: an
+            # existing person gets a login through Access › Login accounts.
+            at = fields.index("personal_email") + 1
+            fields[at:at] = login
         return fields
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if obj is not None:
+            # Drop the declared login fields from the change page's form (a
+            # declared field set to None is removed, as Django's own
+            # readonly handling does).
+            form = type(form.__name__, (form,), dict.fromkeys(admin_forms.EmployeeForm.LOGIN_FIELDS))
+        return form
 
     def get_readonly_fields(self, request, obj=None):
         return ("compliance_summary",) if obj is not None else ()
@@ -191,8 +209,17 @@ class EmployeeAdmin(ModelAdmin):
             employees.update(request.user, fresh, **data)
             obj.refresh_from_db()
         else:
-            new = employees.create(request.user, **form.cleaned_data)
+            data = {k: v for k, v in form.cleaned_data.items() if k in employees.EDITABLE}
+            new = employees.create(request.user, **data)
             obj.pk = new.pk
+            if form.cleaned_data.get("create_login"):
+                # The form checked the email is free; the service checks again
+                # as it writes, inside the add's own transaction.
+                where = form.cleaned_data.get("invite_to", logins.WORK)
+                _, result = logins.create_for_employee(request.user, new, request, where)
+                report_send(request, new.user, result, invite=True,
+                            to=new.personal_email if where == logins.PERSONAL else None)
+                obj.user = new.user
         user = form.cleaned_data.get("user")
         if user is not None and user.email.casefold() != form.cleaned_data["work_email"].casefold():
             # Not an error — a login may use another address — but sign-in
