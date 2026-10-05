@@ -3,11 +3,13 @@ and the read-only lookup log. Bodies are code plus a seed: never added or
 deleted here, made inactive instead."""
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
 from registers.models import Lookup, RegisterBody
+from registers.services import lookups
 
 
 @admin.register(RegisterBody)
@@ -33,13 +35,17 @@ class RegisterBodyAdmin(ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    @action(description="Unpause")
+    @action(description="Unpause", url_path="unpause", permissions=["change"])
     def unpause(self, request, object_id):
-        from registers.services import lookups
-        body = self.get_object(request, object_id)
-        lookups.unpause(body)
-        messages.success(request, f"{body} unpaused: its scheduled checks run again tonight.")
-        return HttpResponseRedirect(reverse("admin:registers_registerbody_change", args=[object_id]))
+        """GET asks; only the POST unpauses (through lookups.unpause)."""
+        body = get_object_or_404(RegisterBody, pk=object_id)
+        if request.method == "POST":
+            lookups.unpause(body)
+            messages.success(request, f"{body} unpaused: its scheduled checks run again tonight.")
+            return HttpResponseRedirect(reverse("admin:registers_registerbody_change", args=[body.pk]))
+        return render(request, "registers/admin/unpause.html", {
+            **self.admin_site.each_context(request), "title": f"Unpause: {body}",
+            "opts": self.model._meta, "body": body})
 
 
 @admin.register(Lookup)

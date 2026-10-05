@@ -46,13 +46,12 @@ def test_the_welsh_list_shares_the_gmc_number():
     assert numbers.FORMATS["mpl_wales"] == numbers.FORMATS["gmc"]
 
 
-def test_a_registration_is_one_per_person_per_body_and_a_lookup_cascades():
+def test_a_registration_is_one_per_person_per_body():
     from django.db import IntegrityError
     from django.utils import timezone
     e = make_employee()
     gmc = RegisterBody.objects.get(code="gmc")
-    r = Registration.objects.create(employee=e, body=gmc, number="1234567", next_check_on=timezone.localdate())
-    Lookup.objects.create(registration=r, trigger=Lookup.Trigger.SCHEDULED, outcome=Lookup.Outcome.CLEAR)
+    Registration.objects.create(employee=e, body=gmc, number="1234567", next_check_on=timezone.localdate())
     with pytest.raises(IntegrityError):
         Registration.objects.create(employee=e, body=gmc, number="7654321", next_check_on=timezone.localdate())
 
@@ -85,15 +84,26 @@ def test_the_body_page_shows_verified_and_paused_read_only(admin_client):
     assert 'name="verified"' not in body and 'name="paused_at"' not in body
 
 
-def test_unpause_is_an_action_on_the_body(admin_client):
+def test_unpause_asks_on_get_and_only_a_post_unpauses(admin_client):
     from django.utils import timezone
     gmc = RegisterBody.objects.get(code="gmc")
     gmc.paused_at = timezone.now()
     gmc.save()
-    r = admin_client.post(f"/admin/registers/registerbody/{gmc.pk}/unpause/")
+    url = f"/admin/registers/registerbody/{gmc.pk}/unpause/"
+    r = admin_client.get(url)
+    assert r.status_code == 200
+    assert "csrfmiddlewaretoken" in r.content.decode()
+    gmc.refresh_from_db()
+    assert gmc.paused_at is not None
+    r = admin_client.post(url)
     assert r.status_code == 302
     gmc.refresh_from_db()
     assert gmc.paused_at is None
+
+
+def test_unpausing_an_unknown_body_is_a_404(admin_client):
+    assert admin_client.get("/admin/registers/registerbody/999999/unpause/").status_code == 404
+    assert admin_client.post("/admin/registers/registerbody/999999/unpause/").status_code == 404
 
 
 def test_the_sidebar_lists_bodies_and_lookups_under_compliance(admin_client):
