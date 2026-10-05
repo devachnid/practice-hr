@@ -181,6 +181,9 @@ class EmployeeAdmin(ModelAdmin):
             state = ("paused" if body.paused else "") or ("not verified" if not body.verified else "")
             outcome = (f"{reg.last_status_text}" if reg.last_outcome in ("clear", "problem")
                        else reg.get_last_outcome_display() if reg.last_outcome else "Not checked yet")
+            if reg.last_unreadable_at is not None:      # the latest attempt failed; the last result stands
+                failed = f"Could not be read on {_day(timezone.localtime(reg.last_unreadable_at).date())}"
+                outcome = f"{failed}; last result: {outcome}" if reg.last_outcome else failed
             if state:
                 outcome = f"{outcome} ({state})"
             links = format_html('{} {}', _link(reverse("registers:check_now", args=[reg.pk]), "Check now"),
@@ -257,19 +260,20 @@ class EmployeeAdmin(ModelAdmin):
             employees.update(request.user, fresh, **data)
             obj.refresh_from_db()
             from registers.services import registrations
+            # a twin the title now needs (the Welsh list after the GMC number) is made on any save
+            missing = {b.code for b in registrations.missing(fresh, timezone.localdate())}
             for name, body, _ in form.registration_fields:
-                if name not in form.changed_data:
-                    continue
+                changed = name in form.changed_data
                 value = form.cleaned_data.get(name) or ""
-                if value:
+                if value and (changed or registrations.TWINS.get(body.code) in missing):
                     registrations.set_number(request.user, fresh, body, value)
                     others = (Registration.objects.filter(body=body, number=value).exclude(employee=fresh)
                               .select_related("employee"))
-                    for other in others:
+                    for other in others if changed else ():
                         messages.warning(request, f"The {body.name} number {value} is also recorded for "
                                                   f"{other.employee.name}. The register's name check will "
                                                   "tell them apart; check the numbers if that is not intended.")
-                else:
+                elif changed and not value:
                     registrations.clear_number(request.user, fresh, body)
         else:
             data = {k: v for k, v in form.cleaned_data.items() if k in employees.EDITABLE}

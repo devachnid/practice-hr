@@ -28,6 +28,8 @@ SUBJECT = "Practice HR: things due"
 
 
 def _when(item):
+    if item.kind == "registration_site":       # "could not be read since ..." / "checks are paused": dated already
+        return ""
     if item.kind == "registration":
         if item.state == "missing":
             return "not recorded"

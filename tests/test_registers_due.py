@@ -66,7 +66,7 @@ def test_a_problem_goes_to_hr_and_the_manager_with_the_body_and_the_words(hr_adm
     hr_item = by[("hr@example.com", "GMC: Suspended")]
     assert hr_item.kind == "registration" and hr_item.state == "overdue"
     assert hr_item.due_on == timezone.localtime(lk.run_at).date()
-    assert hr_item.key == f"registration:{e.pk}:gmc:{lk.pk}" and hr_item.once is False
+    assert hr_item.key == f"registration:{e.pk}:gmc:problem" and hr_item.once is False
     assert hr_item.url.endswith(reverse("admin:people_employee_change", args=[e.pk]))
     mgr_item = by[("mo@example.com", "GMC: Suspended")]
     assert mgr_item.url.endswith(reverse("people:team")) and mgr_item.once is False
@@ -94,10 +94,10 @@ def test_a_changed_number_drops_the_old_numbers_alert_until_the_new_one_is_looke
     assert len(_items()) == 1
     r = registrations.set_number(hr_admin, e, gmc, "7654321")
     assert _items() == []                                    # the new number has not been looked up yet
-    lk = lookups.run(r, "scheduled")
+    lookups.run(r, "scheduled")
     [item] = _items()
     assert item.recipient == "hr@example.com" and item.label == "GMC: Suspended"
-    assert item.key == f"registration:{e.pk}:gmc:{lk.pk}"
+    assert item.key == f"registration:{e.pk}:gmc:problem"
 
 
 def test_the_label_comes_from_the_lookup_with_fallbacks_for_empty_words():
@@ -137,6 +137,7 @@ def test_unreadable_is_hrs_only_after_fourteen_days_or_a_pause(hr_admin, gmc, mo
     [item] = _items(today)
     assert item.recipient == "hr@example.com" and item.label.startswith("GMC: could not be read since ")
     assert item.state == "overdue" and item.url.endswith(reverse("admin:registers_lookup_changelist"))
+    assert item.kind == "registration_site" and digest._when(item) == ""
     gmc.paused_at = timezone.now()
     gmc.save()
     labels = {i.label for i in _items(today)}
@@ -175,7 +176,7 @@ def test_the_digest_renders_a_paused_body_under_its_own_heading(hr_admin, gmc, c
     result = digest.run(timezone.localdate())
     assert result["reminders_sent"] == 1 and result["reminders_failed"] == 0
     body = next(m_.body for m_ in mail.outbox if m_.to == ["hr@example.com"])
-    assert "The registers" in body and "GMC: checks are paused (the page could not be read): found " in body
+    assert "The registers" in body and "- GMC: checks are paused (the page could not be read)\n" in body
 
 
 def test_the_nightly_step_runs_the_schedule_syncs_verified_and_never_fails_the_command(hr_admin, gmc,
@@ -200,3 +201,62 @@ def test_the_nightly_output_has_a_registrations_line(db, capsys):
     call_command("hr_nightly")
     out = capsys.readouterr().out
     assert "registrations: {'run': 0" in out
+
+
+def test_a_repeat_of_the_same_problem_keeps_its_key_and_a_new_kind_starts_afresh(hr_admin, gmc, monkeypatch):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    lookups.run(r, "scheduled")
+    [first] = _items()
+    lookups.run(r, "scheduled")
+    [second] = _items()
+    assert first.key == second.key == f"registration:{e.pk}:gmc:problem"
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("not_found", "No results", "", "c" * 64))
+    lookups.run(r, "scheduled")
+    [third] = _items()
+    assert third.key == f"registration:{e.pk}:gmc:not_found"
+
+
+def test_a_problem_then_an_unreadable_page_still_alerts(hr_admin, gmc, monkeypatch):
+    m = _manager(hr_admin)
+    e = _gp(hr_admin, manager=m)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    problem = lookups.run(r, "scheduled")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
+    lookups.run(r, "scheduled")
+    items = _items()
+    assert {(i.recipient, i.label) for i in items} == {("hr@example.com", "GMC: Suspended"),
+                                                       ("mo@example.com", "GMC: Suspended")}
+    assert all(i.due_on == timezone.localtime(problem.run_at).date() for i in items)
+
+
+def test_a_problem_and_fourteen_days_unreadable_are_both_told(hr_admin, gmc, monkeypatch):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    problem = lookups.run(r, "scheduled")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
+    failed = lookups.run(r, "scheduled")
+    Lookup.objects.filter(pk=problem.pk).update(run_at=problem.run_at - timedelta(days=20))
+    Lookup.objects.filter(pk=failed.pk).update(run_at=failed.run_at - timedelta(days=15))
+    labels = {i.label for i in _items()}
+    assert "GMC: Suspended" in labels and any(lb.startswith("GMC: could not be read since ") for lb in labels)
+
+
+def test_a_new_numbers_unreadable_lookup_does_not_revive_the_old_numbers_problem(hr_admin, gmc, monkeypatch):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    lookups.run(r, "scheduled")
+    r = registrations.set_number(hr_admin, e, gmc, "7654321")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
+    lookups.run(r, "scheduled")
+    assert _items() == []
+
+
+def test_the_registrations_step_runs_before_the_reminders(db, capsys):
+    call_command("hr_nightly")
+    steps = [line.split(":", 1)[0] for line in capsys.readouterr().out.splitlines()]
+    assert steps == ["people", "absence", "registrations", "compliance"]

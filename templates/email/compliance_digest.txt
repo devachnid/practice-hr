@@ -3,7 +3,7 @@
 These are due, or past due, as of {{ today|date:"j M Y" }}.
 {% regroup lines by who as people %}{% for person in people %}
 {{ person.grouper }}
-{% for line in person.list %}- {{ line.item.label }}: {{ line.when }}
+{% for line in person.list %}- {{ line.item.label }}{% if line.when %}: {{ line.when }}{% endif %}
   {{ line.item.url }}
 {% endfor %}{% endfor %}
 You will be reminded again while they are outstanding.{% endautoescape %}

@@ -102,6 +102,20 @@ def test_a_shared_number_across_two_people_is_a_warning_not_a_refusal(admin_clie
     assert "is also recorded for Priya Patel" in r.content.decode()
 
 
+def test_saving_the_record_unchanged_makes_the_welsh_row_a_title_now_needs(admin_client, hr_admin):
+    gmc, mpl = RegisterBody.objects.get(code="gmc"), RegisterBody.objects.get(code="mpl_wales")
+    gmc.positions.add(titles.get_or_create("Salaried GP"))
+    e = _gp(hr_admin)
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/", _change_post(e, registration_gmc="1234567"))
+    assert r.status_code == 302 and not Registration.objects.filter(employee=e, body=mpl).exists()
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/", _change_post(e, registration_gmc="1234567"))
+    assert r.status_code == 302
+    assert Registration.objects.get(employee=e, body=mpl).number == "1234567"
+    assert AuditEntry.objects.filter(field="registration:mpl_wales", before="", after="1234567").exists()
+    assert AuditEntry.objects.filter(field="registration:gmc").count() == 1      # the GMC number did not change
+
+
 # ---- the Compliance tab -------------------------------------------------------------------------
 
 def test_the_compliance_tab_lists_registrations_with_check_now_and_the_register_link(admin_client, hr_admin,
@@ -133,6 +147,26 @@ def test_the_tab_says_when_a_body_is_paused_or_not_verified(admin_client, hr_adm
     gmc.save()
     body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
     assert "paused" in body and "not verified" not in body
+
+
+def test_the_tab_says_when_the_latest_lookup_could_not_be_read(admin_client, hr_admin, gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    e = _gp(hr_admin)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("unreadable", "HTTP 503", "", "e" * 64))
+    lk = lookups.run(reg, "scheduled")
+    day = f"{timezone.localtime(lk.run_at):%-d %b %Y}"
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert f"Could not be read on {day}<" in body
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("problem", "Suspended", "Priya Patel", "b" * 64))
+    lookups.run(reg, "scheduled")
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "Could not be read on" not in body and ">Suspended<" in body
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("unreadable", "HTTP 503", "", "e" * 64))
+    lk = lookups.run(reg, "scheduled")
+    day = f"{timezone.localtime(lk.run_at):%-d %b %Y}"
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert f"Could not be read on {day}; last result: Suspended" in body
 
 
 # ---- Check now ---------------------------------------------------------------------------------
@@ -168,6 +202,33 @@ def test_check_now_on_an_unverified_body_says_so_and_runs(admin_client, hr_admin
     r = admin_client.post(f"/registers/{reg.pk}/check/", follow=True)
     body = r.content.decode()
     assert "could not be read" in body and "not yet verified" in body and Lookup.objects.count() == 1
+
+
+def test_check_now_on_an_unverified_body_records_the_lookup_but_no_check(admin_client, hr_admin, gp_bodies,
+                                                                         monkeypatch):
+    from checks.models import Check
+    gmc, _ = gp_bodies
+    gmc.verified = False
+    gmc.save()
+    e = _gp(hr_admin)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    body = admin_client.post(f"/registers/{reg.pk}/check/", follow=True).content.decode()
+    assert "No check was recorded: this register&#x27;s parser is not yet verified." in body
+    assert Lookup.objects.count() == 1 and not Check.objects.filter(employee=e).exists()
+
+
+@pytest.mark.parametrize("result,words", [
+    (Result("name_mismatch", "Registered", "", "d" * 64), "GMC: the register shows someone else, not this person."),
+    (Result("problem", "Suspended", "", "b" * 64), "GMC: Suspended"),
+])
+def test_check_now_says_someone_else_or_nothing_when_the_name_is_blank(admin_client, hr_admin, gp_bodies,
+                                                                         monkeypatch, result, words):
+    gmc, _ = gp_bodies
+    reg = registrations.set_number(hr_admin, _gp(hr_admin), gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: result)
+    body = admin_client.post(f"/registers/{reg.pk}/check/", follow=True).content.decode()
+    assert words in body and "Suspended (" not in body and "shows , not" not in body
 
 
 # ---- the dashboard and My record ------------------------------------------------------------------
@@ -249,3 +310,19 @@ def test_my_record_says_not_checked_yet_when_the_lookup_could_not_be_read(hr_adm
     c.force_login(user)
     body = c.get("/people/me/").content.decode()
     assert "Not checked yet" in body and "HTTP 503" not in body
+
+
+def test_a_problem_then_an_unreadable_page_still_counts_and_still_reads_hr_will_be_in_touch(admin_client, hr_admin,
+                                                                                          gp_bodies, monkeypatch):
+    gmc, _ = gp_bodies
+    user = User.objects.create_user(email="priya@example.com", password="pw")
+    e = _gp(hr_admin, user=user)
+    reg = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("problem", "Suspended", "Priya Patel", "b" * 64))
+    lookups.run(reg, "scheduled")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: Result("unreadable", "HTTP 503", "", "e" * 64))
+    lookups.run(reg, "scheduled")
+    assert _count(admin_client.get("/admin/").content.decode(), "registration_problems") == "1"
+    c = Client()
+    c.force_login(user)
+    assert "HR will be in touch about your GMC registration" in c.get("/people/me/").content.decode()

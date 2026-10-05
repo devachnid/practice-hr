@@ -4,7 +4,9 @@ line manager, with the body and the register's words (a registration
 problem is the manager's to act on that day, unlike a lapsed check); a
 body the title needs with no number is HR's from the employment start; a
 page that has been unreadable for 14 days, or a paused body, is HR's
-alone."""
+alone (kind SITE_KIND: about the register's site, not a date to meet).
+The standing result is the latest readable lookup, so a page that cannot
+be read never silences a problem."""
 from django.urls import reverse
 from django.utils import timezone
 
@@ -13,19 +15,16 @@ from compliance.due import DueItem, active_email, link
 from people.models import Employee
 from people.services import access, employments
 from registers.models import RegisterBody
-from registers.services import registrations
+from registers.services import lookups, registrations
 from registers.services.nightly import UNREADABLE_AFTER_DAYS
 
 KIND = "registration"
+SITE_KIND = "registration_site"
 
 
 def _label(body_name, latest):
     """In the register's words, from the lookup itself: the registration's cached fields are blank after a number change."""
-    if latest.outcome == "problem":
-        return f"{body_name}: {latest.status_text or 'a problem on the register'}"
-    if latest.outcome == "not_found":
-        return f"{body_name}: not found on the register"
-    return f"{body_name}: the register shows {latest.name_on_register or 'someone else'}, not this person"
+    return f"{body_name}: {lookups.words(latest.outcome, latest.status_text, latest.name_on_register)}"
 
 
 def due_items(today, sched):
@@ -48,29 +47,29 @@ def due_items(today, sched):
                 continue
             if reg.last_checked_at is None:      # the current number has not been looked up yet: tonight
                 continue
-            latest = reg.lookups.order_by("-run_at", "-pk").first()
-            if latest is None:
-                continue
-            if latest.outcome in ("problem", "not_found", "name_mismatch"):
-                key = f"registration:{e.pk}:{row.body.code}:{latest.pk}"
-                found = timezone.localtime(latest.run_at).date()
+            # last_outcome is "" until the current number has a readable result: an old number's is no evidence
+            readable = lookups.latest_readable(reg) if reg.last_outcome else None
+            if readable is not None and readable.outcome in lookups.STANDING:
+                key = f"registration:{e.pk}:{row.body.code}:{readable.outcome}"
+                found = timezone.localtime(readable.run_at).date()
                 for r in hr:
-                    out.append(DueItem(e, r, KIND, _label(row.body.name, latest), found, "overdue", hr_url, key))
+                    out.append(DueItem(e, r, KIND, _label(row.body.name, readable), found, "overdue", hr_url, key))
                 manager = active_email(access.line_manager(e, today))
                 if manager:
-                    out.append(DueItem(e, manager, KIND, _label(row.body.name, latest), found, "overdue",
+                    out.append(DueItem(e, manager, KIND, _label(row.body.name, readable), found, "overdue",
                                        link(reverse("people:team")), key))
-            elif latest.outcome == "unreadable":
+            if reg.last_unreadable_at is not None:
                 since = _unreadable_since(reg)
                 if since is not None and (today - since).days >= UNREADABLE_AFTER_DAYS:
                     for r in hr:
-                        out.append(DueItem(e, r, KIND, f"{row.body.name}: could not be read since {since:%-d %b %Y}",
+                        out.append(DueItem(e, r, SITE_KIND,
+                                           f"{row.body.name}: could not be read since {since:%-d %b %Y}",
                                            since, "overdue", lookups_url,
                                            f"registration:{e.pk}:{row.body.code}:unreadable:{since.isoformat()}"))
     for body in RegisterBody.objects.filter(active=True, paused_at__isnull=False):
         paused_on = timezone.localtime(body.paused_at).date()
         for r in hr:
-            out.append(DueItem(None, r, KIND, f"{body.name}: checks are paused (the page could not be read)",
+            out.append(DueItem(None, r, SITE_KIND, f"{body.name}: checks are paused (the page could not be read)",
                                paused_on, "overdue", lookups_url,
                                f"registration:body:{body.code}:paused:{paused_on.isoformat()}"))
     return out

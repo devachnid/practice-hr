@@ -1,6 +1,6 @@
 """Check now: HR looks a registration up this minute. GET is a confirmation
 page (a page never writes on GET); POST runs the lookup through
-lookups.run, audits the view of the person's checks as the Compliance tab
+lookups.run (which records no check for a body not yet verified), audits the view of the person's checks as the Compliance tab
 does, and goes back to their page with the register's words."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -31,8 +31,11 @@ def check_now(request, pk):
         return render(request, "registers/check_now.html", {"registration": reg, "back": back})
     lk = lookups.run(reg, Lookup.Trigger.ON_DEMAND, request.user)
     audit.viewed(request.user, reg.employee, "checks")
-    text = WORDS[lk.outcome].format(body=reg.body.name, status=lk.status_text, name=lk.name_on_register)
+    name = lk.name_on_register or ("someone else" if lk.outcome == "name_mismatch" else "")
+    text = WORDS[lk.outcome].format(body=reg.body.name, status=lk.status_text, name=name)
+    if lk.outcome in ("clear", "problem") and not name:
+        text = text.removesuffix(" ()")                  # a problem page may carry no name
     if not reg.body.verified:
-        text += " This register's parser is not yet verified: read the result with care."
+        text += " No check was recorded: this register's parser is not yet verified."
     (messages.success if lk.outcome == "clear" else messages.warning)(request, text)
     return redirect(back)
