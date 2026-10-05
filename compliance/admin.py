@@ -10,7 +10,7 @@ from compliance.models import ReminderSchedule
 
 @admin.register(ReminderSchedule)
 class ReminderScheduleAdmin(ModelAdmin):
-    fields = ("start_days_before", "every_days_before", "every_days_overdue")
+    fields = ("start_days_before", "every_days_before", "every_days_overdue", "registration_every_days")
 
     def changelist_view(self, request, extra_context=None):
         row = ReminderSchedule.get()

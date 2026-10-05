@@ -174,7 +174,7 @@ def record(actor, employee, check_type, done_on, outcome, expires_on=None, refer
         raise ValidationError("The evidence must be one of this person's files.")
     c = Check(employee=employee, check_type=check_type, done_on=done_on, outcome=outcome,
               expires_on=expires_on or expires_from(done_on, check_type), recorded_by=actor, **fields)
-    c.full_clean()
+    c.full_clean(exclude=["recorded_by"])      # None when the system records it (a register lookup)
     c.save()
     audit.record(actor, c, {"recorded": ("", f"{check_type}: {c.get_outcome_display()}, done {done_on:%d %b %Y}")})
     _after(c)
