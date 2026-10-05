@@ -403,7 +403,15 @@ The default leaver items:
 
 A link the app does not recognise is refused when the template is saved.
 An item closed automatically shows *done automatically* and no person
-against it.
+against it. A `sign_policies` item closed because no policy applies to
+the person yet shows *no policies to sign yet* instead, so nobody reads
+it as signed; once policies are issued, the policy reminders and the
+person's Policies page take over (the item is not reopened).
+
+On HR's checklist page a linked item says what closes it and links to
+where HR does it: **Add the file** opens Files › Add with the person
+and the category filled in, **Record the check** opens Checks › Add with
+the person and the type filled in.
 
 **A checklist starts with what is already in place done.** When it is
 made (or re-made for the title), a linked item whose condition already

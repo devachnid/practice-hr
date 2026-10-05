@@ -264,11 +264,17 @@ You do not need to tick these off. They close by themselves when:
   them, whether they upload it or you record their right-to-work check with
   the copy attached.
 - **Read and sign the practice policies**: they have signed every policy they
-  have to.
+  have to. If no policy applies to them yet it is ticked off straight away
+  and says *no policies to sign yet*, so you know nothing was signed.
 - **DBS check recorded** and **Occupational health clearance**: you record a
   clear check of that kind that has not already expired.
 - **Contract issued**: you add their contract under **Compliance**,
   **Files**, with the category **Contract**.
+
+On the checklist page each of these says what closes it, and the ones
+that are yours link straight to the right form: **Add the file** opens
+Files with the person and category filled in, **Record the check** opens
+Checks with the person and type filled in.
 
 Anything they already had, such as a DBS from an earlier spell at the
 practice, is ticked off as soon as the checklist is made. Everything else on

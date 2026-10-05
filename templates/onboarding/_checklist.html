@@ -15,7 +15,7 @@ link. Closed items show how they were closed.{% endcomment %}
       <th scope="row">{{ item.title }}{% if item.instruction %}<br><span class="muted">{{ item.instruction }}</span>{% endif %}</th>
       <td>{{ item.due_on|date:"j M Y" }}</td>
       <td class="row-actions">
-      {% if item.state == "done" %}<span class="badge badge-ok">Done</span>
+      {% if item.state == "done" %}<span class="badge badge-ok">Done</span>{% if not item.done_by_id and item.note %} <span class="muted">{{ item.note }}</span>{% endif %}
       {% elif item.state == "not_needed" %}<span class="badge badge-muted">Not needed</span>
       {% elif item.link == "details" and item.submitted_at %}<span class="badge badge-muted">Sent – HR will check it</span> <a href="{% url 'onboarding:details' %}">Change your details</a>
       {% elif item.link == "details" %}<a href="{% url 'onboarding:details' %}" class="btn btn-primary">Your details</a> <span class="muted">HR ticks this off once they have checked them.</span>

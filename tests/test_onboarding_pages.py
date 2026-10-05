@@ -695,3 +695,23 @@ def test_a_starter_with_no_template_is_on_starters_and_leavers_with_its_gap(hr_a
     emp = _starter(hr_admin, other)
     body = admin_client.get("/onboarding/all/").content.decode()
     assert emp.employee.name in body and "no starter checklist template" in body
+
+
+# ---- staging: HR's checklist page says what a linked item waits for and where to do it ----
+
+def test_the_hr_detail_links_each_linked_item_to_where_hr_does_it(cast):
+    from checks.models import CheckType
+    e = cast["emp"].employee
+    body = cast["clients"]["hr"].get(f"/onboarding/all/{cast['checklist'].pk}/").content.decode()
+    assert "Linked:" not in body and "upload:contract" not in body and "check:dbs" not in body
+    assert f'href="/admin/documents/file/add/?employee={e.pk}&amp;category=contract"' in body
+    assert "Add the file" in body and "Closes itself when a contract file is added for them" in body
+    dbs = CheckType.objects.get(code="dbs")
+    assert f'href="/admin/checks/check/add/?employee={e.pk}&amp;check_type={dbs.pk}"' in body
+    assert "Record the check" in body and "Closes itself when a clear DBS check is recorded" in body
+    assert "no policies to sign yet" in body and "done automatically" not in body
+
+
+def test_getting_started_tells_the_person_why_an_item_was_closed_for_them(cast):
+    body = cast["clients"]["own"].get("/onboarding/").content.decode()
+    assert "no policies to sign yet" in body

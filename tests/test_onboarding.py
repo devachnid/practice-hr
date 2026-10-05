@@ -258,7 +258,9 @@ def test_a_returner_starts_with_what_is_already_in_place_done(hr_admin):
     cl = Checklist.objects.get(employment=emp)
     done = {i.link: i for i in cl.items.filter(state="done")}
     assert set(done) == {"check:dbs", "upload:identity", "sign_policies"}
-    assert all(i.note == "done automatically" and i.done_by is None for i in done.values())
+    assert all(i.done_by is None for i in done.values())
+    assert done["check:dbs"].note == done["upload:identity"].note == "done automatically"
+    assert done["sign_policies"].note == "no policies to sign yet"          # none issued: says so
     assert cl.items.get(link="check:occupational_health").state == "open"   # not clear: still to do
     assert cl.items.get(link="upload:contract").state == "open"
 
@@ -587,3 +589,24 @@ def test_sent_details_count_as_work_begun_so_a_title_template_does_not_rebuild(h
     kept = cl.items.get(link="details")
     assert kept.pk == sent.pk and kept.submitted_at == sent.submitted_at and kept.state == "open"
     assert cl.template != t and "was not applied" in " ".join(checklists.gaps(cl))
+
+
+# ---- staging: a policies item with nothing to sign says so, not "done automatically" ------
+
+def test_a_starter_with_no_policies_to_sign_is_told_so(hr_admin):
+    emp = _starter(hr_admin)
+    item = Checklist.objects.get(employment=emp).items.get(link="sign_policies")
+    assert item.state == "done" and item.done_by is None and item.note == "no policies to sign yet"
+
+
+def test_a_starter_who_signed_everything_before_the_build_is_done_automatically(hr_admin, employee_user):
+    e = make_employee(user=employee_user)
+    p = Policy.objects.create(title="Information governance")
+    policies.issue(hr_admin, p, "v1", SimpleUploadedFile("ig.pdf", PDF, content_type="application/pdf"),
+                   timezone.localdate(), 14)
+    emp = employments.start(hr_admin, e, timezone.localdate() + timedelta(days=10))
+    policies.sign(employee_user, policies.current(p), "password", "127.0.0.1")
+    Checklist.objects.filter(employment=emp).delete()
+    cl = checklists.start(hr_admin, emp)                     # built after the signature
+    item = cl.items.get(link="sign_policies")
+    assert item.state == "done" and item.done_by is None and item.note == "done automatically"

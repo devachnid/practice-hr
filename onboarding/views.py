@@ -204,12 +204,44 @@ def hr_list(request):
     return render(request, "onboarding/hr_list.html", {"rows": rows})
 
 
+def _linked(item, employee):
+    """What an open linked item waits for and, for HR, where to do it: the
+    admin add page for the file or the check with the person (and the
+    category or type) filled in. {"text", "url", "label"}; None for an item
+    with no link or the details item (the template handles that one)."""
+    from checks.models import CheckType
+    from documents.models import File
+    kind, _, value = item.link.partition(":")
+    if kind == "upload" and value:
+        try:
+            name = File.Category(value).label.lower()
+        except ValueError:
+            name = value
+        return {"text": f"Closes itself when a {name} file is added for them.",
+                "url": f"{reverse('admin:documents_file_add')}?employee={employee.pk}&category={value}",
+                "label": "Add the file"}
+    if kind == "check" and value:
+        ct = CheckType.objects.filter(code=value).first()
+        if ct is None:
+            return {"text": f"Closes itself when a clear check of the type {value} is recorded; there is no "
+                            f"check type with that code.", "url": "", "label": ""}
+        return {"text": f"Closes itself when a clear {ct.name} check is recorded for them.",
+                "url": f"{reverse('admin:checks_check_add')}?employee={employee.pk}&check_type={ct.pk}",
+                "label": "Record the check"}
+    if item.link == "sign_policies":
+        return {"text": "Closes itself when they have signed every policy that applies to them (they sign on "
+                        "their Policies page).", "url": "", "label": ""}
+    return None
+
+
 @login_required
 def hr_detail(request, pk):
     _hr_only(request)
     cl = get_object_or_404(Checklist.objects.select_related("employment__employee"), pk=pk)
     items = list(cl.items.select_related("owner_employee", "done_by").order_by("due_on", "order", "pk"))
     employee = cl.employment.employee
+    for item in items:
+        item.linked = _linked(item, employee) if item.state == ChecklistItem.State.OPEN else None
     return render(request, "onboarding/hr_detail.html", {
         "checklist": cl, "employee": employee, "items": items, "summary": checklists.summary(cl),
         "gaps": checklists.gaps(cl), "add_form": AddItemForm(initial={"due_on": timezone.localdate()}),

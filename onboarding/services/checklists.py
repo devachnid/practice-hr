@@ -38,6 +38,8 @@ RECENT_DAYS = 30
 START_RULES = (DueRule.BEFORE_START, DueRule.AFTER_START)
 END_RULES = (DueRule.BEFORE_END, DueRule.AFTER_END)
 AUTOMATIC = "done automatically"
+NO_POLICIES = "no policies to sign yet"
+SYSTEM_NOTES = (AUTOMATIC, NO_POLICIES)      # the notes of an item closed by the app, nobody against it
 CLEARED = "leaving date cleared"
 CLEARED_GAP = "the leaving date was cleared: its open items were closed as not needed"
 
@@ -102,34 +104,45 @@ def _copy_items(checklist, template, manager):
 
 
 def _already_met(employee, link, today):
-    """Whether the condition behind `link` already holds for the person, so a
-    checklist built now starts with that item done: a current clear check of
-    the type (not one that has expired), a file of the category (not one
-    superseded), nothing left to sign."""
+    """The note to close the item with when the condition behind `link`
+    already holds for the person, so a checklist built now starts with that
+    item done: a current clear check of the type (not one that has expired),
+    a file of the category (not one superseded), nothing left to sign. For
+    policies the note says whether that is because they signed them all or
+    because none applies yet. "" when the condition does not hold."""
     from checks.models import Check
     from checks.services import checks
     from documents.models import File
     from documents.services import policies
     kind, _, value = link.partition(":")
     if kind == "check" and value:
-        return (Check.objects.filter(employee=employee, check_type__code=value, awaiting=False,
-                                     outcome__in=checks.CLEAR)
-                .filter(Q(expires_on__isnull=True) | Q(expires_on__gte=today)).exists())
+        met = (Check.objects.filter(employee=employee, check_type__code=value, awaiting=False,
+                                    outcome__in=checks.CLEAR)
+               .filter(Q(expires_on__isnull=True) | Q(expires_on__gte=today)).exists())
+        return AUTOMATIC if met else ""
     if kind == "upload" and value:
-        return File.objects.filter(employee=employee, category=value, superseded_by__isnull=True).exists()
+        met = File.objects.filter(employee=employee, category=value, superseded_by__isnull=True).exists()
+        return AUTOMATIC if met else ""
     if link == "sign_policies":
-        return not policies.owed(employee, today)
-    return False
+        if policies.owed(employee, today):
+            return ""
+        return AUTOMATIC if policies.state(employee, today) else NO_POLICIES
+    return ""
 
 
 def _close_already_met(checklist):
-    """Close "done automatically" the linked items whose condition holds
-    already (a returner's DBS, a passport on file, nothing to sign)."""
+    """Close the linked items whose condition holds already (a returner's
+    DBS, a passport on file, nothing to sign), each with the note that says
+    why ("done automatically", or "no policies to sign yet")."""
     today = timezone.localdate()
     employee = checklist.employment.employee
-    met = [item for item in checklist.items.filter(state=ChecklistItem.State.OPEN).exclude(link="")
-           if _already_met(employee, item.link, today)]
-    _auto_close(met)
+    by_note = {}
+    for item in checklist.items.filter(state=ChecklistItem.State.OPEN).exclude(link=""):
+        note = _already_met(employee, item.link, today)
+        if note:
+            by_note.setdefault(note, []).append(item)
+    for note, items in by_note.items():
+        _auto_close(items, note)
 
 
 def _reopen_unmet(checklist):
@@ -138,7 +151,8 @@ def _reopen_unmet(checklist):
     today = timezone.localdate()
     employee = checklist.employment.employee
     reopened = 0
-    for item in checklist.items.filter(state=ChecklistItem.State.DONE, done_by__isnull=True, note=AUTOMATIC):
+    for item in checklist.items.filter(state=ChecklistItem.State.DONE, done_by__isnull=True,
+                                       note__in=SYSTEM_NOTES):
         if not _already_met(employee, item.link, today):
             item.state, item.done_at, item.note = ChecklistItem.State.OPEN, None, ""
             item.save(update_fields=["state", "done_at", "note"])
@@ -246,7 +260,7 @@ def leaving_cleared(actor, employment):
 
 
 def _by_hand(item):
-    return item.state != ChecklistItem.State.OPEN and not (item.done_by_id is None and item.note == AUTOMATIC)
+    return item.state != ChecklistItem.State.OPEN and not (item.done_by_id is None and item.note in SYSTEM_NOTES)
 
 
 def _untouched(checklist):
@@ -439,14 +453,15 @@ def linked_done(employee, link_prefix, *, category=None, check_code=None):
     return _auto_close(items)
 
 
-def _auto_close(items):
-    """The one system close path: "done automatically", nobody against it,
-    an audit row each; a checklist with nothing left open is complete."""
+def _auto_close(items, note=AUTOMATIC):
+    """The one system close path: "done automatically" (or another of
+    SYSTEM_NOTES), nobody against it, an audit row each; a checklist with
+    nothing left open is complete."""
     now = timezone.now()
     for item in items:
-        item.state, item.done_by, item.done_at, item.note = ChecklistItem.State.DONE, None, now, AUTOMATIC
+        item.state, item.done_by, item.done_at, item.note = ChecklistItem.State.DONE, None, now, note
         item.save(update_fields=["state", "done_by", "done_at", "note"])
-        audit.record(None, item, {"state": (ChecklistItem.State.OPEN, ChecklistItem.State.DONE)}, note=AUTOMATIC)
+        audit.record(None, item, {"state": (ChecklistItem.State.OPEN, ChecklistItem.State.DONE)}, note=note)
     for checklist in {item.checklist_id: item.checklist for item in items}.values():
         _finish_if_done(checklist)
     return len(items)
