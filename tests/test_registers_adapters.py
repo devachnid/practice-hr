@@ -67,6 +67,8 @@ GMC_NO_LICENCE = GMC_CLEAR.replace("Registered with a licence to practise", "Reg
 GMC_NOT_GP = GMC_CLEAR.replace("<dt>GP Register</dt><dd>On the GP Register since 2015</dd>", "")
 GMC_CONDITIONS = GMC_CLEAR.replace("Registered with a licence to practise",
                                    "Registered with a licence to practise, with Conditions on registration")
+GMC_RESTRICTED = GMC_CLEAR.replace("</dl>", "<dt>Fitness to practise</dt><dd>Conditions on registration</dd></dl>")
+GMC_RESTRICTION_NONE = GMC_CLEAR.replace("</dl>", "<dt>Fitness to practise</dt><dd>None</dd></dl>")
 GMC_FOOTER = GMC_CLEAR.replace("</body>", "<footer><p>Terms and conditions</p></footer></body>")
 GMC_NO_GP_VALUE = GMC_CLEAR.replace("On the GP Register since 2015", "Not on the GP Register")
 GMC_NONE = "<html><body><h1>Search results</h1><p>No results were found for 1234567.</p></body></html>"
@@ -79,6 +81,8 @@ GMC_ODD = "<html><body><p>Something else entirely</p></body></html>"
     (GMC_NO_LICENCE, "problem", "Registered without a licence"),
     (GMC_NOT_GP, "problem", "not on the GP Register"),
     (GMC_CONDITIONS, "problem", "Conditions"),
+    (GMC_RESTRICTED, "problem", "Fitness to practise: Conditions on registration"),
+    (GMC_RESTRICTION_NONE, "clear", "Registered with a licence to practise"),
     (GMC_NO_GP_VALUE, "problem", "not on the GP Register"),
     (GMC_FOOTER, "clear", "Registered with a licence to practise"),
     (GMC_NONE, "not_found", ""),
@@ -116,6 +120,8 @@ NMC_CLEAR = """<html><body><h2>Priya Patel</h2><p>PIN 12A3456B</p>
 <p>Registration status: Effective registration</p><p>Registered nurse - Adult</p></body></html>"""
 NMC_LAPSED = NMC_CLEAR.replace("Effective registration", "Lapsed")
 NMC_CONDITIONS = NMC_CLEAR.replace("Effective registration", "Effective registration - Conditions of practice order")
+NMC_RESTRICTED = NMC_CLEAR.replace("</body>", "<p>Conditions of practice: Must be supervised</p></body>")
+NMC_RESTRICTION_NONE = NMC_CLEAR.replace("</body>", "<p>Restrictions: n/a</p></body>")
 NMC_NO_STATUS_FIELD = "<html><body><p>Registered charity 123</p></body></html>"
 NMC_NONE = "<html><body><p>No registrant found with the PIN 12A3456B.</p></body></html>"
 
@@ -124,6 +130,8 @@ NMC_NONE = "<html><body><p>No registrant found with the PIN 12A3456B.</p></body>
     (NMC_CLEAR, "clear", "Effective registration"),
     (NMC_LAPSED, "problem", "Lapsed"),
     (NMC_CONDITIONS, "problem", "Conditions"),
+    (NMC_RESTRICTED, "problem", "Conditions of practice: Must be supervised"),
+    (NMC_RESTRICTION_NONE, "clear", "Effective registration"),
     (NMC_NONE, "not_found", ""),
     (NMC_NO_STATUS_FIELD, "unreadable", ""),
     (GMC_ODD, "unreadable", ""),
@@ -139,6 +147,8 @@ GPHC_CLEAR = """<html><body><h2>Priya Patel</h2><p>Registration number: 2012345<
 <p>Status: Registered</p><p>Pharmacist</p></body></html>"""
 GPHC_SUSPENDED = GPHC_CLEAR.replace("Registered", "Suspended")
 GPHC_CONDITIONS = GPHC_CLEAR.replace("Registered", "Registered with Conditions")
+GPHC_RESTRICTED = GPHC_CLEAR.replace("</body>", "<p>Conditions</p><p>Conditions apply to this registration</p></body>")
+GPHC_RESTRICTION_NONE = GPHC_CLEAR.replace("</body>", "<p>Conditions: None</p></body>")
 GPHC_UNREGISTERED = GPHC_CLEAR.replace("Registered", "Unregistered")
 GPHC_NONE = "<html><body><p>Your search returned no results.</p></body></html>"
 
@@ -148,6 +158,8 @@ GPHC_NONE = "<html><body><p>Your search returned no results.</p></body></html>"
     (GPHC_SUSPENDED, "problem", "Suspended"),
     (GPHC_CONDITIONS, "problem", "Conditions"),
     (GPHC_UNREGISTERED, "problem", "Unregistered"),
+    (GPHC_RESTRICTED, "problem", "Conditions: Conditions apply to this registration"),
+    (GPHC_RESTRICTION_NONE, "clear", "Registered"),
     (GPHC_NONE, "not_found", ""),
     (GMC_ODD, "unreadable", ""),
 ])

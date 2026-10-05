@@ -85,6 +85,22 @@ def status_value(lines, labels):
     return ""
 
 
+_NONE = {"none", "no", "n/a", "nil", "not applicable"}
+
+
+def restriction(lines, labels):
+    """(label, value) for the first labelled restriction field (conditions,
+    undertakings, sanctions, ...) whose value is something other than
+    "none"-like; (None, "") when there is no such field or all say none.
+    Read as status_value reads, so the same wording in a footer or a
+    sentence is not a restriction, but one on its own line is."""
+    for label in labels:
+        value = status_value(lines, (label,))
+        if value and value.strip().rstrip(".").strip().lower() not in _NONE:
+            return label, value
+    return None, ""
+
+
 def classify(value, clear, problem):
     """clear, problem or unreadable for a status value, on whole words:
     a problem phrase first, then a clear phrase, and a value with "not" or
