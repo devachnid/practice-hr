@@ -30,6 +30,10 @@ FIXTURES = Path("registers/adapters/fixtures")
     ("Priya Patel", "Patel", True),
     ("Priya Anne Patel", "Patel", True),
     ("Ian MacDonald", "Mac Donald", True),
+    ("Mary Ann Lee", "Ann", False),             # a one-word surname is the register name's last word
+    ("James Patel Smith", "Patel", False),
+    ("Mary Ann Lee", "Lee", True),
+    ("Priya Smith-Jones", "Smith", True),
 ])
 def test_surnames_match_loosely_and_never_wrongly(a, b, expected):
     assert names.surnames_match(a, b) is expected
@@ -55,6 +59,31 @@ def test_nothing_in_the_adapters_reaches_the_network(monkeypatch):
     for code in CODES:
         r = lookup(code, "1234567" if code != "nmc" else "12A3456B", "Patel")
         assert r.outcome == "unreadable" and r.page_hash == ""
+
+
+def test_a_reply_is_read_to_two_megabytes_at_most(monkeypatch):
+    asked = []
+
+    class Reply:
+        status = 200
+
+        class headers:
+            @staticmethod
+            def get_content_charset():
+                return "utf-8"
+
+        def read(self, amount=-1):
+            asked.append(amount)
+            return b"<html></html>"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+    monkeypatch.setattr(http.urllib.request, "urlopen", lambda request, timeout: Reply())
+    assert http.get("https://example.invalid/") == (200, "<html></html>")
+    assert asked == [2_000_000]
 
 
 # ---- parsers -------------------------------------------------------------------------------
@@ -99,7 +128,8 @@ MPL_PRESENT = """<html><body><table><tr><th>GMC No</th><th>Name</th><th>Status</
 <tr><td>1234567</td><td>PATEL, Priya</td><td>Included</td></tr></table></body></html>"""
 MPL_SUSPENDED = MPL_PRESENT.replace("Included", "Suspended")
 MPL_NONE = "<html><body><p>No performers match your search.</p></body></html>"
-MPL_ODD_STATUS = MPL_PRESENT.replace("Included", "Pending review")
+MPL_ODD_STATUS = MPL_PRESENT.replace("Included", "Awaiting review")
+MPL_PENDING = MPL_PRESENT.replace("Included", "Pending review")
 
 
 @pytest.mark.parametrize("page,outcome,words", [
@@ -107,6 +137,7 @@ MPL_ODD_STATUS = MPL_PRESENT.replace("Included", "Pending review")
     (MPL_SUSPENDED, "problem", "Suspended"),
     (MPL_NONE, "not_found", ""),
     (MPL_ODD_STATUS, "unreadable", ""),
+    (MPL_PENDING, "problem", "Pending review"),
     (GMC_ODD, "unreadable", ""),
 ])
 def test_mpl_wales_parse(page, outcome, words):
@@ -234,10 +265,110 @@ def test_a_hit_without_a_name_is_unreadable_not_a_match(monkeypatch):
     assert lookup("gmc", "1234567", "Patel").outcome == "unreadable"
 
 
+def test_a_problem_without_a_name_stays_a_problem(monkeypatch):
+    page = GMC_SUSPENDED.replace("<h1>Dr Priya Patel</h1>", "")
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, page))
+    r = lookup("gmc", "1234567", "Patel")
+    assert (r.outcome, r.status_text, r.name_on_register) == ("problem", "Suspended", "")
+
+
+def test_a_wrong_name_is_a_mismatch_only_when_a_name_was_found(monkeypatch):
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, GMC_SUSPENDED))
+    assert lookup("gmc", "1234567", "Khan").outcome == "name_mismatch"
+    assert lookup("gmc", "1234567", "Patel").outcome == "problem"
+    page = GMC_SUSPENDED.replace("<h1>Dr Priya Patel</h1>", "")
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, page))
+    assert lookup("gmc", "1234567", "Khan").outcome == "problem"
+
+
 def test_urls_carry_the_number_and_only_the_number():
     assert url("gmc", "1234567").endswith("1234567")
     for code, number in (("mpl_wales", "1234567"), ("nmc", "12A3456B"), ("gphc", "2012345")):
         assert number in url(code, number) and " " not in url(code, number)
+
+
+# ---- an unknown or qualified wording is never good news ----------------------------------------
+
+def _page(code, status, extra=""):
+    if code == "gmc":
+        return GMC_CLEAR.replace("Registered with a licence to practise", status).replace("</dl>", extra + "</dl>")
+    if code == "nmc":
+        return NMC_CLEAR.replace("Effective registration", status)
+    if code == "gphc":
+        return GPHC_CLEAR.replace("<p>Status: Registered</p>", f"<p>Status: {status}</p>")
+    return MPL_PRESENT.replace("Included", status)
+
+
+NEVER_CLEAR = [
+    ("nmc", "Effective registration - interim suspension order"),
+    ("nmc", "Effective registration (under investigation)"),
+    ("nmc", "Registered with restrictions"),
+    ("gphc", "Registered (removal pending)"),
+    ("gphc", "Registered - suspension"),
+    ("gphc", "Registered, condition imposed"),
+    ("gphc", "Previously registered"),
+    ("mpl_wales", "Previously included"),
+    ("mpl_wales", "Included - suspension pending"),
+    ("gmc", "Registered with a licence to practise - suspension pending"),
+    ("gmc", "Registered with a licence to practise; interim orders apply"),
+]
+
+
+@pytest.mark.parametrize("code,status", NEVER_CLEAR)
+def test_a_qualified_status_is_never_clear(code, status, monkeypatch):
+    module = {"gmc": gmc, "nmc": nmc, "gphc": gphc, "mpl_wales": mpl_wales}[code]
+    number = "12A3456B" if code == "nmc" else "1234567"
+    got, words, _ = module.parse(module.text_of(_page(code, status)), number)
+    assert got in ("problem", "unreadable") and status in words
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, _page(code, status)))
+    assert lookup(code, number, "Patel").outcome == "problem"
+
+
+@pytest.mark.parametrize("gp", ["No", "Suspended", "Removed 2024"])
+def test_a_gp_register_value_other_than_a_known_yes_is_a_problem(gp):
+    page = GMC_CLEAR.replace("On the GP Register since 2015", gp)
+    got, words, _ = gmc.parse(gmc.text_of(page), "1234567")
+    assert got == "problem" and words == "Registered with a licence to practise; not on the GP Register"
+
+
+@pytest.mark.parametrize("gp", ["Yes", "On the GP Register", "GP Register", "Included", "On the GP Register since 2015",
+                                "yes."])
+def test_a_known_gp_register_value_stays_clear(gp):
+    page = GMC_CLEAR.replace("On the GP Register since 2015", gp)
+    assert gmc.parse(gmc.text_of(page), "1234567")[0] == "clear"
+
+
+@pytest.mark.parametrize("code,page", [
+    ("gmc", GMC_CLEAR.replace("</dl>", "<dt>Warning</dt><dd>Final warning issued</dd></dl>")),
+    ("gmc", GMC_CLEAR.replace("</dl>", "<dt>Condition</dt><dd>Supervised practice</dd></dl>")),
+    ("gmc", GMC_CLEAR.replace("</dl>", "<dt>Undertaking</dt><dd>Not to prescribe</dd></dl>")),
+    ("nmc", NMC_CLEAR.replace("</body>", "<p>Restriction: Must be supervised</p></body>")),
+    ("nmc", NMC_CLEAR.replace("</body>", "<p>Sanction: Caution order</p></body>")),
+    ("gphc", GPHC_CLEAR.replace("</body>", "<p>Condition: Must be supervised</p></body>")),
+    ("gphc", GPHC_CLEAR.replace("</body>", "<p>Sanction: Warning</p></body>")),
+])
+def test_a_restriction_label_matches_singular_and_plural(code, page):
+    module = {"gmc": gmc, "nmc": nmc, "gphc": gphc}[code]
+    got, words, _ = module.parse(module.text_of(page), "12A3456B" if code == "nmc" else "1234567")
+    assert got == "problem" and ": " in words.split("; ", 1)[1]
+
+
+def test_a_singular_warning_restriction_is_named_in_the_words():
+    page = GMC_CLEAR.replace("</dl>", "<dt>Warning</dt><dd>Final warning issued</dd></dl>")
+    assert gmc.parse(gmc.text_of(page), "1234567")[1] == \
+        "Registered with a licence to practise; Warning: Final warning issued"
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("Registered with a licence to practise", "clear"),
+    ("  registered with a licence to practise. ", "clear"),
+    ("Registered with a licence to practise, pending review", "problem"),
+    ("Not registered", "problem"),
+    ("Something new", "unreadable"),
+])
+def test_classify_is_clear_only_on_an_exact_phrase(value, expected):
+    from registers.adapters.base import classify
+    assert classify(value, gmc.CLEAR, gmc.PROBLEM) == expected
 
 
 # ---- captured pages ------------------------------------------------------------------------
@@ -264,7 +395,7 @@ def test_captured_fixtures_parse_as_their_file_name_says(code, page, monkeypatch
     assert r.outcome == expected, r
 
 
-def test_verified_means_the_clear_and_not_found_pages_are_captured(tmp_path, monkeypatch):
+def test_verified_means_the_clear_not_found_and_a_problem_page_are_captured(tmp_path, monkeypatch):
     import registers.adapters as adapters
     monkeypatch.setattr(adapters, "FIXTURES", tmp_path)
     assert not verified("gmc")
@@ -272,4 +403,8 @@ def test_verified_means_the_clear_and_not_found_pages_are_captured(tmp_path, mon
     (tmp_path / "gmc" / "clear.html").write_text("x")
     assert not verified("gmc")
     (tmp_path / "gmc" / "not_found.html").write_text("x")
+    assert not verified("gmc")                       # the problem path is the one that matters
+    (tmp_path / "gmc" / "problem.surname").write_text("Patel")
+    assert not verified("gmc")
+    (tmp_path / "gmc" / "problem-suspended.html").write_text("x")
     assert verified("gmc")

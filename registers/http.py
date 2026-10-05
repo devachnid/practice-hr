@@ -8,6 +8,7 @@ import urllib.request
 from django.conf import settings
 
 TIMEOUT = 10
+MAX_BYTES = 2_000_000          # a register page is far smaller; never read an unbounded reply
 
 
 class FetchError(Exception):
@@ -26,7 +27,7 @@ def get(url, timeout=TIMEOUT):
     request = urllib.request.Request(url, headers={"User-Agent": user_agent(), "Accept": "text/html"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as reply:   # noqa: S310 - https URLs built by the adapters
-            return reply.status, reply.read().decode(reply.headers.get_content_charset() or "utf-8", "replace")
+            return reply.status, reply.read(MAX_BYTES).decode(reply.headers.get_content_charset() or "utf-8", "replace")
     except urllib.error.HTTPError as exc:
         return exc.code, ""
     except (urllib.error.URLError, socket.timeout, OSError, ValueError) as exc:

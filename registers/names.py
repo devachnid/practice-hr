@@ -1,8 +1,11 @@
 """Loose surname matching: the register's name against the record's surname.
 Case, accents, apostrophes and punctuation are ignored. The register shows a
-full name ("Priya Patel"), so its given name (the first word) is dropped
-before comparing, and a hyphenated surname matches on either part; particles
-("de", "van", "al", ...) never match on their own. Never the preferred name:
+full name ("Priya Patel"). A one-word surname on the record is compared
+with the register name's last word only, so a middle name is never taken
+for a surname; a surname of several words ("De Souza") is compared with
+every word of the register name but the first (the given name). Either part
+of a hyphenated surname matches, on either side; particles ("de", "van",
+"al", ...) never match on their own. Never the preferred name:
 the register shows legal names."""
 import re
 import unicodedata
@@ -28,10 +31,12 @@ def _without_particles(tokens):
 
 
 def surnames_match(register_name, surname):
-    register_words = _words(register_name)
-    if len(register_words) > 1:
+    register_words, record_words = _words(register_name), _words(surname)
+    if len(record_words) == 1:
+        register_words = register_words[-1:]           # a one-word surname: the register name's last word
+    elif len(register_words) > 1:
         register_words = register_words[1:]            # the given name
-    register, record = _tokens(register_words), _tokens(_words(surname))
+    register, record = _tokens(register_words), _tokens(record_words)
     if not register or not record:
         return False
     if "".join(register) == "".join(record):

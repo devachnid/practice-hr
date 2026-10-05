@@ -1,8 +1,8 @@
 """The All Wales medical performers list (NHS Wales Shared Services
 Partnership), searched by GMC number. A row for the number carries the name
 and the status cell, which is classified like every other register's status:
-Included, Active or Current is clear, a suspension or condition is a
-problem, anything else is unreadable."""
+exactly Included, Active or Current is clear, a suspension, condition or
+any other problem stem is a problem, anything else is unreadable."""
 from registers.adapters.base import classify, find, text_of  # noqa: F401
 
 PUBLIC = "http://www.primarycareservices.wales.nhs.uk/all-wales-medical-performers-list?gmc="

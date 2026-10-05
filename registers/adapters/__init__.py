@@ -1,8 +1,7 @@
 """One adapter per register body: url(number) for the public page and
 parse(lines, number) -> (outcome, status_text, name). lookup() is the only
 entry point the services use; verified() says whether a body's parser has
-saved real pages to test against (the fixtures folder; its README arrives
-with the capture command)."""
+saved real pages to test against (the fixtures folder and its README)."""
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,5 +31,7 @@ def lookup(code, number, surname):
 
 
 def verified(code):
+    """A clear page, a not-found page and at least one problem page (problem*.html) are saved."""
     folder = FIXTURES / code
-    return all((folder / name).exists() for name in REQUIRED_FIXTURES)
+    return (all((folder / name).exists() for name in REQUIRED_FIXTURES)
+            and any(folder.glob("problem*.html")))

@@ -101,14 +101,28 @@ def restriction(lines, labels):
     return None, ""
 
 
+# Word stems that make any status a problem, whatever the body: a new or
+# qualified wording ("Registered - suspension pending") must never read clear.
+PROBLEM_STEMS = ("suspen", "restrict", "condition", "interim", "lapse", "remov", "eras", "struck", "caution",
+                 "warning", "undertak", "sanction", "provisional", "previous", "former", "expir", "pending",
+                 "investigat", "not ", "without", "unregist", "deregist")
+
+
+def plain(value):
+    """`value` lower-cased, with punctuation and runs of whitespace as single spaces, trimmed."""
+    return " ".join(re.sub(r"[^\w]+", " ", value or "").lower().split())
+
+
 def classify(value, clear, problem):
-    """clear, problem or unreadable for a status value, on whole words:
-    a problem phrase first, then a clear phrase, and a value with "not" or
-    "without" in it is never clear."""
-    if any(has_word(value, p) for p in problem):
+    """clear, problem or unreadable for a status value. Clear only when the
+    value, ignoring case, whitespace and punctuation, IS one of the `clear`
+    phrases; otherwise a problem when it contains a PROBLEM_STEMS stem or a
+    `problem` phrase (whole words); otherwise unreadable."""
+    if plain(value) in {plain(c) for c in clear}:
+        return "clear"
+    low = " ".join((value or "").lower().split()) + " "
+    if any(stem in low for stem in PROBLEM_STEMS) or any(has_word(value, p) for p in problem):
         return "problem"
-    if any(has_word(value, c) for c in clear):
-        return "problem" if has_word(value, "not") or has_word(value, "without") else "clear"
     return "unreadable"
 
 
@@ -156,9 +170,8 @@ def run(url, parse, number, surname):
         outcome, status_text, name = parse(text_of(body), number)
     except Exception as exc:  # noqa: BLE001 - as above
         return Result("unreadable", exc.__class__.__name__, "", page_hash)
-    if outcome in ("clear", "problem"):
-        if not name:
-            return Result("unreadable", "name not found on the page", "", page_hash)
-        if not names.surnames_match(name, surname):
-            outcome = "name_mismatch"
+    if outcome == "clear" and not name:
+        return Result("unreadable", "name not found on the page", "", page_hash)
+    if outcome in ("clear", "problem") and name and not names.surnames_match(name, surname):
+        outcome = "name_mismatch"          # only when a name was found: a problem with none stays a problem
     return Result(outcome, status_text[:200], name[:120], page_hash)

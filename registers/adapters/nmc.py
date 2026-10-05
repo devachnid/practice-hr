@@ -1,5 +1,5 @@
 """The NMC's public register search by PIN. Clear is a "Registration
-status" of "Effective registration" with no restriction, condition or order
+status" of exactly "Effective registration" (or "Registered") with no restriction, condition or order
 in that field. Status is read only from the labelled field; a page with
 none and no result-specific no-results wording is unreadable."""
 import re
@@ -9,7 +9,7 @@ from registers.adapters.base import classify, find, name_near, restriction, stat
 PUBLIC = "https://www.nmc.org.uk/registration/search-the-register/?pin="
 NOT_FOUND = ("no registrant found", "no results were found for")
 LABELS = ("Registration status", "Status")
-RESTRICTION_LABELS = ("Restrictions", "Conditions of practice", "Sanctions")
+RESTRICTION_LABELS = ("Restrictions", "Restriction", "Conditions of practice", "Sanctions", "Sanction")
 CLEAR = ("Effective registration", "Registered")
 PROBLEM = ("Lapsed", "Suspended", "Struck off", "Conditions of practice", "Caution order", "Interim order",
            "Restriction", "Not registered", "Unregistered")
