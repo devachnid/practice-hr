@@ -19,13 +19,13 @@ from registers.services.nightly import UNREADABLE_AFTER_DAYS
 KIND = "registration"
 
 
-def _label(reg):
-    body = reg.body.name
-    if reg.last_outcome == "problem":
-        return f"{body}: {reg.last_status_text}"
-    if reg.last_outcome == "not_found":
-        return f"{body}: not found on the register"
-    return f"{body}: the register shows {reg.last_name_on_register or 'someone else'}, not this person"
+def _label(body_name, latest):
+    """In the register's words, from the lookup itself: the registration's cached fields are blank after a number change."""
+    if latest.outcome == "problem":
+        return f"{body_name}: {latest.status_text or 'a problem on the register'}"
+    if latest.outcome == "not_found":
+        return f"{body_name}: not found on the register"
+    return f"{body_name}: the register shows {latest.name_on_register or 'someone else'}, not this person"
 
 
 def due_items(today, sched):
@@ -46,6 +46,8 @@ def due_items(today, sched):
                     out.append(DueItem(e, r, KIND, f"{row.body.name} number not recorded", emp.start_date, "missing",
                                        hr_url, f"registration:{e.pk}:{row.body.code}:missing"))
                 continue
+            if reg.last_checked_at is None:      # the current number has not been looked up yet: tonight
+                continue
             latest = reg.lookups.order_by("-run_at", "-pk").first()
             if latest is None:
                 continue
@@ -53,10 +55,10 @@ def due_items(today, sched):
                 key = f"registration:{e.pk}:{row.body.code}:{latest.pk}"
                 found = timezone.localtime(latest.run_at).date()
                 for r in hr:
-                    out.append(DueItem(e, r, KIND, _label(reg), found, "overdue", hr_url, key))
+                    out.append(DueItem(e, r, KIND, _label(row.body.name, latest), found, "overdue", hr_url, key))
                 manager = active_email(access.line_manager(e, today))
                 if manager:
-                    out.append(DueItem(e, manager, KIND, _label(reg), found, "overdue",
+                    out.append(DueItem(e, manager, KIND, _label(row.body.name, latest), found, "overdue",
                                        link(reverse("people:team")), key))
             elif latest.outcome == "unreadable":
                 since = _unreadable_since(reg)

@@ -86,6 +86,27 @@ def test_not_found_and_a_wrong_name_are_alerts_too(hr_admin, gmc, monkeypatch, r
     assert labels == {expected}
 
 
+def test_a_changed_number_drops_the_old_numbers_alert_until_the_new_one_is_looked_up(hr_admin, gmc, monkeypatch):
+    e = _gp(hr_admin)
+    r = registrations.set_number(hr_admin, e, gmc, "1234567")
+    monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
+    lookups.run(r, "scheduled")
+    assert len(_items()) == 1
+    r = registrations.set_number(hr_admin, e, gmc, "7654321")
+    assert _items() == []                                    # the new number has not been looked up yet
+    lk = lookups.run(r, "scheduled")
+    [item] = _items()
+    assert item.recipient == "hr@example.com" and item.label == "GMC: Suspended"
+    assert item.key == f"registration:{e.pk}:gmc:{lk.pk}"
+
+
+def test_the_label_comes_from_the_lookup_with_fallbacks_for_empty_words():
+    assert due._label("GMC", Lookup(outcome="problem", status_text="")) == "GMC: a problem on the register"
+    assert due._label("GMC", Lookup(outcome="problem", status_text="Suspended")) == "GMC: Suspended"
+    assert due._label("GMC", Lookup(outcome="name_mismatch", name_on_register="")) == \
+        "GMC: the register shows someone else, not this person"
+
+
 def test_a_clear_result_and_a_fresh_registration_produce_nothing(hr_admin, gmc, monkeypatch):
     e = _gp(hr_admin)
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
@@ -146,6 +167,15 @@ def test_the_digest_carries_registration_lines_in_plain_words(hr_admin, gmc, mon
     assert result["reminders_sent"] == 2
     body = next(m_.body for m_ in mail.outbox if m_.to == ["mo@example.com"])
     assert "Priya Patel" in body and "GMC: Suspended: found " in body and "overdue since" not in body
+
+
+def test_the_digest_renders_a_paused_body_under_its_own_heading(hr_admin, gmc, configured):
+    gmc.paused_at = timezone.now()
+    gmc.save()
+    result = digest.run(timezone.localdate())
+    assert result["reminders_sent"] == 1 and result["reminders_failed"] == 0
+    body = next(m_.body for m_ in mail.outbox if m_.to == ["hr@example.com"])
+    assert "The registers" in body and "GMC: checks are paused (the page could not be read): found " in body
 
 
 def test_the_nightly_step_runs_the_schedule_syncs_verified_and_never_fails_the_command(hr_admin, gmc,
