@@ -177,7 +177,7 @@ def test_run_spreads_the_next_check_and_never_raises(hr_admin, gmc_only, monkeyp
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
     _answer(monkeypatch, CLEAR)
     for k, jitter in enumerate(lookups.JITTER):
-        monkeypatch.setattr(lookups.random, "choice", lambda seq, k=k: seq[k])
+        monkeypatch.setattr(lookups, "jitter", lambda k=k: lookups.JITTER[k])
         lookups.run(r, "scheduled")
         r.refresh_from_db()
         assert (r.next_check_on - timezone.localdate()).days == 7 + jitter
@@ -187,6 +187,23 @@ def test_run_spreads_the_next_check_and_never_raises(hr_admin, gmc_only, monkeyp
     monkeypatch.setattr(adapters, "lookup", boom)
     lk = lookups.run(r, "scheduled")
     assert lk.outcome == "unreadable" and lk.error == "RuntimeError" and "Priya" not in lk.status_text
+
+
+@pytest.mark.parametrize("error", [ValidationError("Priya Patel 1234567"), RuntimeError("Priya Patel 1234567")])
+def test_a_failing_check_record_keeps_the_lookup_and_logs_no_name(hr_admin, gmc_only, monkeypatch, caplog, error):
+    r = registrations.set_number(hr_admin, _gp(hr_admin), gmc_only, "1234567")
+    _answer(monkeypatch, PROBLEM)
+
+    def refuse(*args, **kwargs):
+        raise error
+    monkeypatch.setattr(lookups.checks, "record", refuse)
+    with caplog.at_level("ERROR", logger="hr.registers"):
+        lk = lookups.run(r, "scheduled")
+    r.refresh_from_db()
+    assert Lookup.objects.get(pk=lk.pk).outcome == "problem" and r.last_outcome == "problem"
+    assert r.next_check_on > timezone.localdate() and not Check.objects.exists()
+    assert error.__class__.__name__ in caplog.text
+    assert "Priya" not in caplog.text and "1234567" not in caplog.text
 
 
 def test_the_interval_setting_has_its_bounds_and_drives_the_spread(hr_admin, gmc_only, monkeypatch):

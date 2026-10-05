@@ -7,7 +7,6 @@ import random
 import time
 from datetime import timedelta
 
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -35,9 +34,14 @@ def unpause(body):
         body.save(update_fields=["paused_at"])
 
 
+def jitter():
+    """Days either way to spread the next check; the tests replace it."""
+    return random.choice(JITTER)
+
+
 def _next_check(today):
     every = ReminderSchedule.get().registration_every_days
-    return today + timedelta(days=every + random.choice(JITTER))
+    return today + timedelta(days=every + jitter())
 
 
 def _record_check(registration, outcome, status_text, today):
@@ -56,9 +60,9 @@ def _pause_if_dead(body):
         log.warning("register body %s paused after %s unreadable lookups", body.code, PAUSE_AFTER)
 
 
-def run(registration, trigger, requested_by=None):
+def run(registration, trigger, requested_by=None, today=None):
     """Look the registration up now. Returns the Lookup written."""
-    today = timezone.localdate()
+    today = today or timezone.localdate()
     body = RegisterBody.objects.get(pk=registration.body_id)       # fresh: the pause may have changed
     try:
         result = adapters.lookup(body.code, registration.number, registration.employee.last_name)
@@ -78,7 +82,7 @@ def run(registration, trigger, requested_by=None):
             try:
                 with transaction.atomic():
                     _record_check(registration, result.outcome, result.status_text, today)
-            except (ValidationError, ObjectDoesNotExist) as exc:
+            except Exception as exc:  # noqa: BLE001 - the lookup is kept whatever the check service says
                 log.error("registration %s (%s): check not recorded: %s", registration.pk, body.code,
                           exc.__class__.__name__)
         if result.outcome == "unreadable":
@@ -86,7 +90,7 @@ def run(registration, trigger, requested_by=None):
         elif trigger == Lookup.Trigger.ON_DEMAND:
             unpause(body)
     if result.outcome == "unreadable":
-        log.info("registration %s (%s) unreadable: %s", registration.pk, body.code, lk.error)
+        log.info("registration %s (%s) unreadable", registration.pk, body.code)
     return lk
 
 
@@ -97,7 +101,7 @@ def _due(today):
     employed = set(employments.active_on(today).values_list("employee_id", flat=True))
     out = []
     for reg in (Registration.objects.filter(next_check_on__lte=today)
-                .select_related("body", "employee").order_by("body__display_order", "pk")):
+                .select_related("body", "employee").order_by("body__display_order", "body_id", "pk")):
         body = reg.body
         if reg.employee_id not in employed:
             out.append((reg, "not employed"))
@@ -123,7 +127,7 @@ def scheduled(today):
         if last_body == reg.body_id:
             sleep(PAUSE_BETWEEN_SECONDS)
         last_body = reg.body_id
-        lk = run(reg, Lookup.Trigger.SCHEDULED)
+        lk = run(reg, Lookup.Trigger.SCHEDULED, today=today)
         counts["run"] += 1
         counts[lk.outcome] += 1
     return counts
