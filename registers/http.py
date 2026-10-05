@@ -23,11 +23,14 @@ def user_agent():
 
 
 def get(url, timeout=TIMEOUT):
-    """(HTTP status, body as text). Raises FetchError when no reply came."""
+    """(HTTP status, body as text). Raises FetchError when no reply came, or one larger than MAX_BYTES."""
     request = urllib.request.Request(url, headers={"User-Agent": user_agent(), "Accept": "text/html"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as reply:   # noqa: S310 - https URLs built by the adapters
-            return reply.status, reply.read(MAX_BYTES).decode(reply.headers.get_content_charset() or "utf-8", "replace")
+            data = reply.read(MAX_BYTES + 1)
+            if len(data) > MAX_BYTES:
+                raise FetchError("too large")      # never parse a page that was cut short
+            return reply.status, data.decode(reply.headers.get_content_charset() or "utf-8", "replace")
     except urllib.error.HTTPError as exc:
         return exc.code, ""
     except (urllib.error.URLError, socket.timeout, OSError, ValueError) as exc:

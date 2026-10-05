@@ -22,7 +22,9 @@ person captures them.
    ```
 
    It checks the number's format, saves the reply to the file you name and
-   prints only the HTTP status and the size. The same with curl, if the app
+   prints only the HTTP status and the size. It writes the file only for a
+   200 reply: an error reply prints its status and leaves any page already
+   saved there as it was. The same with curl, if the app
    cannot run there: `curl -A "<user agent>" "<url>"`, saving its output as
    the file, where the user agent is the one the app sends
    (`PracticeHR/1.0 (+<SITE_URL>; registration checks)`) and the URL is the

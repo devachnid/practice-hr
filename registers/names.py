@@ -6,7 +6,8 @@ for a surname; a surname of several words ("De Souza") is compared with
 every word of the register name but the first (the given name). Either part
 of a hyphenated surname matches, on either side; particles ("de", "van",
 "al", ...) never match on their own. Never the preferred name:
-the register shows legal names."""
+the register shows legal names. Trailing post-nominals on the register
+name (MBE, FRCGP, PhD, ...) are dropped first."""
 import re
 import unicodedata
 
@@ -21,6 +22,16 @@ def _words(text):
     return text.split()
 
 
+POST_NOMINALS = {"mbe", "obe", "cbe", "frcgp", "mrcgp", "frcp", "mrcp", "phd", "md"}
+
+
+def _without_post_nominals(words):
+    """The register name without trailing letters after it (MBE, FRCGP, PhD, ...)."""
+    while len(words) > 1 and words[-1] in POST_NOMINALS:
+        words = words[:-1]
+    return words
+
+
 def _tokens(words):
     return [t for w in words for t in re.split(r"-+", w) if t]
 
@@ -31,7 +42,7 @@ def _without_particles(tokens):
 
 
 def surnames_match(register_name, surname):
-    register_words, record_words = _words(register_name), _words(surname)
+    register_words, record_words = _without_post_nominals(_words(register_name)), _words(surname)
     if len(record_words) == 1:
         register_words = register_words[-1:]           # a one-word surname: the register name's last word
     elif len(register_words) > 1:

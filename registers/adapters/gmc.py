@@ -8,7 +8,7 @@ no-results wording is unreadable, never not found."""
 import re
 
 from registers.adapters.base import (  # noqa: F401 - text_of re-exported for the tests
-    classify, find, name_near, plain, restriction, status_value, text_of)
+    PROBLEM_STEMS, classify, find, name_near, plain, restriction, status_value, text_of)
 
 PUBLIC = "https://www.gmc-uk.org/doctors/"
 NOT_FOUND = ("no results were found", "could not find a doctor", "no doctor found")
@@ -28,9 +28,24 @@ def url(number):
     return f"{PUBLIC}{number}"
 
 
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+           "november", "december", "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov",
+           "dec")
+_DATE = re.compile(r"(?:[0-9/.\- ]|" + "|".join(sorted(_MONTHS, key=len, reverse=True)) + r")+\Z", re.I)
+
+
 def on_gp_register(value):
-    """The GP Register field read like a status: only a known positive is yes; missing or anything else is no."""
-    return plain(value) in {plain(c) for c in GP_REGISTER_CLEAR} or plain(value).startswith(plain(GP_REGISTER_SINCE))
+    """The GP Register field read like a status: only a known positive is
+    yes; missing or anything else is no. "On the GP Register since ..." is
+    yes only when what follows "since" is a date and nothing more."""
+    if plain(value) in {plain(c) for c in GP_REGISTER_CLEAR}:
+        return True
+    m = re.match(r"\s*" + re.escape(GP_REGISTER_SINCE) + r"\b(.*)\Z", value or "", re.I | re.S)
+    if m is None:
+        return False
+    rest = m.group(1).strip()
+    low = rest.lower() + " "
+    return bool(rest) and _DATE.match(rest) is not None and not any(stem in low for stem in PROBLEM_STEMS)
 
 
 def parse(lines, number):

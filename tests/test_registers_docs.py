@@ -52,6 +52,19 @@ def test_registers_fetch_saves_what_the_app_fetches_and_prints_only_the_status_a
     assert out.getvalue() == f"HTTP 200, {len('<p>Priya Patel ü</p>'.encode())} bytes\n"
 
 
+def test_registers_fetch_never_overwrites_a_page_with_an_error_reply(tmp_path, monkeypatch):
+    from registers import http
+    target = tmp_path / "clear.html"
+    target.write_text("<p>the page saved before</p>")
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (503, ""))
+    out = StringIO()
+    call_command("registers_fetch", "gmc", "1234567", str(target), stdout=out)
+    assert out.getvalue() == "HTTP 503, 0 bytes; nothing written\n"
+    assert target.read_text() == "<p>the page saved before</p>"
+    call_command("registers_fetch", "gmc", "1234567", str(tmp_path / "new.html"), stdout=StringIO())
+    assert not (tmp_path / "new.html").exists()
+
+
 def test_registers_fetch_refuses_a_bad_number_and_reports_a_failed_fetch(tmp_path, monkeypatch):
     from django.core.management.base import CommandError
 

@@ -34,6 +34,9 @@ FIXTURES = Path("registers/adapters/fixtures")
     ("James Patel Smith", "Patel", False),
     ("Mary Ann Lee", "Lee", True),
     ("Priya Smith-Jones", "Smith", True),
+    ("Priya Patel MBE", "Patel", True),         # post-nominals are not a surname
+    ("Priya Patel FRCGP mrcp PhD", "Patel", True),
+    ("Priya Patel MBE", "MBE", False),
 ])
 def test_surnames_match_loosely_and_never_wrongly(a, b, expected):
     assert names.surnames_match(a, b) is expected
@@ -61,7 +64,8 @@ def test_nothing_in_the_adapters_reaches_the_network(monkeypatch):
         assert r.outcome == "unreadable" and r.page_hash == ""
 
 
-def test_a_reply_is_read_to_two_megabytes_at_most(monkeypatch):
+@pytest.mark.parametrize("size,ok", [(2_000_000, True), (2_000_001, False)])
+def test_a_reply_over_two_megabytes_is_refused_not_cut_short(monkeypatch, size, ok):
     asked = []
 
     class Reply:
@@ -74,7 +78,7 @@ def test_a_reply_is_read_to_two_megabytes_at_most(monkeypatch):
 
         def read(self, amount=-1):
             asked.append(amount)
-            return b"<html></html>"
+            return (b"x" * size)[:amount]
 
         def __enter__(self):
             return self
@@ -82,8 +86,14 @@ def test_a_reply_is_read_to_two_megabytes_at_most(monkeypatch):
         def __exit__(self, *exc):
             return False
     monkeypatch.setattr(http.urllib.request, "urlopen", lambda request, timeout: Reply())
-    assert http.get("https://example.invalid/") == (200, "<html></html>")
-    assert asked == [2_000_000]
+    if ok:
+        assert http.get("https://example.invalid/") == (200, "x" * size)
+    else:
+        with pytest.raises(http.FetchError, match="too large"):
+            http.get("https://example.invalid/")
+        r = lookup("gmc", "1234567", "Patel")
+        assert r.outcome == "unreadable" and r.status_text == "FetchError"
+    assert asked[0] == 2_000_001
 
 
 # ---- parsers -------------------------------------------------------------------------------
@@ -324,7 +334,9 @@ def test_a_qualified_status_is_never_clear(code, status, monkeypatch):
     assert lookup(code, number, "Patel").outcome == "problem"
 
 
-@pytest.mark.parametrize("gp", ["No", "Suspended", "Removed 2024"])
+@pytest.mark.parametrize("gp", ["No", "Suspended", "Removed 2024", "On the GP Register since 2010 - suspended",
+                                "On the GP Register since 2010 (conditions)", "On the GP Register since",
+                                "On the GP Register since 2010, under investigation"])
 def test_a_gp_register_value_other_than_a_known_yes_is_a_problem(gp):
     page = GMC_CLEAR.replace("On the GP Register since 2015", gp)
     got, words, _ = gmc.parse(gmc.text_of(page), "1234567")
@@ -332,7 +344,8 @@ def test_a_gp_register_value_other_than_a_known_yes_is_a_problem(gp):
 
 
 @pytest.mark.parametrize("gp", ["Yes", "On the GP Register", "GP Register", "Included", "On the GP Register since 2015",
-                                "yes."])
+                                "yes.", "On the GP Register since 1 January 2010", "On the GP Register since 01/02/2010",
+                                "On the GP Register since 1 Jan. 2010"])
 def test_a_known_gp_register_value_stays_clear(gp):
     page = GMC_CLEAR.replace("On the GP Register since 2015", gp)
     assert gmc.parse(gmc.text_of(page), "1234567")[0] == "clear"
