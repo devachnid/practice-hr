@@ -1,0 +1,33 @@
+"""The one function that touches the network. Tests replace it; nothing
+else in the app opens a connection. A fetch problem is a FetchError with a
+short reason (no URL, no body): the caller records the class name only."""
+import socket
+import urllib.error
+import urllib.request
+
+from django.conf import settings
+
+TIMEOUT = 10
+
+
+class FetchError(Exception):
+    pass
+
+
+def user_agent():
+    site = settings.SITE_URL.rstrip("/")
+    if site.startswith("http"):
+        return f"PracticeHR/1.0 (+{site}; registration checks)"
+    return "PracticeHR/1.0 (registration checks)"
+
+
+def get(url, timeout=TIMEOUT):
+    """(HTTP status, body as text). Raises FetchError when no reply came."""
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent(), "Accept": "text/html"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as reply:   # noqa: S310 - https URLs built by the adapters
+            return reply.status, reply.read().decode(reply.headers.get_content_charset() or "utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        return exc.code, ""
+    except (urllib.error.URLError, socket.timeout, OSError, ValueError) as exc:
+        raise FetchError(exc.__class__.__name__) from None
