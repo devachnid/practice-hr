@@ -305,6 +305,16 @@ If one of your team's checks lapses, you are told once, in a "Practice HR:
 things due" email, with the line "A check has lapsed (HR has the details)". Ask HR which one it is if you need to know,
 for example to plan their work.
 
+A professional registration problem is different. If the register shows one
+of your team as lapsed, suspended, with conditions, not found, or under a
+different name, you are emailed the same morning HR is, in the same "Practice
+HR: things due" email, with the register and the register's own words, such as
+"GMC: Suspended", and the date it was found. It needs acting on that day, so
+you are told what it is. HR is told too and will speak to the person: talk to
+them and to HR the same day, and plan their work around it until it is
+settled. You still see counts only under **My team**, not the registration
+itself.
+
 ## Reminders when a request waits
 
 Sometimes a request or TOIL claim is not decided within three working days.

@@ -12,7 +12,7 @@ from accounts.mail import email_is_configured
 from people.models import Employee
 from people.services import contracts, employments
 
-# The compliance card's four numbers, in the order shown, with their labels.
+# The compliance card's numbers, in the order shown, with their labels.
 # Each opens the Employees list filtered to the people it counts
 # (people.admin.ComplianceFilter, which reads compliance_people too).
 COMPLIANCE = (
@@ -20,6 +20,7 @@ COMPLIANCE = (
     ("missing_checks", "Missing checks"),
     ("overdue_signatures", "Overdue signatures"),
     ("overdue_items", "Overdue checklist items"),
+    ("registration_problems", "Registration problems"),
 )
 
 
@@ -41,6 +42,7 @@ def compliance_people(today):
     from documents.services import policies
     from onboarding.models import ChecklistItem
     from onboarding.services import due
+    from registers.services import registrations
 
     out = {key: [] for key, _ in COMPLIANCE}
     current = employments.active_on(today).values_list("employee_id", flat=True)
@@ -53,6 +55,10 @@ def compliance_people(today):
             elif status == "missing":
                 out["missing_checks"].append(e.pk)
         out["overdue_signatures"] += [e.pk for o in policies.owed(e, today) if o.state == "overdue"]
+        out["registration_problems"] += [
+            e.pk for r in registrations.rows(e, today)
+            if r.needed and r.registration is not None
+            and r.registration.last_outcome in ("problem", "not_found", "name_mismatch")]
     overdue = ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)
     # as the reminders: nothing of an employment that ended more than 90 days ago
     out["overdue_items"] = list(due.still_chased(overdue, today)

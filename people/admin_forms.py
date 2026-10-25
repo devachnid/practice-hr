@@ -63,6 +63,7 @@ class EmployeeForm(forms.ModelForm):
                   "ni_number", "bank_account_name", "bank_sort_code", "bank_account_number", "user"]
 
     actor = None            # EmployeeAdmin.get_form sets the requester: whose add this is
+    registration_fields = ()      # (field name, body, label): EmployeeAdmin.get_form declares them per person
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -74,6 +75,15 @@ class EmployeeForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
+        from registers import numbers
+        for name, body, _ in self.registration_fields:
+            value = numbers.normalise(data.get(name))
+            data[name] = value
+            if value:
+                try:
+                    numbers.check(body.code, value)
+                except ValidationError as exc:
+                    self.add_error(name, exc)
         if "create_login" not in self.fields or not data.get("create_login"):
             return data
         if data.get("user") is not None:

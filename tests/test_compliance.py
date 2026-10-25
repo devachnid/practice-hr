@@ -288,10 +288,12 @@ def test_the_settings_are_one_row_edited_in_place(admin_client):
     assert admin_client.get("/admin/compliance/reminderschedule/add/").status_code == 403
     assert admin_client.post(f"/admin/compliance/reminderschedule/{row.pk}/delete/").status_code == 403
     r = admin_client.post(f"/admin/compliance/reminderschedule/{row.pk}/change/",
-                          {"start_days_before": 45, "every_days_before": 14, "every_days_overdue": 3})
+                          {"start_days_before": 45, "every_days_before": 14, "every_days_overdue": 3,
+                           "registration_every_days": 14})
     assert r.status_code == 302
     row.refresh_from_db()
-    assert (row.start_days_before, row.every_days_before, row.every_days_overdue) == (45, 14, 3)
+    assert (row.start_days_before, row.every_days_before, row.every_days_overdue, row.registration_every_days) == (
+        45, 14, 3, 14)
     assert ReminderSchedule.objects.count() == 1
 
 

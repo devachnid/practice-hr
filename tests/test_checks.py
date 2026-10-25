@@ -350,7 +350,8 @@ def test_compliance_sidebar_lists_check_types_and_checks(admin_client):
     request = RequestFactory().get("/admin/")
     request.user = type("U", (), {"is_active": True, "is_hr_admin": True, "is_superuser": False})()
     group = next(g for g in navigation(request) if g["title"] == "Compliance")
-    assert [i["title"] for i in group["items"]][:3] == ["Check types", "Checks", "Files"]
+    assert [i["title"] for i in group["items"]][:5] == [
+        "Check types", "Checks", "Register bodies", "Registration lookups", "Files"]
 
 
 # ---- review fixes ------------------------------------------------------------

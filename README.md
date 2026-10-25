@@ -2,8 +2,10 @@
 
 HR software for a GP practice: people, contracts, working patterns, absence
 and leave, compliance (pre-employment checks, stored documents, policies to
-sign, starter and leaver checklists, and the morning reminders), and the
-sign-in for the practice's apps. Replaces BreatheHR.
+sign, starter and leaver checklists, and the morning reminders),
+professional registrations (looked up on the GMC, NMC and GPhC registers
+and the Welsh performers list, with an email when one is not clear), and
+the sign-in for the practice's apps. Replaces BreatheHR.
 
 The design specs live in `docs/superpowers/specs/`, one per piece of work in
 the order it was built. The first is the foundation and absence system. The

@@ -1,11 +1,13 @@
 # Compliance
 
 **Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
-Checklist templates / Checklists / Starters and leavers / Reminder settings.
+Checklist templates / Checklists / Starters and leavers / Reminder settings /
+Register bodies / Registration lookups.
 Each person's [Compliance tab](#seeing-where-everyone-stands) and the admin
 home page's Compliance card bring it together.
 
 - [Checks](#checks)
+- [Professional registrations](#professional-registrations)
 - [Files](#files)
 - [Policies](#policies)
 - [Checklists](#checklists)
@@ -165,6 +167,250 @@ outrank it. A renewal request on a type that is *Due soon* or *Lapsed* is
 not counted as awaiting; the type stays in the due soon or lapsed number
 until the new check is recorded. (A renewal on a *Current* type stays in
 the current number, likewise.)
+
+## Professional registrations
+
+Clinicians must hold a current registration with their professional body.
+Practice HR keeps each person's registration number, looks it up on the
+body's public register on a schedule without anyone logging in, and tells
+HR and the line manager the next morning if something is wrong. HR can
+also look one up that minute with **Check now**.
+
+### The mental model
+
+*A register body says which titles need a registration.* There are four,
+set up when the app is installed, with no titles assigned: the General
+Medical Council (`gmc`), the All Wales medical performers list
+(`mpl_wales`), the Nursing and Midwifery Council (`nmc`) and the General
+Pharmaceutical Council (`gphc`). Until you add the titles that need each
+one, nobody needs a registration.
+
+*One number per person per body.* The Welsh list is searched by the GMC
+number, so a title that needs both is given one number, once, and both
+bodies use it.
+
+*A lookup reads the body's public search page.* None of the four offers
+a free, sanctioned machine interface, so the page is read as a person would
+read it. Each person is looked up every 7 days by default, spread across the
+nights (see [The schedule](#the-schedule)), and HR can look one up at any
+time ([Check now](#check-now-and-on-the-register)).
+
+*A clear or problem lookup records a Professional registration check*,
+dated today with the number as its reference and the register's words in the
+note, so the [Compliance tab](#the-compliance-tab), the card, the starter
+checklist hook and the [reminders](#reminders) all see it as they see any
+other check. The check is one result for the person: a clear lookup records
+*Clear* only when none of their other registrations their title needs stands
+at a problem, *not found* or a wrong name; otherwise it records *Not clear*,
+with both bodies' words in the note ("Welsh medical performers list:
+Included; GMC: Suspended"), so a clear Welsh list never hides a GMC
+problem. A *not found*, *wrong name* or *unreadable* lookup records no
+check: it is an alert (see below). Nor does any lookup on a body that is
+not verified: the lookup itself is the only record. If the check cannot be recorded for any
+reason the lookup is still kept, and the error's class (never a name or a
+number) is logged.
+
+*Every lookup is logged.* Open **Compliance › Registration lookups**
+(`/admin/registers/lookup/`) to see each one: when, who, which body, the
+outcome, the register's own words, the name it showed, whether it was
+scheduled or on demand and, for one that could not be read, why. The log
+is read-only, can be filtered by body, outcome and trigger, and searched by
+person. It keeps the words and a fingerprint of the page, never the page
+itself.
+
+### Register bodies
+
+`/admin/registers/registerbody/` (sidebar › Compliance › Register bodies)
+
+Bodies are never added or deleted here: a new body is code (a page parser)
+plus a seed. What you set:
+
+- **Positions** — the titles that need a registration with this body. Move
+  each across, as for a check type. A GP's title usually needs both the GMC
+  and the Welsh list.
+- **Active** — tick it off to stop looking up, and stop alerting about, that
+  body. Its numbers are kept. Also the way to stop altogether if a regulator
+  objects (see [Terms of use](#terms-of-use)).
+- **Display order** — the order the bodies are shown in.
+- **Verified** — shown, not editable. The code sets it each night from the
+  pages saved in `registers/adapters/fixtures/`: a body is verified when its
+  folder holds a `clear.html`, a `not_found.html` and at least one problem
+  page (`problem.html`, or several such as `problem-suspended.html`). A
+  body that is not verified is looked up only on demand, records the lookup
+  but no check, and says that its parser has not been checked against a
+  real page. Until someone captures the pages (see
+  [the fixture guide](../../registers/adapters/fixtures/README.md)), all four
+  show as not verified and nothing is looked up on a schedule.
+- **Paused** — shown, not editable: *No*, or *Since* a date and time. See
+  [When a page cannot be read](#when-a-page-cannot-be-read).
+
+The list shows each body's name, code, **Active**, **Verified** and
+**Paused**; **Active** can be changed from the list.
+
+### What clear means
+
+A lookup is *clear* when the register shows the person as currently
+registered with nothing noted against them, and the surname on the register
+matches theirs. The register's own words are kept as the result, so a change
+of wording shows as itself.
+
+| Body | Clear | A problem |
+|---|---|---|
+| **GMC** | The status is "Registered with a licence to practise", the GP Register shows the doctor, and none of fitness to practise, conditions, undertakings or warnings has a value. | Provisionally registered, registered without a licence, suspended, erased, an interim order, conditions, undertakings, administrative erasure or not registered; not on the GP Register; or a restriction noted. Every doctor the practice employs is treated as a GP, so "not on the GP Register" is always a problem. |
+| **Welsh medical performers list** | The GMC number is on the list, with a status of included, active or current. | Suspended, conditional or removed. A number that is not on the list is *not found* only when the page carries the list's own no-results wording; any other page without the number is *unreadable*. |
+| **NMC** | The PIN shows "Effective registration" (or "Registered"), with no restriction, condition of practice or sanction noted. | Lapsed, suspended, struck off, conditions of practice, a caution or interim order, a restriction, not registered or unregistered; or a restriction, condition or sanction noted. |
+| **GPhC** | The number shows "Registered", with no condition, fitness to practise entry or sanction noted. | Suspended, removed, lapsed, conditions, an interim order, not registered or unregistered; or a condition, fitness to practise entry or sanction noted. |
+
+A status is read only from the register's labelled status field. It is
+clear only when, ignoring case, spaces and punctuation, it is exactly one
+of the body's clear wordings above: "Registered with a licence to practise -
+suspension pending" is not clear. Otherwise it is a problem when it
+contains any of suspen, restrict, condition, interim, lapse, remov, eras,
+struck, caution, warning, undertak, sanction, provisional, previous,
+former, expir, pending, investigat, "not ", without, unregist or deregist,
+or one of the body's own problem wordings (whole words); anything else is
+*unreadable*. So a wording the parser does not know is never read as clear.
+The GMC's GP Register field is read the same way: only "Yes", "On the GP
+Register" (or "On the GP Register since" followed by a date and nothing
+more), "GP Register" or "Included" counts as on it; anything else, such as
+"On the GP Register since 2010 - suspended", or no such field, is "not on
+the GP Register". A restriction field is found under its singular or plural
+label ("Warning" or "Warnings", "Condition" or "Conditions"). A page that is not a result
+at all is *unreadable* too, never *not found*: *not found* needs the
+register's own no-results wording, and is looked for only when the page has
+no status field.
+
+There are five results:
+
+- **Clear** and **Problem**, as above. A problem is the register's words
+  (for example "Suspended") and goes to HR and the line manager.
+- **Not found** — the register has no one with that number. Also an alert.
+- **Name does not match** — the register found the number but under a
+  different surname. It is never treated as that person. The match ignores
+  case, accents, apostrophes, hyphens, spaces and name particles ("van",
+  "de"); either part of a double-barrelled surname is accepted, on either
+  side. A one-word surname is compared with the last word of the
+  register's name only, so "Mary Ann Lee" matches Lee and not Ann; a
+  surname of several words is compared with every word after the given
+  name. Letters after the register's name (MBE, OBE, CBE, FRCGP, MRCGP,
+  FRCP, MRCP, PhD, MD) are ignored. The person's preferred name is never used. The name the register
+  showed is kept on the lookup and shown on the Compliance tab.
+  A clear result whose name cannot be found on the page is *unreadable*
+  rather than accepted; a problem whose name cannot be found stays a
+  problem, with no name.
+- **Could not read the page** — see below.
+
+### Recording a number
+
+On the person's **Details** tab, below **NI number**, there is a number box
+for each body their current title needs, visible to
+[HR admins](sign-in.md#admin-status) only: **GMC number** (it covers the
+Welsh list as well), **NMC PIN number** or **GPhC number**. Whitespace is
+dropped and letters are put in capitals. A number that is not in the body's
+format is refused and nothing is saved:
+
+| Box | Format | Example |
+|---|---|---|
+| **GMC number** | Seven digits | 1234567 |
+| **NMC PIN number** | Two digits, a letter, four digits and a letter | 12A3456B |
+| **GPhC number** | Seven digits | 2012345 |
+
+Saving a new or changed number checks it that night (and **Check now**
+checks it at once). Emptying a box removes the number and its lookups (for the GMC number, the
+Welsh list's as well). A number already recorded for someone else is accepted, with a warning
+naming them: the register decides who it is and the name check catches a
+slip. Every change is written to the [audit log](people.md#audit-log) as
+field `registration:<code>` (for example `registration:gmc`), with the old
+and new number.
+
+A title that needs a body but has no number recorded is listed to HR as
+"<Body> number not recorded", from the day their employment starts.
+
+### Check now and On the register
+
+On the person's [Compliance tab](#the-compliance-tab) the **Registrations**
+table is first. Each row shows the body, the number, the last result in the
+register's words, the name the register showed, when the register last
+answered (**Checked**) and the next check. Two links end each row:
+
+- **Check now** opens a confirmation page ("Check *name*'s *body*
+  registration now?"). Nothing happens until you choose **Check now** on
+  it, which looks the number up this minute and takes you back to the
+  person's page with the result as a message: the register's words and the
+  name for a clear or problem result (green when clear, amber otherwise),
+  "the number was not found on the register", "the register shows *name*,
+  not this person", or "the page could not be read" with advice to try
+  later. It works on a paused body, and on a body that is not verified,
+  where it records the lookup only and no check (the message then adds "No
+  check was recorded: this register's parser is not yet verified."). It is HR only. A **Check now** that gets a
+  readable answer from the register, whatever it says about the person,
+  lifts a pause. Pressing it is written to the audit log as a view of the
+  person's checks.
+- **On the register** opens the body's public page for that number, so you
+  can read it yourself.
+
+A row for a body the title needs with no number reads "No number recorded"
+with a link to the Details tab. A body that is paused or not verified says
+so after the result. The last result is the latest one the register
+answered: when the latest lookup could not read the page, the row reads
+"Could not be read on <date>; last result: <words>", and the earlier
+result still counts for the reminders, the card and My record.
+
+### The schedule
+
+On **Reminder settings**, **Check professional registrations every (days)**
+is how long after one lookup the next one is due. It starts at 7 and must
+be between 1 and 90. The next date is that many days on, give or take one
+day, so a practice's lookups spread evenly across the nights rather than
+all landing together. A new or changed number is due that night.
+
+Each night `hr_nightly` looks up every registration that is due, whose
+person is employed and whose title still needs the body, and whose body is
+active, verified and not paused. The lookups are polite: one at a time, two
+seconds between two to the same body, a ten-second wait for a reply, no
+retry within a run, and a user agent that names the practice (built from
+`SITE_URL`, for example `PracticeHR/1.0 (+https://hr.example.org;
+registration checks)`).
+
+### When a page cannot be read
+
+A page that comes back but is not a result, an error page, a reply that
+times out or is larger than 2 MB, or a site that has changed its layout, is recorded as **Could
+not read the page**, with the error's class and no more. It is not an alert
+for the person: a site change is not a clinical risk. Nor does it end one:
+the person's standing result stays the last one the register answered, so
+a problem found last week is still reminded of while the site is down.
+
+- A registration whose latest lookups have all been unreadable for 14
+  days is listed to HR only, "<Body>: could not be read since <date>".
+- A body whose last three lookups, across everyone, could not be read
+  is paused: the schedule skips it, and HR is told in the morning digest, in
+  a section headed "The registers" ("<Body>: checks are paused (the page
+  could not be read)"), and again every *Every days overdue* days while the
+  body stays paused. The 14-day item above repeats the same way.
+- A lookup that gets a readable answer, or **Unpause**, lets it run again.
+
+To lift a pause, open the body under **Register bodies** and choose
+**Unpause**. A page asks you to confirm, and only that confirmation changes
+anything. The three unreadable lookups still count afterwards: if the
+next one is unreadable too, the body pauses again at once. So after an
+Unpause, run **Check now** on one registration straight away: a readable
+answer proves the page can be read again.
+
+What to do about one: open **On the register** yourself. If it works
+for you but not for Practice HR, the site has probably changed; capture
+fresh pages as [the fixture guide](../../registers/adapters/fixtures/README.md)
+says, so the parser can be adjusted. If the site is simply down, **Check
+now** again later.
+
+### Terms of use
+
+The registers publish these pages for the public to search. The practice
+reads them at a gentle rate and says who it is in the user agent. It has
+accepted the risk that a regulator's terms do not welcome automated reading.
+If a regulator objects, untick **Active** on that body and record the check
+by hand ([Recording a check](#recording-a-check)) as before. Do not try to
+get round a regulator that blocks the practice.
 
 ## Files
 
@@ -512,7 +758,7 @@ due and a link. Nobody with nothing due gets an email.
 
 `/admin/compliance/reminderschedule/` (sidebar › Compliance › Reminder settings)
 
-One set of three numbers for the whole practice, edited in place:
+One set of four numbers for the whole practice, edited in place:
 
 - **Start days before** (X, default 60) — the first reminder goes this many
   days before the due date. In the reminders it is also the window in which
@@ -522,6 +768,9 @@ One set of three numbers for the whole practice, edited in place:
   until the due date.
 - **Every days overdue** (Z, default 7) — after the due date, again every
   this many days while it is still outstanding.
+- **Check professional registrations every (days)** (default 7, from 1 to 90)
+  — how often each person's registration is looked up on its register. See
+  [The schedule](#the-schedule). It does not change when reminders go.
 
 A reminder always goes **on the due date itself**, whatever Y is. With the
 defaults, a DBS whose expiry date is 1 December (valid through that day)
@@ -538,6 +787,9 @@ is recorded.
 | A check that has lapsed | Once, the first time it lapses. | The person's line manager, told only that *a check has lapsed*, never which one (a manager sees counts of a report's checks, not the checks). |
 | A policy to sign | Inside the window before its sign-by date, then overdue. | The person, if their login is switched on; every HR admin as well once it is overdue, whether the person has a login or not. |
 | A checklist item | Inside the window before its due date, then overdue, until it is done or not needed. Items of a leaver checklist stop 90 days after the leaving date. | Its owner: the person, the line manager it was given to, or every HR admin. An item whose owner has no login that is switched on, or a line manager item with no manager, goes to HR instead. |
+| A registration problem: the latest readable lookup shows a problem, *not found* or the wrong name | The morning it is found (the night's lookups run just before the digest), with the body and the register's words ("found 3 Oct 2026"), then again every *Every days overdue* days while the latest readable lookup still shows it; a lookup that cannot read the page changes nothing. Another lookup with the same result does not start it afresh, and the date shown stays the day that result was first found; a different result (a problem that becomes *not found*), or a problem that comes back after a clear lookup, starts it afresh and goes the next morning. A fresh lookup that is clear ends it; a changed number drops it until the new number has been looked up. | Every HR admin and the person's line manager, who is told the body and the words, unlike a lapsed check, because it needs acting on that day. Only for someone employed today. |
+| A registration number not recorded | For a body the person's title needs and no number is recorded: from the day their employment starts, on the same cadence as an overdue item ("not recorded"). | Every HR admin. |
+| A registration page that cannot be read | A registration unreadable for 14 days, or a body that has paused, on the overdue cadence. The line carries its own date ("could not be read since 3 Oct 2026"), with nothing after it. A paused body is listed under the heading "The registers", not under a person. | Every HR admin only. |
 
 A check the person has been asked for evidence of (*Awaiting*) is still
 owed: until they upload something, it is reminded of as *Missing*, owed
@@ -554,7 +806,9 @@ address, item, date), and the log decides what goes next: a line goes
 again only when the numbers above say so, counted from the last time that
 recipient had it. A change to the thing itself starts it afresh: a renewed
 check (new expiry), a check that moves from *Due soon* to *Lapsed*, a
-policy's new version, a checklist item whose due date moved.
+policy's new version, a checklist item whose due date moved, a
+registration whose result changes from one kind of problem to another, or
+a problem that comes back after a clear result.
 
 **Once a day.** The digest assumes it runs once a day, from `hr_nightly`:
 run again the same day, it sends only what the first run did not.
@@ -567,18 +821,34 @@ recipient), and is not logged as sent, so the next morning tries again.
 
 ### In the nightly output
 
-`hr_nightly` prints the reminders on its **compliance:** line:
+`hr_nightly` runs the registration lookups first, so what a night's
+lookups find is in that morning's digest, then prints the reminders on its
+**compliance:** line:
 `reminders_sent` (emails that went, one per recipient), `reminders_failed`
 (emails the relay refused) and `items` (lines in the emails that went). All
 three are 0 with no outgoing email configured. If the step fails it prints
 `compliance: failed` and the run exits with an error. See
 [Nightly housekeeping](sign-in.md#nightly-housekeeping).
 
+The registrations come before it, on a **registrations:** line printed as the
+step finishes, such as `registrations: {'run': 4, 'clear': 3, 'problem': 1,
+'not_found': 0, 'name_mismatch': 0, 'unreadable': 0, 'skipped': 0,
+'verified': 4}`. `run` is the lookups made tonight and the next five
+counts say how they came out; `skipped` is registrations that were due but
+not looked up (the person is no longer employed, the title no longer needs
+the body, or the body is inactive, not verified or paused); `verified` is how many of
+the four bodies are verified. All are 0 until a body is verified. A failure
+of this step prints `registrations: failed`, logs the error's class and
+does not fail the run: the reminders still go, and the next night tries
+again. A lookup that fails for one registration is logged with the error's
+class, the body and the registration's row id only (never the number or a
+name), counted as `unreadable`, and the rest still run.
+
 ## Seeing where everyone stands
 
 ### The Compliance card
 
-The admin home page shows four numbers:
+The admin home page shows five numbers:
 
 | Number | Counts |
 |---|---|
@@ -586,16 +856,20 @@ The admin home page shows four numbers:
 | **Missing checks** | Checks with the status *Missing*, across everyone employed today, and checks asked for (*Awaiting*) that the person has not answered yet. |
 | **Overdue signatures** | Policies someone employed today has not signed by the sign-by date. |
 | **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date, leaving out those of an employment that ended more than 90 days ago (as the reminders do). |
+| **Registration problems** | Registrations of people employed today whose latest readable lookup is a problem, *not found* or a wrong name (a lookup that could not read the page changes nothing). One per registration: someone with two such registrations adds two. |
 
 Each counts things, not people: someone with two lapsed checks adds two.
 Choose a number to open **Employees** filtered to the people it counts (the
-list's **Compliance** filter). A starter who has not started yet is not in
+list's **Compliance** filter); **Registration problems** opens the people
+whose registration has a standing problem, not the lookups list. A starter who has not started yet is not in
 the check or signature numbers; their overdue checklist items are.
 
 ### The Compliance tab
 
 Each person's page under **People › Employees** has a **Compliance** tab
-beside **Details**: their checks with each status, their policies with each
+beside **Details**: their professional registrations first (see
+[Check now and On the register](#check-now-and-on-the-register)), then their
+checks with each status, their policies with each
 signature or sign-by date, and the open items of their checklists, each
 with a link to the page that deals with it. Someone not started yet is
 shown as they will stand on their first day. It is read-only. Opening it
@@ -612,4 +886,6 @@ and other checks*, *Stored files* and *Policy signatures*, six years after
 the person's last employment ended by default (`RETENTION_DAYS_CHECKS`,
 `RETENTION_DAYS_FILES`, `RETENTION_DAYS_SIGNATURES`). As for every category,
 the report only lists: nothing is deleted automatically, and there is no
-delete button for a check, a file or a signature.
+delete button for a check, a file or a signature. Registration numbers and
+their [lookups](#professional-registrations) are listed under the checks
+category, *Pre-employment and other checks*.
