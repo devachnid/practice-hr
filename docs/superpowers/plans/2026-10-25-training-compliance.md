@@ -4100,3 +4100,19 @@ MSG
 - **Spec §6 errors, audit, privacy**: audit fields `recorded`, `self_recorded`, `verified`, `rejected`, `session_recorded`, `expires_on` (the spec's `expiry_changed`), `certificate`; `file.viewed` through `files.open`. The note is excluded from the person's page (Task 9 template), the digest (Task 6 labels) and the CSV (Task 7 test).
 - **Spec §7 testing**: each line maps to a test above; the Review Focus items are pinned where stated.
 - **Placeholder scan**: none. **Type consistency**: `Row` fields, `build_row`'s arguments, the route names and the `show` values are the same in every task.
+
+## Execution notes (2026-10-25)
+
+Built subagent-driven on `feature/training-compliance` from main 1011fd3: one implementer per task, a task review after each, a whole-branch review at the end, one fix wave and one re-review. Tasks 4, 9, 10 and 11 each took one fix round (a stale rejection beside a current record; the person page's Back link; a 500 on Save from a pending record's admin page; duplicate headings hijacking `#reminders`); Tasks 7 and 8 were corrected before review (an empty matrix cell; where the awaiting-verification rule lives). Whole suite at the end: 1596 passed, 1 skipped.
+
+Rulings made against this plan's text, each recorded in the ledger as it was made:
+
+- `_Refusable` in `training/admin.py` repeats CheckAdmin's refusal guard rather than sharing a cross-app base class (a tidy-up candidate).
+- `build_row`: `rejected` is None when a newer pending record exists, and is decided by position in the done_on-ordered list, not by pk; a pending record with no counting record is `awaiting_verification` whatever `required` is.
+- A matrix cell for a course the person neither needs nor has stays empty in every view; the page's footnote says so. "Problems only" means lapsed, missing or an upload waiting (not due soon), as the dashboard label says.
+- The person page's Back link goes to My record, My team or the employee admin page by viewer.
+- Going live is record-first: staff upload what they hold and HR verifies, then titles and the everyone tick.
+- The admin record list's status filter is pending / verified / rejected with a name search; the matrix carries the date-driven statuses.
+- `training.to_verify` feeds the dashboard count; `matrix.SHOW` was dropped as unused.
+- `set_expiry` and `record` refuse an expiry before the date done; `set_expiry` refuses a blank expiry on a course with a validity.
+- A former or not-yet-started manager named on a position keeps the existing `can_view` behaviour; the backlog records it.
