@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% comment %}training:matrix — HR's grid (training.services.matrix.build):
+everyone employed today down the side, the courses any of them needs or
+has across, each cell its status and expiry. The form's GET filters by
+course, team, name and problems only; Download gives the same grid as CSV.
+Reads only. Expects form, courses, grid (a list of (employee, cells) with
+one cell per course, None where there is nothing), today, csv_url.{% endcomment %}
+{% block title %}Training matrix{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Training matrix</h1><a href="{{ csv_url }}" class="btn btn-quiet" download>Download as CSV</a></div>
+<section class="card">
+  <form method="get" class="filters">
+    {{ form.as_div }}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Filter</button> <a href="{% url 'training:matrix' %}" class="btn btn-quiet">Clear</a></div>
+  </form>
+</section>
+<section class="card">
+  {% if grid %}
+  <div class="table-scroll">
+  <table class="list matrix">
+    <thead><tr><th scope="col">Person</th>{% for c in courses %}<th scope="col">{{ c.name }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for employee, cells in grid %}
+      <tr>
+        <th scope="row"><a href="{% url 'training:person' employee.pk %}">{{ employee.name }}</a></th>
+        {% for row in cells %}
+          <td>{% if row %}<span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{% if row.pending %}To verify{% else %}{{ row.label }}{% endif %}</span>{% if row.expires_on %} <span class="muted">{{ row.expires_on|date:"j M Y" }}</span>{% endif %}{% endif %}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">Nobody matches these filters.</p>
+  {% endif %}
+  <p class="muted">As of {{ today|date:"j M Y" }}. Each cell is the latest verified record; <em>To verify</em> is an upload waiting for HR or the manager. A blank cell: the course is not needed for that role and nothing is recorded.</p>
+</section>
+</div>
+{% endblock %}

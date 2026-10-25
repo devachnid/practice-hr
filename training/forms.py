@@ -3,7 +3,7 @@ data to the services, which apply the rules (a certificate for an online
 course, who may record for whom) and refuse on the page."""
 from django import forms
 
-from people.models import Employee
+from people.models import Employee, Team
 from training.models import Course
 
 ACCEPT = ".pdf,.jpg,.jpeg,.png,.docx"
@@ -54,3 +54,21 @@ class SessionForm(forms.Form):
     def __init__(self, *args, attendees_queryset, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["attendees"].queryset = attendees_queryset
+
+
+class MatrixFilterForm(forms.Form):
+    """The matrix's GET filters. Unknown values are dropped, never an error:
+    the page always renders."""
+    course = forms.ModelChoiceField(queryset=Course.objects.filter(active=True), required=False, label="Course",
+                                    empty_label="Every course")
+    team = forms.ModelChoiceField(queryset=Team.objects.all(), required=False, label="Team", empty_label="Every team")
+    q = forms.CharField(required=False, max_length=60, label="Name")
+    show = forms.ChoiceField(required=False, label="Show", choices=[
+        ("all", "Everyone"), ("problems", "Problems only"), ("to_verify", "To verify")])
+
+    def filters(self):
+        """Clean what is there; anything invalid is as if it were not given."""
+        self.is_valid()
+        d = self.cleaned_data if hasattr(self, "cleaned_data") else {}
+        return {"course": d.get("course") or None, "team": d.get("team") or None, "query": d.get("q") or "",
+                "show": d.get("show") or "all"}

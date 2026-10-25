@@ -4,6 +4,7 @@ to My record, or to Getting started before your first day."""
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -11,9 +12,9 @@ from django.views.decorators.http import require_http_methods, require_POST, req
 
 from people.models import Employee
 from people.services import access, employments
-from training.forms import RecordForm, RejectForm, SelfRecordForm, SessionForm
+from training.forms import MatrixFilterForm, RecordForm, RejectForm, SelfRecordForm, SessionForm
 from training.models import TrainingRecord
-from training.services import sessions, training
+from training.services import matrix, sessions, training
 
 
 def _own_page(request):
@@ -165,3 +166,34 @@ def session(request):
                                       f"{'person' if n == 1 else 'people'}.")
             return redirect("admin:training_trainingsession_changelist" if hr else "people:team")
     return render(request, "training/session.html", {"form": form, "hr": hr})
+
+
+def _matrix(request):
+    if not access.can_view_restricted(request.user):
+        raise PermissionDenied
+    form = MatrixFilterForm(request.GET)
+    f = form.filters()
+    today = timezone.localdate()
+    return form, f, today, matrix.build(today, **f)
+
+
+@login_required
+@require_safe
+def matrix_page(request):
+    """HR's training matrix: people down, courses across, filtered by the
+    form (GET; the page writes nothing). Each name opens the person page."""
+    form, f, today, m = _matrix(request)
+    return render(request, "training/matrix.html", {
+        "form": form, "courses": m.courses,
+        "grid": [(entry.employee, [entry.cells.get(c.pk) for c in m.courses]) for entry in m.rows], "today": today,
+        "csv_url": f"{reverse('training:matrix_csv')}?{request.GET.urlencode()}" if request.GET else
+        reverse("training:matrix_csv")})
+
+
+@login_required
+@require_safe
+def matrix_csv(request):
+    form, f, today, m = _matrix(request)
+    response = HttpResponse(matrix.to_csv(m), content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = f'attachment; filename="{matrix.filename(today, **f)}"'
+    return response

@@ -13,15 +13,20 @@ from people.models import Employee
 from people.services import contracts, employments
 
 # The compliance card's numbers, in the order shown, with their labels.
-# Each opens the Employees list filtered to the people it counts
-# (people.admin.ComplianceFilter, which reads compliance_people too).
+# Each opens the Employees list filtered to the people it counts, but the
+# training numbers, which open the matrix (people.admin.ComplianceFilter
+# reads compliance_people too).
 COMPLIANCE = (
     ("lapsed_checks", "Lapsed checks"),
     ("missing_checks", "Missing checks"),
     ("overdue_signatures", "Overdue signatures"),
     ("overdue_items", "Overdue checklist items"),
     ("registration_problems", "Registration problems"),
+    ("training_problems", "Training lapsed or missing"),
+    ("training_to_verify", "Training to verify"),
 )
+# The two training numbers open the matrix with its filter on, not the Employees list.
+MATRIX_SHOW = {"training_problems": "problems", "training_to_verify": "to_verify"}
 
 
 def _row(r):
@@ -43,6 +48,7 @@ def compliance_people(today):
     from onboarding.models import ChecklistItem
     from onboarding.services import due
     from registers.services import registrations
+    from training.services import training
 
     out = {key: [] for key, _ in COMPLIANCE}
     current = employments.active_on(today).values_list("employee_id", flat=True)
@@ -59,6 +65,11 @@ def compliance_people(today):
             e.pk for r in registrations.rows(e, today)
             if r.needed and r.registration is not None
             and r.registration.last_outcome in ("problem", "not_found", "name_mismatch")]
+        for row in training.state(e, today):
+            if row.pending is not None:
+                out["training_to_verify"].append(e.pk)
+            elif row.status in ("lapsed", "missing"):
+                out["training_problems"].append(e.pk)
     overdue = ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)
     # as the reminders: nothing of an employment that ended more than 90 days ago
     out["overdue_items"] = list(due.still_chased(overdue, today)
@@ -77,8 +88,11 @@ def dashboard(request, context):
     context["chase_after"] = settings.CHASE_AFTER_WORKING_DAYS
     counts = compliance_counts(timezone.localdate())
     employees = reverse("admin:people_employee_changelist")
-    context["compliance"] = [{"label": label, "count": counts[key], "url": f"{employees}?compliance={key}"}
-                             for key, label in COMPLIANCE]
+    matrix_url = reverse("training:matrix")
+    context["compliance"] = [
+        {"label": label, "count": counts[key],
+         "url": f"{matrix_url}?show={MATRIX_SHOW[key]}" if key in MATRIX_SHOW else f"{employees}?compliance={key}"}
+        for key, label in COMPLIANCE]
     context["email_configured"] = email_is_configured()
     context["email_failures"] = list(EmailFailure.objects.all()[:10])
     return context
