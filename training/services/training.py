@@ -99,6 +99,7 @@ def state(employee, today, window_days=validity.WINDOW_DAYS):
 def summary(employee, today, window_days=validity.WINDOW_DAYS):
     rows = state(employee, today, window_days)
     counts = {k: sum(1 for r in rows if r.status == k) for k in STATUSES}
+    counts["awaiting_verification"] = sum(1 for r in rows if r.pending is not None)
     expiries = [r.expires_on for r in rows if r.expires_on and r.status in ("current", "due_soon")]
     counts["next_expiry"] = min(expiries) if expiries else None
     return counts
@@ -124,6 +125,16 @@ def check_date(done_on, today, what="done"):
         raise ValidationError(f"Enter the date the training was {what}.")
     if done_on > today:
         raise ValidationError(f"The date {what} cannot be after today.")
+
+
+def check_expiry(done_on, expires_on, course, changing=False):
+    """An expiry before the date done is a typing slip. `changing` (HR
+    editing a record's expiry) also refuses a blank one on a course that
+    has a validity: the blank would make it never lapse."""
+    if expires_on is not None and expires_on < done_on:
+        raise ValidationError("The expiry cannot be before the date done.")
+    if changing and expires_on is None and course.validity_months is not None:
+        raise ValidationError("This course has a validity: enter the expiry, or record it again.")
 
 
 def attach(actor, record, upload):
@@ -160,6 +171,8 @@ def record(actor, employee, course, done_on, upload=None, expires_on=None, note=
         raise PermissionDenied
     check_course(course)
     check_date(done_on, today)
+    if expires_on is not None:
+        check_expiry(done_on, expires_on, course)
     if upload is not None:
         files.sniff(upload)
     r = new_record(employee, course, done_on, actor, expires_on=expires_on, note=note, verified=True)
@@ -241,6 +254,7 @@ def set_expiry(actor, record, expires_on):
         raise PermissionDenied
     if not record.counts:
         raise ValidationError("Only a verified record has an expiry to change.")
+    check_expiry(record.done_on, expires_on, record.course, changing=True)
     before = record.expires_on
     record.expires_on = expires_on
     record.full_clean()

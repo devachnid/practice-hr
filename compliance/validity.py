@@ -1,4 +1,3 @@
-# compliance/validity.py
 """The expiry arithmetic and the status rule that checks and training
 share. Pure functions of dates: no models, no "today" of their own."""
 import calendar

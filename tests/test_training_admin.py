@@ -83,6 +83,19 @@ def test_the_change_page_is_read_only_but_for_the_expiry_of_a_verified_record(fi
     assert admin_client.get(f"/admin/training/trainingrecord/{rec.pk}/delete/").status_code == 403
 
 
+def test_an_expiry_before_the_date_done_is_a_message_and_changes_nothing(fire, hr_admin, admin_client, employee_user):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    rec = training.record(hr_admin, e, fire, today - timedelta(days=3), upload=_pdf())
+    before = rec.expires_on
+    r = admin_client.post(f"/admin/training/trainingrecord/{rec.pk}/change/",
+                          {"expires_on": (today - timedelta(days=4)).isoformat()}, follow=True)
+    assert "The expiry cannot be before the date done." in r.content.decode()
+    rec.refresh_from_db()
+    assert rec.expires_on == before
+    assert not AuditEntry.objects.filter(model="training.trainingrecord", object_id=rec.pk, field="expires_on").exists()
+
+
 def test_a_pending_record_is_view_only_and_a_post_to_it_writes_nothing(fire, hr_admin, admin_client, employee_user):
     today = timezone.localdate()
     _receptionist(user=employee_user)

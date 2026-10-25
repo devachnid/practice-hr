@@ -33,6 +33,10 @@ items can go straight into a tidy-up branch.
 
 ## Smaller items
 
+- A line manager named on a position keeps training (and `can_view`) rights
+  after leaving or before starting, while their login is active;
+  `route_for` already requires a current employment, the viewing rules do
+  not.
 - Course levels and equivalence (safeguarding level 3 satisfying level 2):
   the training app models each level as its own course for now.
 - Importing an e-learning platform's completion export (Blue Stream

@@ -85,14 +85,16 @@ Work through this in order. The rest of this guide explains each step.
    (see [How to say which titles need a check](#how-to-say-which-titles-need-a-check)).
    Done the other way round, the next morning's reminder email tells every
    member of staff their checks are missing.
-8. **Set up training the same way round.** Under **Compliance**,
-   **Courses**, tick **Required of everyone** on the practice-wide courses
-   and add the titles that need the rest (see [How to say who needs a
-   course](#how-to-say-who-needs-a-course)). Then ask staff to record the
-   training they already hold from **My record**, with their
-   certificates, and verify each one (see [How to verify what someone
-   uploaded](#how-to-verify-what-someone-uploaded)). Until a course has
-   titles or the everyone tick, nobody is reminded of it.
+8. **Record everyone's existing training first, then say who needs which
+   course.** Ask staff to record the training they already hold from **My
+   record**, with their certificates, and verify each one (see [How to
+   verify what someone uploaded](#how-to-verify-what-someone-uploaded)).
+   Only then, under **Compliance**, **Courses**, tick **Required of
+   everyone** on the practice-wide courses and add the titles that need
+   the rest (see [How to say who needs a
+   course](#how-to-say-who-needs-a-course)). Done the other way round, the
+   next morning's reminder email tells every member of staff their
+   training is missing.
 9. **Wait for the overnight run.** The next morning, everyone's balances
    for this leave year and next have opened, and bank holidays have been
    charged.
@@ -590,15 +592,19 @@ recorded once for everyone who attended.
 
 ### How to say who needs a course
 
+Before you do this, have staff record the training they already hold from
+**My record**, with their certificates, and verify each one (see [How to
+verify what someone uploaded](#how-to-verify-what-someone-uploaded)). Only
+then say who needs a course: done the other way round, the next morning's
+reminder email tells everyone their training is missing.
+
 1. Under **Compliance**, choose **Courses** and open the course.
 2. For a practice-wide course, tick **Required of everyone**.
 3. Otherwise, move the titles that need it into **Positions**.
 4. Check **Validity months** and **Delivery**, then **Save**.
 
 What you will see: the next morning's reminder email tells each person
-with the course missing, and HR, that it is owed. Set up the courses after
-recording what people already hold, or everyone is told their training is
-missing.
+with the course missing, and HR, that it is owed.
 
 ### How to record training for someone
 

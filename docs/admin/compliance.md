@@ -554,8 +554,9 @@ is not needed for that role and nothing is recorded. Filter by **Course**,
 missing or to verify; *To verify*). Each name opens the person's training
 page. **Download as CSV** gives the filtered grid as
 `training-matrix-<filters>-<date>.csv`, one row per person, one column
-per course, each cell "Status, date": what an inspector asks for. The
-note is never in it.
+per course, each cell "Status, date": what an inspector asks for. A one-off
+course (no validity) reads "Status, done <date>", and a missing or waiting
+cell is the status alone. The note is never in it.
 
 ### Who sees what of training
 

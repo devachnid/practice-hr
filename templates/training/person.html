@@ -34,6 +34,9 @@ Every POST here is a service's; this page writes nothing.{% endcomment %}
         {% endif %}
       </tr>
       {% endif %}
+      {% if row.rejected and not row.pending %}
+      <tr><td></td><td colspan="{% if can_record %}6{% else %}4{% endif %}" class="field-error">The upload of {{ row.rejected.done_on|date:"j M Y" }} was turned down: {{ row.rejected.rejected_note }}</td></tr>
+      {% endif %}
     {% endfor %}
     </tbody>
   </table>

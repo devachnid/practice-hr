@@ -129,6 +129,8 @@ def test_a_login_with_no_employee_record_is_told_so(fire, employee_client):
     assert r.status_code == 302
     body = employee_client.get("/people/me/").content.decode()
     assert "no employee record linked to your login" in body
+    body = employee_client.get("/onboarding/").content.decode()
+    assert "no employee record linked to your login" in body and 'action="/training/record/"' not in body
 
 
 # ---- Task 9: My team, the person page, verify, reject, sessions --------------
@@ -192,6 +194,9 @@ def test_verify_is_a_post_and_reject_confirms_then_emails(fire, employee_user, e
     r = mc.post(f"/training/records/{second.pk}/reject/", {"note": "Certificate is unreadable."})
     assert r.status_code == 302 and TrainingRecord.objects.get(pk=second.pk).rejected
     assert [msg.to for msg in mail.outbox] == [["sam@example.com"]] and "unreadable" in mail.outbox[0].body
+    assert "The upload of" in mc.get(f"/training/{e.pk}/").content.decode()
+    assert "was turned down: Certificate is unreadable." in mc.get(f"/training/{e.pk}/").content.decode()
+    assert "was turned down: Certificate is unreadable." in employee_client.get(f"/training/{e.pk}/").content.decode()
     assert employee_client.get(f"/training/records/{second.pk}/reject/").status_code == 403
 
 

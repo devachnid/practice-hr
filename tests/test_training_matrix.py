@@ -90,14 +90,31 @@ def test_problems_only_and_to_verify(courses, hr_admin):
         training.record(hr_admin, e, bls, today - timedelta(days=5))
     training.record(hr_admin, people["Sam"], fire, today - timedelta(days=5), upload=SimpleUploadedFile("c.pdf", PDF))
     pending = training.self_record(user, fire, today, upload=SimpleUploadedFile("c.pdf", PDF))
+    dee = make_employee(first="Dee", last="Young")                            # 12 months, done 350 days ago: due soon
+    make_position(make_employment(dee, start=today - timedelta(days=400)), title="Practice Nurse", team=nursing)
+    training.record(hr_admin, dee, bls, today - timedelta(days=350))
+    assert matrix.build(today).rows[-1].cells[bls.pk].status == "due_soon"
     m = matrix.build(today, show="problems")
-    assert [e.employee.first_name for e in m.rows] == ["Ann"]                 # Sam and Nia have nothing wrong
+    assert [e.employee.first_name for e in m.rows] == ["Ann"]                 # Sam and Nia have nothing wrong, Dee is only due soon
     assert [c.code for c in m.courses] == ["fire_safety"]
     assert m.rows[0].cells[fire.pk].status == "awaiting_verification" and m.rows[0].cells[fire.pk].pending == pending
     m = matrix.build(today, show="to_verify")
     assert [e.employee.first_name for e in m.rows] == ["Ann"]
     training.verify(hr_admin, pending)
     assert matrix.build(today, show="problems").rows == [] and matrix.build(today, show="to_verify").rows == []
+
+
+def test_the_csv_does_not_let_a_cell_run_as_a_formula(courses, hr_admin):
+    fire, bls = courses
+    e = make_employee(first="Sam", last="Patel", preferred_name="=SUM(1)")
+    today = timezone.localdate()
+    make_position(make_employment(e, start=today - timedelta(days=400)), title="Practice Nurse", team=make_team(name="Reception"))
+    rows = list(csv.reader(io.StringIO(matrix.to_csv(matrix.build(today)))))
+    assert rows[1][0].startswith("'=") and rows[1][0] == "'" + e.name
+    bls.name = "+Basic life support"
+    bls.save()
+    rows = list(csv.reader(io.StringIO(matrix.to_csv(matrix.build(today)))))
+    assert rows[0][1] == "'+Basic life support"
 
 
 def test_the_query_count_does_not_grow_with_the_practice(courses, hr_admin, django_assert_max_num_queries):

@@ -42,6 +42,7 @@ def test_the_user_guides_cover_training():
 
 def test_the_backlog_closes_the_item_and_parks_the_rest():
     text = _text("docs", "superpowers", "backlog.md")
-    assert "Training compliance (spec 4)" not in text.split("## Smaller items")[0] or "built" in text
+    assert "Training compliance (spec 4)" not in text
+    assert "## Smaller items" in text
     for parked in ("level", "import", "certificate pack", "booking"):
         assert parked in text.lower(), parked

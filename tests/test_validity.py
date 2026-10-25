@@ -1,4 +1,3 @@
-# tests/test_validity.py
 """The expiry arithmetic and the status rule checks and training share."""
 import calendar
 from datetime import date, timedelta

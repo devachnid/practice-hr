@@ -17,8 +17,6 @@ from people.services import employments
 from training.models import Course, TrainingRecord
 from training.services import training
 
-SHOW = ("all", "problems", "to_verify")
-
 
 @dataclass
 class Entry:
@@ -36,7 +34,7 @@ def _wanted(row, show):
     if show == "to_verify":
         return row.pending is not None
     if show == "problems":
-        return row.status in training.PROBLEMS or row.status == "awaiting_verification" or row.pending is not None
+        return row.status in ("lapsed", "missing") or row.pending is not None
     return True
 
 
@@ -96,12 +94,17 @@ def _cell(row):
     return row.label
 
 
+def _safe(value):
+    """A spreadsheet runs a cell that starts with = + - or @ as a formula."""
+    return "'" + value if value[:1] in ("=", "+", "-", "@") else value
+
+
 def to_csv(m):
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["Person", *[c.name for c in m.courses]])
+    w.writerow(_safe(v) for v in ["Person", *[c.name for c in m.courses]])
     for entry in m.rows:
-        w.writerow([entry.employee.name, *[_cell(entry.cells.get(c.pk)) for c in m.courses]])
+        w.writerow(_safe(v) for v in [entry.employee.name, *[_cell(entry.cells.get(c.pk)) for c in m.courses]])
     return out.getvalue()
 
 

@@ -4,7 +4,7 @@ Your {{ record.course }} training record (done {{ record.done_on|date:"j M Y" }}
 
   {{ record.rejected_note }}
 
-Please record it again on My record, with the right certificate:
+Please record it again on My record, with the right details and certificate:
 {{ url }}
 
 Practice HR{% endautoescape %}

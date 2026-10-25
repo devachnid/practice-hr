@@ -51,6 +51,7 @@ def compliance_people(today):
     from training.services import training
 
     out = {key: [] for key, _ in COMPLIANCE}
+    out["training_to_verify"] = list(training.to_verify(today).values_list("employee_id", flat=True))
     current = employments.active_on(today).values_list("employee_id", flat=True)
     for e in Employee.objects.filter(pk__in=current).order_by("pk"):
         emp = employments.current(e, today)
@@ -66,9 +67,7 @@ def compliance_people(today):
             if r.needed and r.registration is not None
             and r.registration.last_outcome in ("problem", "not_found", "name_mismatch")]
         for row in training.state(e, today):
-            if row.pending is not None:
-                out["training_to_verify"].append(e.pk)
-            elif row.status in ("lapsed", "missing"):
+            if row.pending is None and row.status in ("lapsed", "missing"):
                 out["training_problems"].append(e.pk)
     overdue = ChecklistItem.objects.filter(state=ChecklistItem.State.OPEN, due_on__lt=today)
     # as the reminders: nothing of an employment that ended more than 90 days ago

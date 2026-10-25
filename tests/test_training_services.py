@@ -202,6 +202,45 @@ def test_summary_counts_and_next_expiry(fire, bls, hr_admin, employee_user):
     assert s["next_expiry"] == validity.expires_from(today - timedelta(days=350), 12)
 
 
+def test_summary_counts_a_pending_renewal_as_to_verify(fire, bls, hr_admin, employee_user):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    training.record(hr_admin, e, fire, today - timedelta(days=100), upload=_pdf())
+    training.self_record(employee_user, fire, today, upload=_pdf())     # a renewal waiting: the course stays current
+    s = training.summary(e, today)
+    assert s["current"] == 1 and s["awaiting_verification"] == 1
+
+
+def test_an_expiry_before_the_date_done_is_refused(fire, hr_admin, employee_user):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    with pytest.raises(ValidationError, match="cannot be before the date done"):
+        training.record(hr_admin, e, fire, today - timedelta(days=5), expires_on=today - timedelta(days=6))
+    assert TrainingRecord.objects.count() == 0
+    r = training.record(hr_admin, e, fire, today - timedelta(days=5), expires_on=today - timedelta(days=5))
+    with pytest.raises(ValidationError, match="cannot be before the date done"):
+        training.set_expiry(hr_admin, r, today - timedelta(days=6))
+    r.refresh_from_db()
+    assert r.expires_on == today - timedelta(days=5)
+
+
+def test_set_expiry_needs_an_expiry_on_a_course_with_a_validity_but_not_a_one_off(fire, hr_admin, employee_user):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    r = training.record(hr_admin, e, fire, today - timedelta(days=5))
+    with pytest.raises(ValidationError, match="enter the expiry, or record it again"):
+        training.set_expiry(hr_admin, r, None)
+    r.refresh_from_db()
+    assert r.expires_on is not None
+    induction = Course.objects.create(name="Induction", code="induction", delivery=Course.Delivery.FACE_TO_FACE,
+                                      validity_months=None)
+    one_off = training.record(hr_admin, e, induction, today - timedelta(days=5))
+    assert one_off.expires_on is None
+    training.set_expiry(hr_admin, one_off, None)                          # blank is what a one-off has
+    one_off.refresh_from_db()
+    assert one_off.expires_on is None
+
+
 def test_set_expiry_is_hrs_one_edit_and_audited(fire, hr_admin, employee_user):
     today = timezone.localdate()
     m = _manager()
