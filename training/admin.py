@@ -39,11 +39,13 @@ class CourseAdmin(ModelAdmin):
     filter_horizontal = ("positions",)
 
     def get_readonly_fields(self, request, obj=None):
+        # the services and the reminder keys name a course by its code:
+        # settable when a course is added, never changed after
         fields = tuple(super().get_readonly_fields(request, obj))
         return fields + ("code",) if obj is not None else fields
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        return False                      # make it inactive instead: records point at it
 
 
 class StatusFilter(admin.SimpleListFilter):
@@ -127,10 +129,17 @@ class TrainingRecordAdmin(_Refusable, ModelAdmin):
         editable = {"expires_on"} if obj.counts else set()
         return tuple(f for f in (*SHOWN, "state", "certificate_link") if f not in editable)
 
+    def has_change_permission(self, request, obj=None):
+        # a pending or rejected record counts for nothing, so there is nothing
+        # on it to change: it is view-only, with Verify / Reject beside it
+        return obj is None or obj.counts
+
     def has_delete_permission(self, request, obj=None):
         return False
 
     def save_model(self, request, obj, form, change):
+        if change and "expires_on" not in form.cleaned_data:
+            return                          # nothing editable was on the form
         # never obj.save(): the service validates, defaults the expiry, audits
         # and stores an upload last
         d = form.cleaned_data

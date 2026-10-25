@@ -83,6 +83,20 @@ def test_the_change_page_is_read_only_but_for_the_expiry_of_a_verified_record(fi
     assert admin_client.get(f"/admin/training/trainingrecord/{rec.pk}/delete/").status_code == 403
 
 
+def test_a_pending_record_is_view_only_and_a_post_to_it_writes_nothing(fire, hr_admin, admin_client, employee_user):
+    today = timezone.localdate()
+    _receptionist(user=employee_user)
+    pending = training.self_record(employee_user, fire, today, upload=_pdf())
+    url = f"/admin/training/trainingrecord/{pending.pk}/change/"
+    body = admin_client.get(url).content.decode()
+    assert 'name="expires_on"' not in body and 'name="_save"' not in body
+    assert f"/admin/training/trainingrecord/{pending.pk}/verify/" in body
+    r = admin_client.post(url, {"expires_on": (today + timedelta(days=5)).isoformat(), "_save": "Save"})
+    assert r.status_code == 403
+    pending.refresh_from_db()
+    assert pending.pending and pending.expires_on != today + timedelta(days=5)
+
+
 def test_verify_and_reject_confirm_on_get_and_act_on_post(fire, hr_admin, admin_client, employee_user, configured):
     from django.core import mail
     today = timezone.localdate()
@@ -173,8 +187,11 @@ def test_the_matrix_page_filters_escapes_and_downloads(fire, bls, hr_admin, admi
 
 
 def test_the_filter_text_is_escaped_on_the_page(hr_admin, admin_client):
-    body = admin_client.get("/training/matrix/?q=%22%3E%3Cscript%3Ex%3C%2Fscript%3E").content.decode()
+    r = admin_client.get("/training/matrix/?q=%22%3E%3Cscript%3Ex%3C%2Fscript%3E")
+    assert r.status_code == 200
+    body = r.content.decode()
     assert "<script>x</script>" not in body
+    assert "&quot;&gt;&lt;script&gt;" in body
 
 
 def test_the_dashboard_counts_training_and_links_to_the_matrix(fire, bls, hr_admin, admin_client, employee_user):
