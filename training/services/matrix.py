@@ -83,11 +83,6 @@ def build(today, course=None, team=None, query="", show="all", window_days=valid
         courses = [course]                    # the filtered course is the column, even with nobody to show
     else:
         courses = sorted((by_pk[pk] for pk in shown), key=lambda c: (c.display_order, c.name))
-        if show == "all":                     # a column this person neither needs nor has reads "Not required"
-            for entry in rows:
-                for c in courses:
-                    if c.pk not in entry.cells:
-                        entry.cells[c.pk] = training.build_row(c, [], False, today, window_days)
     return Matrix(courses, rows)
 
 

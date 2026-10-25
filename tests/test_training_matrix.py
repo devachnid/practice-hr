@@ -126,7 +126,7 @@ def test_the_csv_quotes_names_and_carries_no_note(courses, hr_admin):
     sam = next(row for row in rows if row[0] == "Sam Patel")
     assert sam[1] == "Missing" and sam[2] == f"Current, {r.expires_on:%d %b %Y}"
     nia = next(row for row in rows if row[0] == "Nia Evans")
-    assert nia[2] == "Not required"
+    assert nia[2] == ""                                                 # neither needs nor has it: an empty cell
     assert matrix.filename(today) == f"training-matrix-{today.isoformat()}.csv"
     assert matrix.filename(today, course=fire, team=reception, query="Sam P", show="problems") == \
         f"training-matrix-fire_safety-reception-sam-p-problems-{today.isoformat()}.csv"
