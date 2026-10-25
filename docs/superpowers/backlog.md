@@ -20,8 +20,12 @@ items can go straight into a tidy-up branch.
    rota still runs first for people who already have rota passwords
    (`import_logins` links by email, and the add page links an unlinked
    login that already has the work email rather than making another).
-   For spec 4 (training), set courses' titles and the everyone tick only
-   after staff have recorded what they hold.
+   For spec 4 (training, merged as #25): run the `training` migrations
+   0001 and 0002, ask staff to record the training they hold from My
+   record and verify each upload, and only then set courses' titles and
+   the everyone tick (the HR guide's going-live step 8); done the other
+   way round, the next morning's email tells everyone their training is
+   missing.
 2. **Rota integration (spec 2).** The rota reads people, working patterns
    and approved absences from the HR read API instead of Breathe, and sends
    sessions worked back as TOIL earned lines. The HR side of the API exists;
@@ -79,7 +83,22 @@ items can go straight into a tidy-up branch.
   that applies to the person is issued (today the policy reminders cover
   it and the item stays closed).
 - The compliance pages use a fixed 60-day "due soon" window while the
-  reminders use the practice's own setting; use the setting on the pages.
+  reminders use the practice's own setting; use the setting on the pages
+  (the training pages and the matrix have the same fixed window).
+- The matrix's name search matches the preferred name and surname only, so
+  a search by a legal first name finds nobody who uses a preferred name;
+  the ordering uses the legal first name.
+- My record's Training card replaces a row's done, expiry and certificate
+  cells with the "waiting to verify" note while a renewal is pending on a
+  still-current course; the person page keeps both in separate rows.
+- A matrix "Problems only" view opens from the dashboard's **Training
+  lapsed or missing** number but also lists people with an upload waiting,
+  so the page can show more people than the number says; **Training to
+  verify** counts uploads while the matrix lists people (two uploads, one
+  row).
+- A lifted admin refusal guard: `training/admin.py` repeats the shape of
+  `checks/admin.py`'s four-method guard (a request flag, a message and a
+  redirect instead of a 500); a tidy-up could move one copy into `hr/`.
 - A confirmation on Remove on HR's checklist page.
 - People past the recent-start window with no open details item cannot
   enter their own bank details (HR does it); a way to reopen the form.
@@ -112,8 +131,26 @@ and Bradford factor; automatic deletion under retention; multi-practice.
   Django's own admin log.
 - An empty `sub` claim would apply the admin flag to an email-matched rota
   row that never binds (OIDC requires `sub`, so theoretical).
-- `checks.state` and `policies.state` run a query per row; the pre-start
-  gate and the nav flag add a few queries per page.
+- `checks.state`, `policies.state` and `training.state` run a query per
+  row, and the dashboard card calls each once per employee; the pre-start
+  gate and the nav flag add a few queries per page (the matrix itself is
+  built from a fixed handful of queries).
+- `training.verify` and `training.reject` check the record is pending on
+  the caller's instance without a lock, as `checks.complete` does: two
+  people acting on the same upload at once both pass, and the second
+  write wins.
+- A session's attendance sheet is stored last, but the session row is
+  saved again after it: if that save fails the bytes stay on disk (the
+  same trade-off as a certificate attached to a record).
+- The training reminder wording is looked up by the course's delivery
+  value; a new delivery value added to the model without a wording would
+  stop every training line in the digest for that night (the digest
+  swallows a source's error).
+- The CSV download guards cells that start with `=`, `+`, `-` or `@`
+  against running as a formula in Excel; a leading tab or carriage return
+  is not guarded.
+- The attendance-sheet rule in `can_view_file` ignores `hr_only` (sheets
+  are never stored HR-only); the certificate rule honours it.
 - `ReminderSchedule.get()` creates the singleton row on first read, which
   can be an admin GET.
 - Starter and leaver checklist items keep a manager owner who has since
