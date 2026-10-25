@@ -35,7 +35,7 @@ class Row:
     course: Course
     latest: TrainingRecord | None          # the counting record (verified, not rejected), newest done_on
     pending: TrainingRecord | None         # the newest unverified, unrejected record
-    rejected: TrainingRecord | None        # the newest rejected record, if newer than `latest` and nothing is pending
+    rejected: TrainingRecord | None        # the newest rejected record, by date done, when more recent than the counting one and no resubmission waits
     status: str
     expires_on: date | None
 
@@ -63,8 +63,10 @@ def build_row(course, records, required, today, window_days):
     """`records`: this person's records of `course`, newest done_on first."""
     latest = next((r for r in records if r.counts), None)
     pending = next((r for r in records if r.pending), None)
-    rejected = None if pending is not None else next(
-        (r for r in records if r.rejected and (latest is None or r.pk > latest.pk)), None)
+    # records are newest done_on first, so "more recent than the counting one" is
+    # "sorts before it": a backdated rejected upload must not mark a current course
+    ahead = records if latest is None else records[:records.index(latest)]
+    rejected = None if pending is not None else next((r for r in ahead if r.rejected), None)
     expires_on = latest.expires_on if latest is not None else None
     status = validity.status(expires_on, latest is not None, required, today, window_days)
     if pending is not None and status in ("missing", "lapsed"):

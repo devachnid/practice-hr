@@ -239,3 +239,17 @@ def test_to_verify_lists_pending_records_of_people_employed_today(fire, hr_admin
     emp.end_date = today - timedelta(days=1)
     emp.save()
     assert list(training.to_verify(today)) == []
+
+
+def test_a_backdated_rejection_does_not_mark_a_current_course_but_a_later_one_does(fire, employee_user, hr_admin):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    training.record(hr_admin, e, fire, today - timedelta(days=10), upload=_pdf())          # counts, lower id
+    old = training.self_record(employee_user, fire, today - timedelta(days=380), upload=_pdf())   # higher id, older
+    training.reject(hr_admin, old, "Last year's certificate.")
+    [row] = [x for x in training.state(e, today) if x.course == fire]
+    assert row.status == "current" and row.rejected is None
+    later = training.self_record(employee_user, fire, today, upload=_pdf())                # dated after the counting one
+    training.reject(hr_admin, later, "Not the right course.")
+    [row] = [x for x in training.state(e, today) if x.course == fire]
+    assert row.status == "current" and row.rejected == later
