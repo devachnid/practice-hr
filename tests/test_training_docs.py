@@ -12,7 +12,8 @@ def _text(*parts):
 def test_the_admin_guide_has_a_training_section_with_every_part():
     text = _text("docs", "admin", "compliance.md")
     for heading in ("## Training", "### Courses", "### Recording training", "### Verifying what someone recorded",
-                    "### Sessions", "### The training matrix", "### Who sees what"):
+                    "### Sessions", "### The training matrix", "### Who sees what of training",
+                    "### What each training status means", "### Training reminders"):
         assert heading in text, heading
     for label in ("Required of everyone", "Awaiting verification", "Record a training session", "Download as CSV",
                   "Training lapsed or missing", "Training to verify", "RETENTION_DAYS_TRAINING"):

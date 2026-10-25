@@ -422,7 +422,7 @@ needs follows the **title of their current primary position**, or a course
 is **required of everyone**; what they have is a list of training records,
 one row per completion.
 
-### The mental model
+### How training works
 
 **A course says who needs it and how long it lasts.** A training record is
 one completion of a course by one person. **Records are append-only:** a
@@ -557,7 +557,7 @@ page. **Download as CSV** gives the filtered grid as
 per course, each cell "Status, date": what an inspector asks for. The
 note is never in it.
 
-### Who sees what
+### Who sees what of training
 
 | Who | Sees | Does |
 |---|---|---|
@@ -569,7 +569,7 @@ Managers see training detail because training is not health or identity
 material and they chase and record it; they still see nothing of a
 report's checks beyond the counts.
 
-### What each status means
+### What each training status means
 
 | Status | Meaning |
 |---|---|
@@ -580,7 +580,7 @@ report's checks beyond the counts.
 | **Awaiting verification** | The person has recorded a completion that waits for HR or the manager, and there is no verified record that still counts: the course is missing or lapsed, or their title does not need it. A course that still has a current record keeps its status. |
 | **Not required** | Has a record, but the title no longer needs the course. |
 
-### Reminders
+### Training reminders
 
 Each required course that is due soon, lapsed or missing goes to every HR
 admin and to the person (always: the person does the course), on the
@@ -1068,8 +1068,9 @@ have their own line on the [retention report](people.md#retention-report):
 *Pre-employment and other checks*, *Stored files*, *Policy signatures* and
 *Training records*, six years after the person's last employment ended by
 default (`RETENTION_DAYS_CHECKS`, `RETENTION_DAYS_FILES`,
-`RETENTION_DAYS_SIGNATURES`, `RETENTION_DAYS_TRAINING`). As for every category,
-the report only lists: nothing is deleted automatically, and there is no
-delete button for a check, a file, a signature or a training record. Registration numbers and
-their [lookups](#professional-registrations) are listed under the checks
-category, *Pre-employment and other checks*.
+`RETENTION_DAYS_SIGNATURES`, `RETENTION_DAYS_TRAINING`). As for every
+category, the report only lists: nothing is deleted automatically, and
+there is no delete button for a check, a file, a signature or a training
+record. Registration numbers and their
+[lookups](#professional-registrations) are listed under the checks category,
+*Pre-employment and other checks*.
