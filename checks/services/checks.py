@@ -3,15 +3,15 @@ status. A check type is required by the title of the person's current
 primary position; state() gives one row per required type, plus one per
 other type the person has a check of, each with its latest check and a
 status. Pages, reminders and the dashboard all read state()."""
-import calendar
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 from checks.models import Check, CheckType
+from compliance import validity
 from documents.models import File
 from documents.services import files
 from people.services import access, audit, employments, positions
@@ -41,14 +41,8 @@ class Row:
 
 
 def expires_from(done_on, check_type):
-    """done_on plus validity_months, month arithmetic clipped to the month's end; None for one-off."""
-    if check_type.validity_months is None:
-        return None
-    month = done_on.month - 1 + check_type.validity_months
-    year = done_on.year + month // 12
-    month = month % 12 + 1
-    day = min(done_on.day, calendar.monthrange(year, month)[1])
-    return done_on.replace(year=year, month=month, day=day)
+    """done_on plus the type's validity_months (compliance.validity); None for a one-off."""
+    return validity.expires_from(done_on, check_type.validity_months)
 
 
 def required_for(employee, today):
@@ -62,21 +56,13 @@ def required_for(employee, today):
 
 
 def _status(latest, required, today, window_days):
-    if not required:
-        return "not_required"
-    if latest is None:
-        return "missing"
-    if latest.awaiting:
-        return "awaiting"
-    if latest.outcome not in CLEAR:
-        return "missing"
-    if latest.expires_on is None:
-        return "current"
-    if latest.expires_on < today:
-        return "lapsed"
-    if latest.expires_on <= today + timedelta(days=window_days):
-        return "due_soon"
-    return "current"
+    if required and latest is not None:
+        if latest.awaiting:
+            return "awaiting"
+        if latest.outcome not in CLEAR:
+            return "missing"
+    return validity.status(latest.expires_on if latest is not None else None, latest is not None, required,
+                           today, window_days)
 
 
 def _latest(employee, check_type):
