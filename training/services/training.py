@@ -69,7 +69,11 @@ def build_row(course, records, required, today, window_days):
     rejected = None if pending is not None else next((r for r in ahead if r.rejected), None)
     expires_on = latest.expires_on if latest is not None else None
     status = validity.status(expires_on, latest is not None, required, today, window_days)
-    if pending is not None and status in ("missing", "lapsed"):
+    # An unverified record stands in for a course nothing counts for (whether or
+    # not it is required: a starter before day one has none required) and for a
+    # lapsed one. A course that still has a current counting record keeps its
+    # status, even a not-required one with a renewal waiting.
+    if pending is not None and (latest is None or status == "lapsed"):
         status = "awaiting_verification"
     return Row(course, latest, pending, rejected, status, expires_on)
 

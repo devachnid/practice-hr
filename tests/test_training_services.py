@@ -253,3 +253,19 @@ def test_a_backdated_rejection_does_not_mark_a_current_course_but_a_later_one_do
     training.reject(hr_admin, later, "Not the right course.")
     [row] = [x for x in training.state(e, today) if x.course == fire]
     assert row.status == "current" and row.rejected == later
+
+
+def test_a_pending_record_is_awaiting_when_nothing_counts_even_if_not_required(fire, employee_user, hr_admin):
+    today = timezone.localdate()
+    e = make_employee(user=employee_user)
+    make_employment(e, start=today - timedelta(days=10))            # employed, no position: fire is not required
+    training.self_record(employee_user, fire, today, upload=_pdf())
+    [row] = [x for x in training.state(e, today) if x.course == fire]
+    assert row.status == "awaiting_verification" and row.latest is None and row.pending is not None
+    # the converse: a current counting record keeps "not required" while a renewal waits
+    r = _receptionist(user=User.objects.create_user(email="rec@example.com", password="pw"))
+    training.record(hr_admin, r, fire, today - timedelta(days=30), upload=_pdf())
+    fire.positions.clear()
+    training.self_record(r.user, fire, today, upload=_pdf())
+    [row] = [x for x in training.state(r, today) if x.course == fire]
+    assert row.status == "not_required" and row.latest is not None and row.pending is not None

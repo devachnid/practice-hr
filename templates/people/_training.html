@@ -13,7 +13,7 @@ audited download), then the form to record your own completion
     {% for row in training %}
       <tr>
         <th scope="row">{{ row.course.name }}</th>
-        <td><span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{% if row.pending and row.status == 'not_required' %}Awaiting verification{% else %}{{ row.label }}{% endif %}</span></td>
+        <td><span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.label }}</span></td>
         {% if row.pending %}
         <td colspan="3">Uploaded {{ row.pending.recorded_at|date:"j M Y" }}; waiting for HR or your manager to verify it.</td>
         {% else %}
