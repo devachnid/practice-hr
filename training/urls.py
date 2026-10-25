@@ -1,4 +1,8 @@
-from django.urls import path  # noqa: F401 - the routes are added task by task
+from django.urls import path
+
+from . import views
 
 app_name = "training"
-urlpatterns = []
+urlpatterns = [
+    path("record/", views.self_record, name="self_record"),
+]
