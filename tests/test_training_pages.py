@@ -238,3 +238,12 @@ def test_the_digest_link_for_hr_is_the_person_page(fire, hr_admin, employee_user
     e = _receptionist(user=employee_user)
     [item] = [i for i in due.due_items(timezone.localdate(), ReminderSchedule.get()) if i.recipient == "hr@example.com"]
     assert item.url.endswith(reverse("training:person", args=[e.pk]))
+
+
+def test_the_back_link_goes_where_the_viewer_can_go(fire, hr_admin, admin_client, employee_user, employee_client):
+    m, mc = _manager()
+    e = _receptionist(user=employee_user, manager=m)
+    own = employee_client.get(f"/training/{e.pk}/").content.decode()
+    assert '<a href="/people/me/">Back</a>' in own and "/people/team/" not in own
+    assert '<a href="/people/team/">Back</a>' in mc.get(f"/training/{e.pk}/").content.decode()
+    assert f'<a href="/admin/people/employee/{e.pk}/change/">Back</a>' in admin_client.get(f"/training/{e.pk}/").content.decode()

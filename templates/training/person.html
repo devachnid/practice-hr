@@ -27,7 +27,7 @@ Every POST here is a service's; this page writes nothing.{% endcomment %}
       <tr class="pending">
         <td></td><td colspan="{% if can_record %}2{% else %}4{% endif %}">Uploaded {{ row.pending.recorded_at|date:"j M Y" }} (done {{ row.pending.done_on|date:"j M Y" }}){% if row.pending.certificate_id %}: <a href="{% url 'documents:download' row.pending.certificate_id %}" download>certificate</a>{% endif %}</td>
         {% if can_record %}
-        <td colspan="3" class="row-actions">
+        <td colspan="4" class="row-actions">
           <form method="post" action="{% url 'training:verify' row.pending.pk %}" class="inline">{% csrf_token %}<button type="submit" class="btn btn-primary">Verify</button></form>
           <a href="{% url 'training:reject' row.pending.pk %}" class="btn btn-quiet">Reject</a>
         </td>

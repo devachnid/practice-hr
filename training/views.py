@@ -62,12 +62,16 @@ def person(request, pk):
     today = timezone.localdate()
     can_record = access.may_record_training_for(request.user, employee, today)
     me = access.employee_for(request.user)
+    if access.can_view_restricted(request.user):
+        back = reverse("admin:people_employee_change", args=[employee.pk])
+    elif me is not None and me.pk == employee.pk:
+        back = reverse("onboarding:getting_started" if access.is_pre_start(request.user, today) else "people:me")
+    else:
+        back = reverse("people:team")
     return render(request, "training/person.html", {
         "employee": employee, "rows": training.state(employee, today),
-        "is_self": me is not None and me.pk == employee.pk,
         "can_record": can_record, "form": RecordForm(initial={"done_on": today}) if can_record else None,
-        "back": reverse("admin:people_employee_change", args=[employee.pk])
-        if access.can_view_restricted(request.user) else reverse("people:team")})
+        "back": back})
 
 
 @login_required
