@@ -28,6 +28,7 @@ urlpatterns = [
     path("documents/", include("documents.urls")),
     path("checks/", include("checks.urls")),
     path("registers/", include("registers.urls")),
+    path("training/", include("training.urls")),
     path("onboarding/", include("onboarding.urls")),
     path("api/v1/", include("api.urls")),
     path("", home, name="home"),

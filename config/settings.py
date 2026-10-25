@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     "onboarding",
     "compliance",
     "registers",
+    "training",
 ]
 
 MIDDLEWARE = [
