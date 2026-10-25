@@ -191,6 +191,17 @@ class EmployeeAdmin(ModelAdmin):
             reg_rows.append((body.name + note, reg.number, outcome, reg.last_name_on_register,
                              _day(timezone.localtime(reg.last_checked_at).date()) if reg.last_checked_at else "",
                              _day(reg.next_check_on), links))
+        from training.services import training as training_svc
+        train_rows = []
+        for r in training_svc.state(obj, as_of):
+            if r.pending is not None:
+                link = _link(reverse("admin:training_trainingrecord_change", args=[r.pending.pk]), "Verify or reject")
+            elif r.latest is not None:
+                link = _link(reverse("admin:training_trainingrecord_change", args=[r.latest.pk]), "Open")
+            else:
+                link = _link(f"{reverse('admin:training_trainingrecord_add')}?employee={obj.pk}&course={r.course.pk}",
+                             "Record")
+            train_rows.append((r.course, r.label, _day(r.expires_on), link))
         policy_rows = []
         for r in policies.state(obj, today):
             if r["signature"] is not None:
@@ -210,11 +221,14 @@ class EmployeeAdmin(ModelAdmin):
                               'that day.</p>', _day(as_of)) if upcoming else "")
         return format_html(
             '<h3 class="font-semibold mb-2">Registrations</h3>{}'
+            '<h3 class="font-semibold mb-2">Training</h3>{}'
             '<h3 class="font-semibold mb-2">Checks</h3>{}{}'
             '<h3 class="font-semibold mb-2">Policies</h3>{}'
             '<h3 class="font-semibold mb-2">Open checklist items</h3>{}',
             _table(("Body", "Number", "Last result", "Name shown", "Checked", "Next check", ""), reg_rows,
                    "Their position needs no professional registration."),
+            _table(("Course", "Status", "Expires", ""), train_rows,
+                   "Their position needs no training, and none is recorded."),
             starts,
             _table(("Check", "Status", "Expires", ""), check_rows,
                    "Their position needs no checks, and none are recorded." if employed or upcoming

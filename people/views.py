@@ -10,6 +10,8 @@ from checks.services import checks
 from people.models import Employee
 from people.services import access, contracts, employees, employments, patterns, positions, retention
 from registers.services import registrations
+from training.forms import SelfRecordForm
+from training.services import training
 
 
 class PersonalDetailsForm(forms.ModelForm):
@@ -75,7 +77,8 @@ def me(request):
            # listing titles is not opening a file: no audit until files.open
            "files": employee.files.filter(hr_only=False, superseded_by__isnull=True),
            "checks": checks.state(employee, today) if access.can_view_checks(request.user, employee) else [],
-           "registrations": [r for r in registrations.rows(employee, today) if r.needed]}
+           "registrations": [r for r in registrations.rows(employee, today) if r.needed],
+           "training": training.state(employee, today), "training_form": SelfRecordForm(initial={"done_on": today})}
     if emp:
         from onboarding.services import checklists   # onboarding imports people's services
         ctx["checklist_items"] = [i for i in checklists.own_items(employee, today)
@@ -110,6 +113,7 @@ def team(request):
             "pattern_total": patterns.weekly_total(pattern) if pattern else None,
             # counts and the next expiry only: a manager never sees which checks
             "checks": checks.summary(emp.employee, today),
+            "training": training.summary(emp.employee, today),
         })
     return render(request, "people/team.html", {"rows": rows, "todo": todo, "today": today})
 
@@ -122,6 +126,7 @@ CATEGORY_LABELS = {
     "checks": "Pre-employment and other checks",
     "files": "Stored files",
     "signatures": "Policy signatures",
+    "training": "Training records",
 }
 
 

@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+{% comment %}TrainingRecordAdmin.verify_record: confirm before the record
+counts. GET only shows this page; the POST calls training.verify.{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:training_trainingrecord_change' record.pk %}" class="underline">{{ record }}</a></p>
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    <p>{{ record.employee }} recorded {{ record.course }} as done on {{ record.done_on|date:"j M Y" }}{% if record.certificate_id %}, with <a href="{% url 'documents:download' record.certificate_id %}" class="underline">this certificate</a>{% endif %}. Verifying makes it count from that date.</p>
+    <div class="flex items-center gap-4">
+      <button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Verify</button>
+      <a href="{% url 'admin:training_trainingrecord_change' record.pk %}" class="underline">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

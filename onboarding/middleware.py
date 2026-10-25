@@ -1,7 +1,8 @@
 """The pre-start gate. Before their start date a starter signs in to a
 practice that has not taken them on yet: they see Getting started and what
 it links to (their details, the policies and their downloads, the evidence
-HR has asked them for, their account and passkeys) and nothing else.
+HR has asked them for, their own training, their account and passkeys) and
+nothing else.
 Anyone else, HR admins with no employee record included, is never stopped
 here (access.is_pre_start).
 
@@ -13,7 +14,7 @@ from django.utils import timezone
 
 from people.services import access
 
-ALLOWED_PREFIXES = ("/onboarding/", "/documents/", "/checks/", "/accounts/", "/static/", "/admin/login/")
+ALLOWED_PREFIXES = ("/onboarding/", "/documents/", "/checks/", "/training/", "/accounts/", "/static/", "/admin/login/")
 
 
 def pre_start(request):

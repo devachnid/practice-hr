@@ -72,7 +72,9 @@ def may_record_for(user, employment, day):
 def can_view_file(user, file):
     """HR always; the person their own unless HR-only; any employee a
     policy version's file (category Policy, no person: the policies page's
-    Read link); nobody else (managers never see documents)."""
+    Read link); a line manager their report's training certificate and the
+    attendance sheet of a session a report was at; nobody else (managers
+    never see any other document)."""
     if can_view_restricted(user):
         return True
     me = employee_for(user)
@@ -80,7 +82,23 @@ def can_view_file(user, file):
         return False
     if file.category == "policy" and file.employee_id is None and not file.hr_only:
         return True
-    return file.employee_id == me.pk and not file.hr_only
+    if file.employee_id == me.pk and not file.hr_only:
+        return True
+    return _training_file_for_manager(me, file)
+
+
+def _training_file_for_manager(me, file):
+    from django.utils import timezone
+
+    from training.models import TrainingRecord
+    day = timezone.localdate()
+    if file.employee_id is not None:
+        return (not file.hr_only and file.certificate_of.exists()
+                and line_manager(file.employee, day) == me)
+    if not file.attendance_sheet_of.exists():
+        return False
+    reports = {emp.employee_id for emp in direct_reports(me, day)}
+    return TrainingRecord.objects.filter(session__attendance_sheet=file, employee_id__in=reports).exists()
 
 
 def can_view_checks(user, employee):
@@ -91,6 +109,38 @@ def can_view_checks(user, employee):
         return True
     me = employee_for(user)
     return me is not None and me.pk == employee.pk
+
+
+def can_view_training(user, employee):
+    """A person's training in detail: HR, the person, and their current line
+    manager (training is not health or identity material: the manager
+    chases and records it)."""
+    from django.utils import timezone
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    if me is None:
+        return False
+    return me.pk == employee.pk or line_manager(employee, timezone.localdate()) == me
+
+
+def may_record_training_for(user, employee, day):
+    """Who records training for someone: HR (themselves included, as HR
+    records their own checks), or the person's line manager on `day`.
+    A manager never records their own: that is training.self_record."""
+    if can_view_restricted(user):
+        return True
+    me = employee_for(user)
+    if me is None or me.pk == employee.pk:
+        return False
+    return line_manager(employee, day) == me
+
+
+def may_verify(user, record):
+    """Who verifies or rejects a pending record: the same people who could
+    have recorded it for the person today."""
+    from django.utils import timezone
+    return may_record_training_for(user, record.employee, timezone.localdate())
 
 
 def is_pre_start(user, day):

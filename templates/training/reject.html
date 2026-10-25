@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% comment %}training:reject, GET — ask why before the record is turned
+down; only the POST writes (training.reject, which emails the person).{% endcomment %}
+{% block title %}Turn down {{ record.employee.name }}'s {{ record.course }} record{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>Turn down {{ record.employee.name }}'s {{ record.course }} record?</h1></div>
+<section class="card">
+  <p>Recorded as done on {{ record.done_on|date:"j M Y" }}, uploaded {{ record.recorded_at|date:"j M Y" }}.{% if record.certificate_id %} <a href="{% url 'documents:download' record.certificate_id %}" download>Open the certificate</a>.{% endif %}</p>
+  <form method="post">{% csrf_token %}
+    {{ form.as_div }}
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Turn it down</button>
+      <a href="{% url 'training:person' record.employee_id %}" class="btn btn-quiet">Back</a>
+    </div>
+  </form>
+</section>
+</div>
+{% endblock %}

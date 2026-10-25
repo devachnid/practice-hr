@@ -1,0 +1,40 @@
+{% comment %}My record's Training card (and Getting started's): one row per
+training.state row with its status, dates and certificate link (the
+audited download), then the form to record your own completion
+(training:self_record). HR's note is never shown here. Expects training
+(rows) and training_form.{% endcomment %}
+<section class="card">
+  <h2>Training</h2>
+  {% if training %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Course</th><th scope="col">Status</th><th scope="col">Done</th><th scope="col">Expires</th><th scope="col">Certificate</th></tr></thead>
+    <tbody>
+    {% for row in training %}
+      <tr>
+        <th scope="row">{{ row.course.name }}</th>
+        <td><span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.label }}</span></td>
+        {% if row.pending %}
+        <td colspan="3">Uploaded {{ row.pending.recorded_at|date:"j M Y" }}; waiting for HR or your manager to verify it.</td>
+        {% else %}
+        <td>{{ row.latest.done_on|date:"j M Y"|default:"" }}</td>
+        <td>{{ row.expires_on|date:"j M Y"|default:"" }}</td>
+        <td>{% if row.latest.certificate_id %}<a href="{% url 'documents:download' row.latest.certificate_id %}" download>Download</a>{% endif %}</td>
+        {% endif %}
+      </tr>
+      {% if row.rejected and not row.pending %}
+      <tr><td></td><td colspan="4" class="field-error">Your upload of {{ row.rejected.done_on|date:"j M Y" }} was turned down: {{ row.rejected.rejected_note }} Record it again below.</td></tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No training is needed for your position yet. Anything you have already done can be recorded below.</p>
+  {% endif %}
+  <h3>Record training you have done</h3>
+  <form method="post" action="{% url 'training:self_record' %}" enctype="multipart/form-data">{% csrf_token %}
+    {{ training_form.as_div }}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Record</button></div>
+  </form>
+</section>

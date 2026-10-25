@@ -20,22 +20,31 @@ items can go straight into a tidy-up branch.
    rota still runs first for people who already have rota passwords
    (`import_logins` links by email, and the add page links an unlinked
    login that already has the work email rather than making another).
+   For spec 4 (training), set courses' titles and the everyone tick only
+   after staff have recorded what they hold.
 2. **Rota integration (spec 2).** The rota reads people, working patterns
    and approved absences from the HR read API instead of Breathe, and sends
    sessions worked back as TOIL earned lines. The HR side of the API exists;
    the rota side and the TOIL feed do not.
-3. **Training compliance (spec 4).** Role-to-course matrix, evidence,
-   renewals. The reminder engine, the evidence store and the expiry
-   pattern all exist from spec 3 (checks with validity, files, the
-   compliance digest), so this is a new app contributing `due_items`
-   rather than new plumbing.
-4. **Later.** Sickness case management, appraisals, restricted case files.
+3. **Later.** Sickness case management, appraisals, restricted case files.
    The GMC sells a full-register download service; if the practice ever
    wants a sanctioned machine interface in place of reading the public
    search page, that is the route (an agreement, and a new adapter).
 
 ## Smaller items
 
+- A line manager named on a position keeps training (and `can_view`) rights
+  after leaving or before starting, while their login is active;
+  `route_for` already requires a current employment, the viewing rules do
+  not.
+- Course levels and equivalence (safeguarding level 3 satisfying level 2):
+  the training app models each level as its own course for now.
+- Importing an e-learning platform's completion export (Blue Stream
+  Academy, e-LfH) as training records.
+- A certificate pack download: every certificate for one person, or one
+  course, as a zip, for an inspection.
+- Bookings and a training calendar, and reminding a manager to run the
+  next session when a face-to-face course is due for several people.
 - Capture the register page fixtures per
   `registers/adapters/fixtures/README.md`, so the four register bodies
   become verified and their scheduled lookups start. The registration

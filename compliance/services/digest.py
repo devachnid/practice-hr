@@ -21,9 +21,11 @@ from compliance.services import schedule
 from documents.services import due as documents_due
 from onboarding.services import due as onboarding_due
 from registers.services import due as registers_due
+from training.services import due as training_due
 
 log = logging.getLogger("hr.compliance")
-SOURCES = (checks_due.due_items, documents_due.due_items, onboarding_due.due_items, registers_due.due_items)
+SOURCES = (checks_due.due_items, documents_due.due_items, onboarding_due.due_items, registers_due.due_items,
+           training_due.due_items)
 SUBJECT = "Practice HR: things due"
 
 
@@ -34,6 +36,8 @@ def _when(item):
         if item.state == "missing":
             return "not recorded"
         return f"found {item.due_on:%-d %b %Y}"
+    if item.state == "to_verify":
+        return f"uploaded {item.due_on:%-d %b %Y}"
     if item.state == "due_today":
         return "due today"
     if item.state == "due_soon":

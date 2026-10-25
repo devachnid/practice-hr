@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% comment %}TrainingRecordAdmin.reject_record: the note, then training.reject
+(which emails the person the note and where to record again).{% endcomment %}
+{% block breadcrumbs %}{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-6 max-w-2xl">
+  <p><a href="{% url 'admin:training_trainingrecord_change' record.pk %}" class="underline">{{ record }}</a></p>
+  <form method="post" class="flex flex-col gap-4">{% csrf_token %}
+    {% if form.non_field_errors %}<div role="alert" class="text-red-600">{% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}</div>{% endif %}
+    {% for field in form %}
+      <div class="flex flex-col gap-1">
+        <label for="{{ field.id_for_label }}" class="font-semibold">{{ field.label }}</label>
+        {{ field }}
+        {% for e in field.errors %}<p role="alert" class="text-red-600">{{ e }}</p>{% endfor %}
+        <p class="text-font-subtle-light dark:text-font-subtle-dark">{{ field.help_text }}</p>
+      </div>
+    {% endfor %}
+    <p>The record stays, counting for nothing; {{ record.employee }} is emailed the note and asked to record it again.</p>
+    <div class="flex items-center gap-4">
+      <button type="submit" class="bg-primary-600 text-white font-semibold px-3 py-2 rounded-default">Turn it down</button>
+      <a href="{% url 'admin:training_trainingrecord_change' record.pk %}" class="underline">Back</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

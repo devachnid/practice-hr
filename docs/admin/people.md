@@ -130,6 +130,11 @@ as opening a check does; nothing else.
   the register's own page for it. A row with no number says so and links to
   the Details tab. See
   [Check now and On the register](compliance.md#check-now-and-on-the-register).
+- **Training** — one row per course their title needs (or everyone does),
+  plus any other course they have a record of, with its status, the expiry
+  of the counting record, and a link: **Open** the record, **Verify or
+  reject** an upload that waits, or **Record** one (the add page with the
+  person and the course filled in). See [Training](compliance.md#training).
 - **Checks** — one row per check type their title needs, plus any other
   type they have a check of, with its [status](compliance.md#what-each-status-means)
   and expiry. **Open** goes to the recorded check, **Open the request** to a
@@ -456,10 +461,12 @@ No figures or absence detail appear. The categories and their defaults:
 | `checks` | Pre-employment and other checks | 2190 days | `RETENTION_DAYS_CHECKS` |
 | `files` | Stored files | 2190 days | `RETENTION_DAYS_FILES` |
 | `signatures` | Policy signatures | 2190 days | `RETENTION_DAYS_SIGNATURES` |
+| `training` | Training records | 2190 days | `RETENTION_DAYS_TRAINING` |
 
 *Checks* are the person's [recorded checks](compliance.md#checks), *files*
-the documents stored against them under [Files](compliance.md#files), and
-*signatures* their [policy signatures](compliance.md#what-a-signature-records).
+the documents stored against them under [Files](compliance.md#files),
+*signatures* their [policy signatures](compliance.md#what-a-signature-records),
+and *training* their [training records](compliance.md#training).
 A DBS certificate is never stored, so there is none to remove. Every
 category is listed for every leaver once its period has passed, whether or
 not they have anything in it.

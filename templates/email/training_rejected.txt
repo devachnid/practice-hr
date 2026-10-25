@@ -1,0 +1,10 @@
+{% autoescape off %}Hello {{ record.employee.name }},
+
+Your {{ record.course }} training record (done {{ record.done_on|date:"j M Y" }}) could not be verified:
+
+  {{ record.rejected_note }}
+
+Please record it again on My record, with the right details and certificate:
+{{ url }}
+
+Practice HR{% endautoescape %}

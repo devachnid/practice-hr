@@ -26,6 +26,8 @@ from onboarding.models import Checklist, ChecklistItem, Owner
 from onboarding.services import checklists
 from people.models import Employee
 from people.services import access, employees
+from training.forms import SelfRecordForm
+from training.services import training
 
 
 
@@ -61,6 +63,7 @@ def getting_started(request):
     if me is not None:
         ctx.update({"items": checklists.own_items(me, today), "owed": policies.owed(me, today),
                     "asked": checks.asked_of(me),
+                    "training": training.state(me, today), "training_form": SelfRecordForm(initial={"done_on": today}),
                     "start_date": me.employments.filter(start_date__gt=today).order_by("start_date")
                     .values_list("start_date", flat=True).first()})
     return render(request, "onboarding/getting_started.html", ctx)

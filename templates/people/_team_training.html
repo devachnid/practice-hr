@@ -1,0 +1,4 @@
+{% comment %}My team's per-report training summary (training.summary) as a
+link to their training page, where the manager sees the detail and
+records. Expects s and employee.{% endcomment %}
+<a href="{% url 'training:person' employee.pk %}">{{ s.current }} current, {{ s.due_soon }} due soon, {{ s.lapsed }} lapsed, {{ s.missing }} missing{% if s.awaiting_verification %}, {{ s.awaiting_verification }} to verify{% endif %}</a>{% if s.next_expiry %}; next expiry {{ s.next_expiry|date:"d M Y" }}{% endif %}

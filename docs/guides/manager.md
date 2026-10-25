@@ -14,6 +14,7 @@ There is nothing else to switch on: from that day you see **Approvals** and
 - [The calendar](#the-calendar)
 - [Your To do list](#your-to-do-list)
 - [What you can see of a report's checks](#what-you-can-see-of-a-reports-checks)
+- [Your team's training](#your-teams-training)
 - [Reminders when a request waits](#reminders-when-a-request-waits)
 - [What you cannot do, and who to ask](#what-you-cannot-do-and-who-to-ask)
 
@@ -103,6 +104,12 @@ Choose **My record**. As well as your details, it has:
   status (the same words as for your team, under
   [What you can see of a report's checks](#what-you-can-see-of-a-reports-checks)),
   when it was done, when it expires and the outcome. You never see HR's notes.
+- **Training**: the courses your job needs, each with its status, the
+  dates and your certificate. Under it you can record a course you have
+  done, with the certificate (needed for an online course); it is marked
+  *Awaiting verification* until HR or your own manager checks it. If it
+  is turned down, the reason is shown against the course until you record
+  it again. You never see HR's notes.
 - **Documents**: the files HR keeps for you that you may see, such as your
   contract. Choose **Download** to open one.
 
@@ -314,6 +321,61 @@ you are told what it is. HR is told too and will speak to the person: talk to
 them and to HR the same day, and plan their work around it until it is
 settled. You still see counts only under **My team**, not the registration
 itself.
+
+## Your team's training
+
+Unlike checks, you see your team's training in full: each course, its
+status, the dates and the certificates. You can record training for
+someone, verify what they uploaded, and record a session for your team.
+
+### How to see how someone's training stands
+
+1. Choose **My team**.
+2. Look in the **Training** column beside the person, and choose it to
+   open their training page.
+
+The words are the same as for checks, with one more: **to verify** means
+they have recorded a completion and uploaded a certificate that is
+waiting for you or HR to check.
+
+### How to record training for someone
+
+1. Open their training page from **My team**.
+2. Under **Record training for** and their name, choose the course and the
+   date done, attach the certificate if there is one, and choose **Record**.
+
+What you will see: the record counts straight away. You can only record
+for people who report to you; your own training you record from **My
+record**, for HR or your own manager to verify.
+
+### How to verify or turn down an upload
+
+1. Open their training page. A row marked **Awaiting verification** is
+   followed by a line giving the date uploaded and a link to the
+   certificate.
+2. Open the certificate and check it is the right course, person and date.
+3. Choose **Verify**, or **Reject** and write a sentence saying why.
+
+What you will see: a verified record counts from its date done. A rejected
+one stays in their history, counts for nothing, and they are emailed your
+note with a link to record it again. They see your note on their own page
+until they record the course again.
+
+### How to record a session
+
+1. Choose **My team**, then **Record a training session**.
+2. Choose the course and the date held, name the trainer, tick everyone
+   who attended, and attach the attendance sheet if there is one.
+3. Choose **Record the session**.
+
+What you will see: one record per person, dated the day held. You can only
+tick your own reports, and only people who reported to you on that date:
+if someone else attended, ask HR to add them.
+
+### When your team's training lapses
+
+If one of your team's training lapses, you are told once, in a "Practice
+HR: things due" email, with the course named: "Fire safety has lapsed".
 
 ## Reminders when a request waits
 
