@@ -113,6 +113,7 @@ def team(request):
             "pattern_total": patterns.weekly_total(pattern) if pattern else None,
             # counts and the next expiry only: a manager never sees which checks
             "checks": checks.summary(emp.employee, today),
+            "training": training.summary(emp.employee, today),
         })
     return render(request, "people/team.html", {"rows": rows, "todo": todo, "today": today})
 

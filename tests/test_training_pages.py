@@ -129,3 +129,112 @@ def test_a_login_with_no_employee_record_is_told_so(fire, employee_client):
     assert r.status_code == 302
     body = employee_client.get("/people/me/").content.decode()
     assert "no employee record linked to your login" in body
+
+
+# ---- Task 9: My team, the person page, verify, reject, sessions --------------
+
+def test_my_team_shows_counts_and_links_to_the_person_page_with_the_note(fire, bls, hr_admin, employee_user):
+    today = timezone.localdate()
+    m, mc = _manager()
+    e = _receptionist(user=employee_user, manager=m)
+    r = training.record(hr_admin, e, fire, today - timedelta(days=5), upload=_pdf(), note="Seen the cert")
+    body = mc.get("/people/team/").content.decode()
+    assert "1 current" in body and "1 missing" in body and f'href="/training/{e.pk}/"' in body
+    assert 'href="/training/session/"' in body
+    body = mc.get(f"/training/{e.pk}/").content.decode()
+    assert "Fire safety" in body and "Seen the cert" in body and f'href="/documents/file/{r.certificate_id}/"' in body
+    assert f'action="/training/{e.pk}/record/"' in body
+    assert mc.get(f"/documents/file/{r.certificate_id}/").status_code == 200       # the manager opens the certificate
+
+
+def test_the_person_sees_their_page_without_the_note_or_the_record_form(fire, hr_admin, employee_user, employee_client):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    training.record(hr_admin, e, fire, today - timedelta(days=5), upload=_pdf(), note="Seen the cert")
+    body = employee_client.get(f"/training/{e.pk}/").content.decode()
+    assert "Fire safety" in body and "Seen the cert" not in body and f'action="/training/{e.pk}/record/"' not in body
+    other = _receptionist(user=User.objects.create_user(email="jo@example.com", password="pw"))
+    assert employee_client.get(f"/training/{other.pk}/").status_code == 403
+    assert employee_client.post(f"/training/{other.pk}/record/", {"course": fire.pk, "done_on": today.isoformat()}).status_code == 403
+
+
+def test_a_manager_records_for_a_report_and_it_counts_at_once(fire, employee_user):
+    today = timezone.localdate()
+    m, mc = _manager()
+    e = _receptionist(user=employee_user, manager=m)
+    r = mc.post(f"/training/{e.pk}/record/", {"course": fire.pk, "done_on": (today - timedelta(days=2)).isoformat(),
+                                               "file": _pdf(), "note": "Group session, I was there"})
+    assert r.status_code == 302 and r["Location"] == f"/training/{e.pk}/"
+    rec = TrainingRecord.objects.get()
+    assert rec.counts and rec.verified_by == m.user and rec.note == "Group session, I was there"
+    r = mc.post(f"/training/{e.pk}/record/", {"course": fire.pk, "done_on": (today + timedelta(days=1)).isoformat()})
+    assert r.status_code == 302 and TrainingRecord.objects.count() == 1
+    assert "cannot be after today" in mc.get(f"/training/{e.pk}/").content.decode()
+
+
+def test_verify_is_a_post_and_reject_confirms_then_emails(fire, employee_user, employee_client, configured):
+    from django.core import mail
+    today = timezone.localdate()
+    m, mc = _manager()
+    e = _receptionist(user=employee_user, manager=m)
+    first = training.self_record(employee_user, fire, today, upload=_pdf())
+    body = mc.get(f"/training/{e.pk}/").content.decode()
+    assert f'action="/training/records/{first.pk}/verify/"' in body and f'href="/training/records/{first.pk}/reject/"' in body
+    assert mc.get(f"/training/records/{first.pk}/verify/").status_code == 405
+    assert employee_client.post(f"/training/records/{first.pk}/verify/").status_code == 403
+    r = mc.post(f"/training/records/{first.pk}/verify/")
+    assert r.status_code == 302 and TrainingRecord.objects.get(pk=first.pk).counts
+    second = training.self_record(employee_user, fire, today, upload=_pdf())
+    body = mc.get(f"/training/records/{second.pk}/reject/").content.decode()
+    assert 'name="note"' in body and not TrainingRecord.objects.get(pk=second.pk).rejected        # GET writes nothing
+    r = mc.post(f"/training/records/{second.pk}/reject/", {"note": ""})
+    assert r.status_code == 200 and "required" in r.content.decode().lower()
+    r = mc.post(f"/training/records/{second.pk}/reject/", {"note": "Certificate is unreadable."})
+    assert r.status_code == 302 and TrainingRecord.objects.get(pk=second.pk).rejected
+    assert [msg.to for msg in mail.outbox] == [["sam@example.com"]] and "unreadable" in mail.outbox[0].body
+    assert employee_client.get(f"/training/records/{second.pk}/reject/").status_code == 403
+
+
+def test_the_session_form_lists_only_the_managers_reports_and_records_them(bls, employee_user):
+    today = timezone.localdate()
+    m, mc = _manager()
+    e = _receptionist(user=employee_user, manager=m)
+    other = _receptionist(user=User.objects.create_user(email="jo@example.com", password="pw"))
+    body = mc.get("/training/session/").content.decode()
+    # match the attendee checkboxes: the course <option> values are pks too and can collide
+    assert f'name="attendees" value="{e.pk}"' in body and f'name="attendees" value="{other.pk}"' not in body
+    r = mc.post("/training/session/", {"course": bls.pk, "held_on": today.isoformat(), "trainer": "Resus UK",
+                                       "attendees": [e.pk], "file": _pdf("sheet.pdf")})
+    assert r.status_code == 302 and r["Location"] == "/people/team/"
+    rec = TrainingRecord.objects.get()
+    assert rec.counts and rec.session.trainer == "Resus UK" and rec.session.attendance_sheet is not None
+    assert mc.get(f"/documents/file/{rec.session.attendance_sheet_id}/").status_code == 200
+    r = mc.post("/training/session/", {"course": bls.pk, "held_on": today.isoformat(), "attendees": [other.pk]})
+    assert r.status_code == 200 and "valid choice" in r.content.decode()           # not in the manager's list
+    # a day the report was not yet theirs: the form offers today's reports, the service checks the day
+    r = mc.post("/training/session/", {"course": bls.pk, "held_on": (today - timedelta(days=500)).isoformat(),
+                                       "attendees": [e.pk]})
+    assert r.status_code == 200 and "report to you on that date" in r.content.decode()
+    assert TrainingRecord.objects.count() == 1
+
+
+def test_hr_records_a_session_for_anyone_and_a_non_manager_cannot_open_the_form(bls, hr_admin, admin_client,
+                                                                                 employee_user, employee_client):
+    today = timezone.localdate()
+    e = _receptionist(user=employee_user)
+    assert employee_client.get("/training/session/").status_code == 403
+    body = admin_client.get("/training/session/").content.decode()
+    assert f'name="attendees" value="{e.pk}"' in body
+    r = admin_client.post("/training/session/", {"course": bls.pk, "held_on": today.isoformat(), "attendees": [e.pk]})
+    assert r.status_code == 302 and r["Location"] == "/admin/training/trainingsession/"
+    assert TrainingRecord.objects.get().recorded_by == hr_admin
+
+
+def test_the_digest_link_for_hr_is_the_person_page(fire, hr_admin, employee_user):
+    from compliance.models import ReminderSchedule
+    from django.urls import reverse
+
+    from training.services import due
+    e = _receptionist(user=employee_user)
+    [item] = [i for i in due.due_items(timezone.localdate(), ReminderSchedule.get()) if i.recipient == "hr@example.com"]
+    assert item.url.endswith(reverse("training:person", args=[e.pk]))

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% comment %}training:person — one person's training (training.state) for
+HR, the person and their line manager. The note column, the record form
+and Verify / Reject show only to those who may record for them
+(access.may_record_training_for); the person sees their rows and files.
+Every POST here is a service's; this page writes nothing.{% endcomment %}
+{% block title %}{{ employee.name }}: training{% endblock %}
+{% block content %}
+<div class="stack">
+<div class="page-head"><h1>{{ employee.name }}: training</h1><a href="{{ back }}">Back</a></div>
+<section class="card">
+  {% if rows %}
+  <div class="table-scroll">
+  <table class="list">
+    <thead><tr><th scope="col">Course</th><th scope="col">Status</th><th scope="col">Done</th><th scope="col">Expires</th><th scope="col">Certificate</th>{% if can_record %}<th scope="col">Note</th><th scope="col"><span class="visually-hidden">Actions</span></th>{% endif %}</tr></thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <th scope="row">{{ row.course.name }}</th>
+        <td><span class="badge {% if row.status == 'current' %}badge-ok{% elif row.status == 'due_soon' or row.status == 'lapsed' or row.status == 'missing' %}badge-warning{% else %}badge-muted{% endif %}">{{ row.label }}</span></td>
+        <td>{{ row.latest.done_on|date:"j M Y"|default:"" }}</td>
+        <td>{{ row.expires_on|date:"j M Y"|default:"" }}</td>
+        <td>{% if row.latest.certificate_id %}<a href="{% url 'documents:download' row.latest.certificate_id %}" download>Download</a>{% endif %}</td>
+        {% if can_record %}<td>{{ row.latest.note|default:"" }}</td><td></td>{% endif %}
+      </tr>
+      {% if row.pending %}
+      <tr class="pending">
+        <td></td><td colspan="{% if can_record %}2{% else %}4{% endif %}">Uploaded {{ row.pending.recorded_at|date:"j M Y" }} (done {{ row.pending.done_on|date:"j M Y" }}){% if row.pending.certificate_id %}: <a href="{% url 'documents:download' row.pending.certificate_id %}" download>certificate</a>{% endif %}</td>
+        {% if can_record %}
+        <td colspan="3" class="row-actions">
+          <form method="post" action="{% url 'training:verify' row.pending.pk %}" class="inline">{% csrf_token %}<button type="submit" class="btn btn-primary">Verify</button></form>
+          <a href="{% url 'training:reject' row.pending.pk %}" class="btn btn-quiet">Reject</a>
+        </td>
+        {% endif %}
+      </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="empty">No training is needed for this position, and none is recorded.</p>
+  {% endif %}
+</section>
+{% if can_record %}
+<section class="card">
+  <h2>Record training for {{ employee.name }}</h2>
+  <form method="post" action="{% url 'training:record' employee.pk %}" enctype="multipart/form-data">{% csrf_token %}
+    {{ form.as_div }}
+    <div class="form-actions"><button type="submit" class="btn btn-primary">Record</button></div>
+  </form>
+</section>
+{% endif %}
+</div>
+{% endblock %}

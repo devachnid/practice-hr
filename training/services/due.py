@@ -23,7 +23,7 @@ WORDS = {"online": "complete the e-learning and upload your certificate",
 
 
 def _person_url(e):
-    return link(f"/training/{e.pk}/")      # training:person, registered in a later task
+    return link(reverse("training:person", args=[e.pk]))
 
 
 def due_items(today, sched):
