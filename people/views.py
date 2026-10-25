@@ -122,6 +122,7 @@ CATEGORY_LABELS = {
     "checks": "Pre-employment and other checks",
     "files": "Stored files",
     "signatures": "Policy signatures",
+    "training": "Training records",
 }
 
 
