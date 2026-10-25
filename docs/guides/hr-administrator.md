@@ -17,6 +17,7 @@ login has **Admin status** ticked.
 - [Recording a check](#recording-a-check)
 - [Asking someone for evidence](#asking-someone-for-evidence)
 - [Professional registrations](#professional-registrations)
+- [Training](#training)
 - [Issuing a policy](#issuing-a-policy)
 - [Reminder settings](#reminder-settings)
 - [Leave policies in plain words](#leave-policies-in-plain-words)
@@ -84,17 +85,25 @@ Work through this in order. The rest of this guide explains each step.
    (see [How to say which titles need a check](#how-to-say-which-titles-need-a-check)).
    Done the other way round, the next morning's reminder email tells every
    member of staff their checks are missing.
-8. **Wait for the overnight run.** The next morning, everyone's balances
+8. **Set up training the same way round.** Under **Compliance**,
+   **Courses**, tick **Required of everyone** on the practice-wide courses
+   and add the titles that need the rest (see [How to say who needs a
+   course](#how-to-say-who-needs-a-course)). Then ask staff to record the
+   training they already hold from **My record**, with their
+   certificates, and verify each one (see [How to verify what someone
+   uploaded](#how-to-verify-what-someone-uploaded)). Until a course has
+   titles or the everyone tick, nobody is reminded of it.
+9. **Wait for the overnight run.** The next morning, everyone's balances
    for this leave year and next have opened, and bank holidays have been
    charged.
-9. **Enter opening balances.** For each person and each kind of leave,
-   compare **Remaining** on their **Balances** page with the figure from your
-   old system. [Adjust the balance](#adjusting-a-balance) by the difference,
-   with a note such as "Opening balance from previous system".
-10. **Check the first Balances pages.** Open a few people of different kinds:
+10. **Enter opening balances.** For each person and each kind of leave,
+    compare **Remaining** on their **Balances** page with the figure from your
+    old system. [Adjust the balance](#adjusting-a-balance) by the difference,
+    with a note such as "Opening balance from previous system".
+11. **Check the first Balances pages.** Open a few people of different kinds:
     full time, part time, a GP, and someone who started this year. Check the
     **Entitlement**, the bank holiday row and **Remaining** look right.
-11. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
+12. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
     everyone and choose **Send invitation or reset link**. Tell them to look
     for an email called "Set up your Practice HR login", and that their
     requests now go to their line manager through Practice HR.
@@ -107,8 +116,9 @@ Choose **Admin** in the menu. The menu down the left has four groups:
   types, Audit log.
 - **Absence**: Absence types, Policies, Bank holidays, Closed days, Pots,
   Absences, Payroll, Retention.
-- **Compliance**: Check types, Checks, Files, Policies, Signatures,
-  Checklist templates, Checklists, Starters and leavers, Reminder settings.
+- **Compliance**: Check types, Checks, Files, Policies, Signatures, Courses,
+  Training records, Training sessions, Training matrix, Checklist
+  templates, Checklists, Starters and leavers, Reminder settings.
 - **Access**: Login accounts.
 
 There are two lists called **Policies**: the one under **Absence** is leave
@@ -124,9 +134,11 @@ under **People**, and the other two are under **Absence**.
 
 The admin home page also shows **Leave requests and TOIL claims waiting**
 (anything undecided for more than three working days), a **Compliance** card
-and **Emails that did not go**. The **Compliance** card has four numbers:
-**Lapsed checks**, **Missing checks**, **Overdue signatures** and **Overdue
-checklist items**. Choose one to see the people it counts.
+and **Emails that did not go**. The **Compliance** card has seven numbers:
+**Lapsed checks**, **Missing checks**, **Overdue signatures**, **Overdue
+checklist items**, **Registration problems**, **Training lapsed or missing**
+and **Training to verify**. Choose one to see the people it counts; the two
+training numbers open the training matrix.
 
 People's records, employments, positions and contracts cannot be deleted. When something changes, you end the old
 row and add a new one, so the record always shows what was true on any day.
@@ -568,6 +580,76 @@ home page counts them, and opens the people concerned. Every lookup is under
   count until then, so if the next lookup fails the register pauses again.
 - A number is not recorded: you are reminded from the person's start
   date. Add it as above.
+
+## Training
+
+Every member of staff must keep a set of courses current, and an inspector
+asks to see the matrix. Staff record their own completions with the
+certificate; you or their manager verify them. Face-to-face sessions are
+recorded once for everyone who attended.
+
+### How to say who needs a course
+
+1. Under **Compliance**, choose **Courses** and open the course.
+2. For a practice-wide course, tick **Required of everyone**.
+3. Otherwise, move the titles that need it into **Positions**.
+4. Check **Validity months** and **Delivery**, then **Save**.
+
+What you will see: the next morning's reminder email tells each person
+with the course missing, and HR, that it is owed. Set up the courses after
+recording what people already hold, or everyone is told their training is
+missing.
+
+### How to record training for someone
+
+1. Open **Employees**, the person, then the **Compliance** tab, and choose
+   **Record** beside the course (or **Compliance**, **Training records**,
+   **Add**).
+2. Enter the **Done on** date and attach the certificate if there is one.
+   **Expires on** is worked out from the course if you leave it blank.
+3. Add a **Note** if you want one. The person never sees it.
+4. **Save**.
+
+What you will see: the record is verified straight away, and the matrix
+shows **Current** with the expiry date.
+
+### How to verify what someone uploaded
+
+1. On the admin home page, choose **Training to verify**, or open the
+   person's training page from the matrix.
+2. Open the certificate and check it is the right course, the right
+   person and the right date.
+3. Choose **Verify**, or **Reject** and say why in a sentence.
+
+What you will see: a verified record counts from its date done. A rejected
+one stays in the history, counts for nothing, and the person is emailed
+your note with a link to record it again. They see your note on their own
+page until they record the course again.
+
+### How to record a training session
+
+1. Under **Compliance**, choose **Training sessions**, then **Add** (or
+   **Record a training session** on **My team**).
+2. Choose the course and the date held, name the trainer, tick everyone
+   who attended, and attach the attendance sheet if there is one.
+3. **Save**.
+
+What you will see: one verified record per person, dated the day held,
+sharing the one sheet. Someone left off is added by recording the session
+again with just them. A session cannot be edited afterwards.
+
+### How to see the training matrix
+
+1. Under **Compliance**, choose **Training matrix**.
+2. Filter by course, team or name, or choose **Problems only** to see
+   just the people with something lapsed, missing or waiting to be
+   verified.
+3. Choose **Download as CSV** to hand the filtered grid over.
+
+What you will see: people down the side, courses across, each cell the
+status and expiry. A blank cell means the course is not needed for that
+role and nothing is recorded. The file is named with the filters and the
+date.
 
 ## Issuing a policy
 

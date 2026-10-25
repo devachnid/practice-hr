@@ -2,12 +2,14 @@
 
 **Where:** sidebar › Compliance › Check types / Checks / Files / Policies / Signatures /
 Checklist templates / Checklists / Starters and leavers / Reminder settings /
-Register bodies / Registration lookups.
+Register bodies / Registration lookups / Courses / Training records / Training sessions /
+Training matrix.
 Each person's [Compliance tab](#seeing-where-everyone-stands) and the admin
 home page's Compliance card bring it together.
 
 - [Checks](#checks)
 - [Professional registrations](#professional-registrations)
+- [Training](#training)
 - [Files](#files)
 - [Policies](#policies)
 - [Checklists](#checklists)
@@ -411,6 +413,180 @@ accepted the risk that a regulator's terms do not welcome automated reading.
 If a regulator objects, untick **Active** on that body and record the check
 by hand ([Recording a check](#recording-a-check)) as before. Do not try to
 get round a regulator that blocks the practice.
+
+## Training
+
+The courses each role must keep current: basic life support, safeguarding,
+fire safety, information governance and the like. Which courses a person
+needs follows the **title of their current primary position**, or a course
+is **required of everyone**; what they have is a list of training records,
+one row per completion.
+
+### The mental model
+
+**A course says who needs it and how long it lasts.** A training record is
+one completion of a course by one person. **Records are append-only:** a
+renewal is a new row, and the latest verified one by date done is the one
+that counts. Nothing is edited or deleted; the one change allowed after
+the fact is the expiry date of a verified record.
+
+**Three kinds of record.** One HR or a line manager enters is *verified*
+at once. One the person enters themselves is *awaiting verification*
+until HR or their manager verifies it: it counts for nothing yet, but the
+person is not reminded while it waits. One turned down is *rejected*: it
+stays in the history with its note, counts for nothing, and the person is
+emailed the note and asked to record it again.
+
+**Changing someone's position changes what they need, on the next read.**
+A record for a course their title no longer needs stays, shown as *Not
+required*, and nobody is chased for it.
+
+### Courses
+
+`/admin/training/course/`
+
+Ten are set up when the app is installed, **with no titles assigned and
+none required of everyone**: until you set that up, nobody owes anything.
+
+| Course | Delivery | Valid for |
+|---|---|---|
+| Basic life support | Face to face | 12 months |
+| Fire safety | Online | 12 months |
+| Information governance | Online | 12 months |
+| Infection prevention and control | Online | 12 months |
+| Safeguarding children | Online | 36 months |
+| Safeguarding adults | Online | 36 months |
+| Equality and diversity | Online | 36 months |
+| Health and safety | Online | 36 months |
+| Conflict resolution | Online | 36 months |
+| Chaperone | Online | One-off |
+
+- **Name** and **Code**: the code names the course in the reminder keys
+  and is fixed once added. Rename freely; add a course with a new code.
+- **Validity months**: blank is a one-off that never renews.
+- **Required of everyone**: every currently employed person needs it,
+  whatever their title. With it off, **Positions** says which titles do.
+  A course with neither is optional: recorded when someone has done it,
+  required of nobody.
+- **Delivery**: *Online* or *Face to face*. A label with two effects: a
+  completion the person records themselves needs a certificate file for
+  an online course and not for a face-to-face one, and the reminder
+  wording differs ("complete the e-learning and upload your certificate"
+  against "ask your manager about the next session").
+- **Active**: a course cannot be deleted (records point at it); make it
+  inactive and it is required of nobody and offered on no form.
+
+### Recording training
+
+`/admin/training/trainingrecord/add/`, or a person's training page at
+`/training/<their id>/` (HR and their line manager), or **My record** (the
+person themselves).
+
+- **Done on** (**Date done** on the site's own forms) cannot be after
+  today. **Expires on** is worked out from the course's validity when left
+  blank.
+- **Certificate**: PDF, JPEG, PNG or DOCX, up to the usual size, stored as
+  the person's file (category *Certificate*, never HR-only) so it also
+  appears in their Documents.
+- **Note**: seen by HR and the line manager, never the person, never in a
+  reminder, never in the matrix download.
+
+A record HR or a manager enters is verified at once. A manager records
+only for their direct reports on the day, never for themselves. HR
+records anyone, themselves included (as with checks).
+
+In the admin a saved record is shown read-only. A verified record's page
+lets HR change **Expires on** and nothing else (the change is audited). A
+pending or rejected record's page is view-only: **Verify** and **Reject**
+are its actions.
+
+The person's training page has a **Back** link to wherever the viewer came
+from: **My record** for the person (**Getting started** before their first
+day), **My team** for a line manager, and the employee's admin page for HR.
+
+### Verifying what someone recorded
+
+A person records their own completion from **My record** (or **Getting
+started** before their first day): course, date done, and the certificate
+(required for an online course). It shows as **Awaiting verification** on
+their page, in the **Training to verify** number on the admin home page,
+as *To verify* in the matrix, and in the morning digest to HR ("Fire
+safety: to verify, uploaded 3 Oct 2026") on the overdue cadence until
+someone acts.
+
+**Verify** (a button on the person's training page, or the record's
+**Verify** action in the admin) makes it count from its date done.
+**Reject** (a link on the training page, or the **Reject** action in the
+admin) asks for a note of up to 200 characters, then emails the person the
+note with a link to My record to record it again. Both are HR's or the
+line manager's; both confirm before writing.
+
+A rejected upload shows its note on the person's own page, in the course's
+row, until they record the course again. A rejected upload dated before a
+record that still counts is not shown: there is nothing to put right.
+
+### Sessions
+
+`/training/session/` (**Record a training session** on **My team**, or
+**Training sessions › Add** in the admin).
+
+A face-to-face group recorded once: course, date held, trainer (free
+text), an optional attendance sheet, and who attended. Recording it makes
+one verified record per attendee, dated the day held, all pointing at the
+session, so each person's history reads normally. The sheet is one file
+with no person, shared by every record from that session; HR and any
+manager with a report on the session can open it. A session is read-only
+once recorded: the admin shows it with who attended, and has no edit.
+
+A manager ticks only their own reports; HR anyone employed today. One name
+outside the manager's team refuses the whole session and writes nothing.
+Someone left off is added by recording the session again with just them.
+
+### The training matrix
+
+`/training/matrix/` (**Training matrix** in the Compliance sidebar).
+
+Everyone employed today down the side, the courses any of them needs or
+has across, each cell the status and expiry from the latest verified
+record; *To verify* marks an upload waiting. A blank cell means the course
+is not needed for that role and nothing is recorded. Filter by **Course**,
+**Team**, **Name** and **Show** (*Everyone*, *Problems only*: lapsed,
+missing or to verify; *To verify*). Each name opens the person's training
+page. **Download as CSV** gives the filtered grid as
+`training-matrix-<filters>-<date>.csv`, one row per person, one column
+per course, each cell "Status, date": what an inspector asks for. The
+note is never in it.
+
+### Who sees what
+
+| Who | Sees | Does |
+|---|---|---|
+| The person | their own courses, statuses, dates and certificates on My record (never the note) | records their own completions |
+| Their line manager | everything about their reports' training, certificates included, on My team and the person page | records for a report, verifies or rejects, records a session for their reports |
+| HR | everyone, the matrix, the admin lists | everything, and the one edit: a verified record's expiry |
+
+Managers see training detail because training is not health or identity
+material and they chase and record it; they still see nothing of a
+report's checks beyond the counts.
+
+### What each status means
+
+| Status | Meaning |
+|---|---|
+| **Current** | A verified record whose expiry is more than the reminder window away, or a one-off. |
+| **Due soon** | Expires within the reminder window (**Start days before**, 60 by default). |
+| **Lapsed** | The latest verified record has expired. |
+| **Missing** | Required, and no verified record. Owed from the employment start date. |
+| **Awaiting verification** | The person has recorded a completion that waits for HR or the manager, and there is no verified record that still counts: the course is missing or lapsed, or their title does not need it. A course that still has a current record keeps its status. |
+| **Not required** | Has a record, but the title no longer needs the course. |
+
+### Reminders
+
+Each required course that is due soon, lapsed or missing goes to every HR
+admin and to the person (always: the person does the course), on the
+schedule's cadence, with the line manager told once, the first time it
+lapses, naming the course. A course with an upload waiting says nothing to
+the person and asks HR to verify. See [Reminders](#reminders).
 
 ## Files
 
@@ -848,7 +1024,7 @@ name), counted as `unreadable`, and the rest still run.
 
 ### The Compliance card
 
-The admin home page shows five numbers:
+The admin home page shows seven numbers:
 
 | Number | Counts |
 |---|---|
@@ -857,11 +1033,17 @@ The admin home page shows five numbers:
 | **Overdue signatures** | Policies someone employed today has not signed by the sign-by date. |
 | **Overdue checklist items** | Open items, on any starter or leaver checklist, past their due date, leaving out those of an employment that ended more than 90 days ago (as the reminders do). |
 | **Registration problems** | Registrations of people employed today whose latest readable lookup is a problem, *not found* or a wrong name (a lookup that could not read the page changes nothing). One per registration: someone with two such registrations adds two. |
+| **Training lapsed or missing** | Courses with the status *Lapsed* or *Missing*, across everyone employed today. Opens the matrix with *Problems only* on. |
+| **Training to verify** | Completions people recorded themselves that nobody has verified or rejected yet. Opens the matrix with *To verify* on. |
 
 Each counts things, not people: someone with two lapsed checks adds two.
-Choose a number to open **Employees** filtered to the people it counts (the
-list's **Compliance** filter); **Registration problems** opens the people
-whose registration has a standing problem, not the lookups list. A starter who has not started yet is not in
+Choose one of the first five numbers to open **Employees** filtered to the
+people it counts (the list's **Compliance** filter); **Registration
+problems** opens the people whose registration has a standing problem, not
+the lookups list. The two training numbers open the
+[training matrix](#the-training-matrix) with its filter on instead:
+*Problems only* for **Training lapsed or missing**, *To verify* for
+**Training to verify**. A starter who has not started yet is not in
 the check or signature numbers; their overdue checklist items are.
 
 ### The Compliance tab
@@ -869,7 +1051,8 @@ the check or signature numbers; their overdue checklist items are.
 Each person's page under **People › Employees** has a **Compliance** tab
 beside **Details**: their professional registrations first (see
 [Check now and On the register](#check-now-and-on-the-register)), then their
-checks with each status, their policies with each
+training (each course with its status and a link to open, verify or reject,
+or record), then their checks with each status, their policies with each
 signature or sign-by date, and the open items of their checklists, each
 with a link to the page that deals with it. Someone not started yet is
 shown as they will stand on their first day. It is read-only. Opening it
@@ -880,12 +1063,13 @@ each column and link.
 
 ## Retention
 
-Recorded checks, stored files and policy signatures each have their own
-line on the [retention report](people.md#retention-report): *Pre-employment
-and other checks*, *Stored files* and *Policy signatures*, six years after
-the person's last employment ended by default (`RETENTION_DAYS_CHECKS`,
-`RETENTION_DAYS_FILES`, `RETENTION_DAYS_SIGNATURES`). As for every category,
+Recorded checks, stored files, policy signatures and training records each
+have their own line on the [retention report](people.md#retention-report):
+*Pre-employment and other checks*, *Stored files*, *Policy signatures* and
+*Training records*, six years after the person's last employment ended by
+default (`RETENTION_DAYS_CHECKS`, `RETENTION_DAYS_FILES`,
+`RETENTION_DAYS_SIGNATURES`, `RETENTION_DAYS_TRAINING`). As for every category,
 the report only lists: nothing is deleted automatically, and there is no
-delete button for a check, a file or a signature. Registration numbers and
+delete button for a check, a file, a signature or a training record. Registration numbers and
 their [lookups](#professional-registrations) are listed under the checks
 category, *Pre-employment and other checks*.
