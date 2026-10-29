@@ -8,3 +8,11 @@ __pycache__/
 .superpowers/
 # The development SECRET_KEY (config/settings.py): per checkout, never shared.
 .dev_secret_key
+# graphify: local build state (machine paths, caches, token tally). The graph,
+# report and manifest in graphify-out/ are committed; these are rebuilt per checkout.
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/.graphify_learning.json
+graphify-out/cost.json
+graphify-out/reflections/
