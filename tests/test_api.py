@@ -1,16 +1,18 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 from types import SimpleNamespace
 
 import pytest
 from django.core.cache import cache
 from django.test import Client
+from django.utils import timezone
 
 from absence.models import Absence, AbsenceType
 from absence.services import bookings
 from hr.checks import api_tokens
 from people.services import positions
-from tests.factories import absence_type, hours_employee, make_team
+from tests.factories import (absence_type, hours_employee, make_contract, make_contract_type,
+                             make_employment, make_position, make_team)
 
 
 @pytest.fixture(autouse=True)
@@ -116,6 +118,27 @@ def test_people(api, db):
     assert row["unit"] == "hours" and row["contract_type"] == "Reception"
     assert row["employment"] == {"start": "2026-04-01", "end": None}
     assert row["positions"] == [{"title": "Receptionist", "team": "Reception"}]
+
+
+def test_a_future_starter_is_read_as_of_their_start_date(api, db):
+    """A starter entered before their first day already has the team and the
+    contract that hold from that day; the feed shows them (the rota's
+    consumers set a starter up before they start), while someone already
+    started is still read as of today."""
+    today = timezone.localdate()
+    current = hours_employee(start=today - timedelta(days=400))
+    make_position(current, title="Receptionist", team=make_team("Reception"))
+    starter = make_employment(start=today + timedelta(days=40))
+    make_contract(starter, make_contract_type("GP", unit="sessions"))
+    make_position(starter, title="Salaried GP", team=make_team("Doctors"))
+    rows = {r["id"]: r for r in api("/api/v1/people").json()["people"]}
+    gp = rows[starter.employee.pk]
+    assert gp["employment"] == {"start": starter.start_date.isoformat(), "end": None}
+    assert gp["contract_type"] == "GP" and gp["unit"] == "sessions"
+    assert gp["positions"] == [{"title": "Salaried GP", "team": "Doctors"}]
+    receptionist = rows[current.employee.pk]
+    assert receptionist["contract_type"] == "Reception" and receptionist["unit"] == "hours"
+    assert receptionist["positions"] == [{"title": "Receptionist", "team": "Reception"}]
 
 
 def test_patterns(api, db):

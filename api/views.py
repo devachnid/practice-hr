@@ -9,13 +9,17 @@ GET /api/v1/people
         "id": 12,                      # the Employee's id, what the other endpoints use
         "first_name": "Sam", "last_name": "Patel", "name": "Sam Patel",
         "email": "sam@practice.example",           # the work address
-        "contract_type": "Reception" | null,       # today's first contract; null if none
+        "contract_type": "Reception" | null,       # the first contract as of the date below; null if none
         "unit": "hours" | "sessions" | ... | null, # that contract type's unit
         "employment": {"start": "2026-04-01", "end": null},
-        "positions": [{"title": "Receptionist", "team": "Reception"}]   # today's
+        "positions": [{"title": "Receptionist", "team": "Reception"}]   # as of the date below
     }]}
     Everyone with an employment, past leavers included: today's employment
-    if there is one, otherwise the latest.
+    if there is one, otherwise the latest. The contract and positions are
+    read as of today, or the start date for someone who has not started, so
+    a starter entered ahead of their first day already carries the team and
+    unit that hold from that day (a consumer sets starters up before they
+    start).
 
 GET /api/v1/patterns?employee=<id>
     {"patterns": [{                    # oldest first; each holds from its date
@@ -69,13 +73,14 @@ def people(request):
         emp = employments.current(e, today) or e.employments.order_by("-start_date").first()
         if emp is None:
             continue
-        c = contracts.active_on(emp, today).first()
+        on = max(today, emp.start_date)   # a starter: as of their first day
+        c = contracts.active_on(emp, on).first()
         out.append({
             "id": e.pk, "first_name": e.first_name, "last_name": e.last_name, "name": e.name,
             "email": e.work_email,
             "contract_type": c.contract_type.name if c else None, "unit": c.contract_type.unit if c else None,
             "employment": {"start": _iso(emp.start_date), "end": _iso(emp.end_date)},
-            "positions": [{"title": p.title.name, "team": p.team.name} for p in positions.on(emp, today)],
+            "positions": [{"title": p.title.name, "team": p.team.name} for p in positions.on(emp, on)],
         })
     return JsonResponse({"people": out})
 
