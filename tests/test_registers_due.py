@@ -133,8 +133,11 @@ def test_unreadable_is_hrs_only_after_fourteen_days_or_a_pause(hr_admin, gmc, mo
     lk = lookups.run(r, "scheduled")
     today = timezone.localdate()
     assert _items(today) == []
-    Lookup.objects.filter(pk=lk.pk).update(run_at=lk.run_at - timedelta(days=14))
-    Registration.objects.filter(pk=r.pk).update(last_unreadable_at=lk.run_at - timedelta(days=14))
+    # Count the days in local wall-clock time: across a clock change, fourteen days back in UTC can land on the
+    # next local calendar day, and due.py compares local dates.
+    fortnight_ago = timezone.localtime(lk.run_at) - timedelta(days=14)
+    Lookup.objects.filter(pk=lk.pk).update(run_at=fortnight_ago)
+    Registration.objects.filter(pk=r.pk).update(last_unreadable_at=fortnight_ago)
     [item] = _items(today)
     assert item.recipient == "hr@example.com" and item.label.startswith("GMC: could not be read since ")
     assert item.state == "overdue" and item.url.endswith(reverse("admin:registers_lookup_changelist"))
@@ -210,8 +213,9 @@ def test_a_repeat_of_the_same_problem_keeps_its_key_and_date_and_a_new_run_start
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
     monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
     start = lookups.run(r, "scheduled")
-    Lookup.objects.filter(pk=start.pk).update(run_at=start.run_at - timedelta(days=3))
-    found = timezone.localtime(start.run_at - timedelta(days=3)).date()
+    found_at = timezone.localtime(start.run_at) - timedelta(days=3)
+    Lookup.objects.filter(pk=start.pk).update(run_at=found_at)
+    found = found_at.date()
     [first] = _items()
     lookups.run(r, "scheduled")
     monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
@@ -238,7 +242,7 @@ def test_a_repeat_follows_the_overdue_cadence_and_a_new_run_goes_the_next_mornin
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
     monkeypatch.setattr(adapters, "lookup", lambda *a: PROBLEM)
     first = lookups.run(r, "scheduled")
-    Lookup.objects.filter(pk=first.pk).update(run_at=first.run_at - timedelta(days=1))
+    Lookup.objects.filter(pk=first.pk).update(run_at=timezone.localtime(first.run_at) - timedelta(days=1))
     today = timezone.localdate()
     assert digest.run(today - timedelta(days=1))["items"] == 1
     lookups.run(r, "scheduled")                             # the same result again today: not sent again
@@ -277,8 +281,8 @@ def test_a_problem_and_fourteen_days_unreadable_are_both_told(hr_admin, gmc, mon
     problem = lookups.run(r, "scheduled")
     monkeypatch.setattr(adapters, "lookup", lambda *a: UNREADABLE)
     failed = lookups.run(r, "scheduled")
-    Lookup.objects.filter(pk=problem.pk).update(run_at=problem.run_at - timedelta(days=20))
-    Lookup.objects.filter(pk=failed.pk).update(run_at=failed.run_at - timedelta(days=15))
+    Lookup.objects.filter(pk=problem.pk).update(run_at=timezone.localtime(problem.run_at) - timedelta(days=20))
+    Lookup.objects.filter(pk=failed.pk).update(run_at=timezone.localtime(failed.run_at) - timedelta(days=15))
     labels = {i.label for i in _items()}
     assert "GMC: Suspended" in labels and any(lb.startswith("GMC: could not be read since ") for lb in labels)
 
