@@ -474,3 +474,65 @@ not they have anything in it.
 Change one with its variable in `/etc/practice-hr.env`. The
 value is a whole number of days, 1 or more; anything else stops the app
 starting, with a message naming the variable.
+
+## Demo data for a staging box
+
+**Never run this on production.** `seed_demo` writes a fictional practice into
+the database so a staging box has people to sign in as and to look at. Clear it
+by deleting the staging database; nothing in the app removes it.
+
+    deploy/manage seed_demo --email-base tom@example.org --yes-this-is-staging
+
+(`DEBUG=1 python manage.py seed_demo ...` on a dev box.) Both flags are
+required; without either it changes nothing and says why. `--email-base` is
+`local@domain` with exactly one `@` and no `+`. Each person's work email is
+plus-addressed from it, lower-case `first.last`: Morgan Ellis is
+`tom+morgan.ellis@example.org`, so every message the app ever sends to the cast
+lands in the one inbox.
+
+**What it creates**: 19 people, the same cast the rota and Shift Central are
+seeded with. Teams (shown in this order) GPs, Reception, Admin/Secretarial,
+Nursing, Pharmacy, Management and Cleaning. Management: Morgan Ellis (Practice
+Manager, no line manager), Jo Whitaker and Dev Anand (Assistant Practice
+Managers). Reception: Rosa Delgado (Reception Manager, to Morgan) with Sophie
+Brennan, Liam Doyle, Aisha Rahman and Tomasz Kowal (Receptionists). GPs: Priya
+Nair (GP Partner, 8 sessions, to Morgan) with Callum Ross (6) and Helen Okafor
+(5), Salaried GPs, to Priya. Nursing: Fiona Marsh (Lead Nurse, to Morgan) with
+Grace Tanaka and Owen Pryce. Admin/Secretarial: Elena Fischer and Marcus Bell,
+to Jo. Pharmacy: Hamid Qureshi (to Morgan) and Ines Costa. Cleaning: Doreen
+Hughes, to Jo. For each person it makes the [employee](#employee) (name and
+work email only; address, phone, NI number and bank details are left blank), an
+[employment](#employment) starting between 2015 and 2026, a
+[position](#position) with its line manager, a [contract](#contract) and a
+[working pattern](#working-pattern) that adds up to it (hours people work
+Monday to Friday split morning and afternoon, part-timers on fewer days; GPs
+on named days in sessions), the leave year's and next year's annual-leave pot
+(and bank-holiday pot where the policy has one), and their login account. It
+also makes the Pharmacy and Cleaning [contract types](#contract-type) and the
+annual-leave policies a type is missing, and three sample absences: a week of
+annual leave each for Sophie Brennan and Callum Ross in the next two months and
+one approved sick day for Liam Doyle last month. Existing teams, contract
+types and position titles are used as they are and never renamed or changed;
+a team or type that is missing is created.
+
+**It sends nothing.** The logins are made with no usable password and the
+invitation, which is the separate step in the People admin
+([Login accounts](sign-in.md#login-accounts)), is never issued: send it by hand
+to the few people you want to sign in as. The run also forces a mail backend
+that discards every message, whatever `EMAIL_*` is set to.
+
+**Admin of Shift Central.** The "Admin of shift-central" tick is a row tied to
+a registered sign-in client, so it can only exist once `register_oidc_client
+--name shift-central` has run. If that client exists when `seed_demo` runs,
+Morgan, Jo, Dev and Rosa (the four managers) are made admins of it, and the
+last line printed says so; if not, the line says it was skipped, and running
+the command again after registering the client grants it. This is the same
+setting as the tick on the [Login accounts](sign-in.md#login-accounts) page.
+
+**Safe to run.** It refuses if the database holds any employee whose work email
+is not one of the cast's generated addresses (it prints how many and changes
+nothing), so a second run with the same base is fine and creates nothing, but a
+different base, or a box with real staff, is refused. The whole run is one
+transaction: a failure leaves nothing half-made. Every change is written
+through the usual services and appears in the [audit log](#audit-log) under
+`<local>+seed.demo@<domain>`, an inactive login that is linked to nobody.
