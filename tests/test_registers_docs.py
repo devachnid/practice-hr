@@ -52,6 +52,23 @@ def test_registers_fetch_saves_what_the_app_fetches_and_prints_only_the_status_a
     assert out.getvalue() == f"HTTP 200, {len('<p>Priya Patel ü</p>'.encode())} bytes\n"
 
 
+def test_registers_fetch_makes_the_fixture_folder_and_names_a_path_it_cannot_write(tmp_path, monkeypatch):
+    """The fixtures folders are not in the repository: the README's own
+    command names `fixtures/gmc/clear.html` before `gmc/` exists."""
+    from django.core.management.base import CommandError
+
+    from registers import http
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, "<p>page</p>"))
+    target = tmp_path / "fixtures" / "gmc" / "clear.html"
+    out = StringIO()
+    call_command("registers_fetch", "gmc", "1234567", str(target), stdout=out)
+    assert target.read_text() == "<p>page</p>" and out.getvalue() == "HTTP 200, 11 bytes\n"
+    blocked = tmp_path / "a-file"
+    blocked.write_text("not a folder")
+    with pytest.raises(CommandError, match=r"cannot write .*a-file.*clear\.html: (Not a directory|File exists)"):
+        call_command("registers_fetch", "gmc", "1234567", str(blocked / "clear.html"))
+
+
 def test_registers_fetch_never_overwrites_a_page_with_an_error_reply(tmp_path, monkeypatch):
     from registers import http
     target = tmp_path / "clear.html"

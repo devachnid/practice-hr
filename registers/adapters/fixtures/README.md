@@ -21,8 +21,9 @@ person captures them.
    DEBUG=1 .venv/bin/python manage.py registers_fetch gmc 1234567 registers/adapters/fixtures/gmc/clear.html
    ```
 
-   It checks the number's format, saves the reply to the file you name and
-   prints only the HTTP status and the size. It writes the file only for a
+   It checks the number's format, saves the reply to the file you name
+   (making the body's folder if it is not there yet) and prints only the
+   HTTP status and the size. It writes the file only for a
    200 reply: an error reply prints its status and leaves any page already
    saved there as it was. The same with curl, if the app
    cannot run there: `curl -A "<user agent>" "<url>"`, saving its output as
