@@ -130,26 +130,33 @@ _NAME = re.compile(r"[A-Za-z\u00c0-\u024f'.\-]+(?: [A-Za-z\u00c0-\u024f'.\-]+)+"
 _FURNITURE = {"home", "search", "register", "menu", "login", "contact", "skip"}   # navigation, not a name
 
 
-def name_near(lines, marker, titles=("Dr", "Professor", "Mr", "Mrs", "Ms", "Miss", "Mx")):
+TITLES = ("Dr", "Professor", "Mr", "Mrs", "Ms", "Miss", "Mx")
+
+
+def as_name(line, titles=TITLES):
+    """`line` as a person's name, stripped of a leading title, or "" when it
+    does not look like one: two or more words of letters, at most 80
+    characters, no navigation words, not a sentence (ending in a full stop),
+    so page furniture and explanatory text are never taken for a name."""
+    candidate = (line or "").strip()
+    for t in titles:
+        if candidate.startswith(t + " "):
+            candidate = candidate[len(t) + 1:].strip()
+            break
+    if len(candidate) > 80 or candidate.endswith(".") or not _NAME.fullmatch(candidate):
+        return ""
+    if any(w.lower() in _FURNITURE for w in candidate.split()):
+        return ""
+    return candidate
+
+
+def name_near(lines, marker, titles=TITLES):
     """The person's name: the line before the first line matching the
-    compiled regex `marker` (the number's label), stripped of a leading
-    title. "" unless it looks like a name (two or more words of letters, at
-    most 80 characters, no navigation words), so page furniture is never
-    taken for one."""
+    compiled regex `marker` (the number's label), when it looks like a name
+    (as_name); else ""."""
     for i, line in enumerate(lines):
         if marker.search(line):
-            if i == 0:
-                return ""
-            candidate = lines[i - 1].strip()
-            for t in titles:
-                if candidate.startswith(t + " "):
-                    candidate = candidate[len(t) + 1:].strip()
-                    break
-            if len(candidate) > 80 or not _NAME.fullmatch(candidate):
-                return ""
-            if any(w.lower() in _FURNITURE for w in candidate.split()):
-                return ""
-            return candidate
+            return as_name(lines[i - 1], titles) if i > 0 else ""
     return ""
 
 

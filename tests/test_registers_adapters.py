@@ -114,6 +114,56 @@ GMC_NONE = "<html><body><h1>Search results</h1><p>No results were found for 1234
 GMC_ODD = "<html><body><p>Something else entirely</p></body></html>"
 
 
+# The register's own page, as captured in November 2026: no field labels. Fictional details.
+GMC_PAGE = """<html><body><nav><ul><li>Search our registers</li><li>Fitness to Practise Liaison Service</li>
+<li>Supporting learners with disabilities and long term health conditions</li></ul></nav>
+<h2>Priya Anne PATEL</h2><p>Doctor</p><p>The registrant's unique identifier.</p><p>GMC reference number:</p>
+<p>1234567</p><p>Registered with a licence to practise</p><p>View information about the GP Register</p>
+<p>This doctor is on the GP Register</p><p>From 14 Feb 2008</p><p>View information about the Specialist Register</p>
+<p>This doctor is not on the Specialist Register</p><p>Provisional registration date</p><p>18 Jun 2003</p>
+<h3>Registrant history</h3><p>Status</p><p>Registered with a licence to practise</p><p>Registered</p>
+<p>Fitness to practise: Conditions on registration</p></body></html>"""
+GMC_PAGE_NOT_GP = GMC_PAGE.replace("This doctor is on the GP Register", "This doctor is not on the GP Register")
+GMC_PAGE_SUSPENDED = GMC_PAGE.replace("<p>Registered with a licence to practise</p><p>View", "<p>Suspended</p><p>View")
+GMC_PAGE_RESTRICTED = GMC_PAGE.replace("<p>From 14 Feb 2008</p>",
+                                       "<p>From 14 Feb 2008</p><p>Fitness to practise: Conditions on registration</p>")
+GMC_PAGE_NO_GP_SENTENCE = GMC_PAGE.replace("<p>This doctor is on the GP Register</p>", "")
+
+
+@pytest.mark.parametrize("page,outcome,words,name", [
+    (GMC_PAGE, "clear", "Registered with a licence to practise", "Priya Anne PATEL"),
+    (GMC_PAGE_NOT_GP, "problem", "not on the GP Register", "Priya Anne PATEL"),
+    (GMC_PAGE_NO_GP_SENTENCE, "problem", "not on the GP Register", "Priya Anne PATEL"),
+    (GMC_PAGE_SUSPENDED, "problem", "Suspended", "Priya Anne PATEL"),
+    (GMC_PAGE_RESTRICTED, "problem", "Fitness to practise: Conditions on registration", "Priya Anne PATEL"),
+])
+def test_gmc_parses_the_registers_own_page_layout(page, outcome, words, name):
+    """The status is the bare line after the number; the GP Register is a
+    sentence; the menu's "Fitness to Practise Liaison Service" above the name
+    and the history table's "Fitness to practise" line below it are never
+    read as a restriction; the name is found above "Doctor" and the
+    explanatory sentence."""
+    got, status, found = gmc.parse(gmc.text_of(page), "1234567")
+    assert (got, found) == (outcome, name) and words in status
+
+
+def test_gmc_refuses_a_page_for_another_number_and_reads_the_real_layout_end_to_end(monkeypatch):
+    assert gmc.parse(gmc.text_of(GMC_PAGE), "7654321") == ("unreadable", "the page is for another number", "")
+    assert gmc.parse(gmc.text_of(GMC_PAGE), "")[0] == "clear"          # registers_parse without --number
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, GMC_PAGE))
+    r = lookup("gmc", "1234567", "Patel")
+    assert r.outcome == "clear" and r.name_on_register == "Priya Anne PATEL"
+    assert lookup("gmc", "1234567", "Khan").outcome == "name_mismatch"
+
+
+def test_as_name_rejects_sentences_titles_and_furniture():
+    from registers.adapters.base import as_name
+    assert as_name("Dr Priya Patel") == "Priya Patel"
+    assert as_name("Thomas Stephen HODGES-HOYLAND") == "Thomas Stephen HODGES-HOYLAND"
+    assert as_name("The registrant's unique identifier.") == ""
+    assert as_name("Doctor") == "" and as_name("Home Search Register") == "" and as_name("") == ""
+
+
 @pytest.mark.parametrize("page,outcome,words", [
     (GMC_CLEAR, "clear", "Registered with a licence to practise"),
     (GMC_SUSPENDED, "problem", "Suspended"),
