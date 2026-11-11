@@ -1,12 +1,14 @@
 # Register page fixtures
 
 The parsers in `registers/adapters/` are tested against saved copies of
-real result pages kept here, one folder per body: `gmc/`, `mpl_wales/`,
+real replies kept here, one folder per body: `gmc/`, `mpl_wales/`,
 `nmc/`, `gphc/`. A body is **verified** (and its scheduled checks run, and
 its lookups record checks) only when its folder holds `clear.html`,
 `not_found.html` and at least one problem page (`problem*.html`, such as
 `problem.html` or `problem-suspended.html`): the problem path is the one
-that matters. The build sandbox cannot reach the regulators' sites, so a
+that matters. The Welsh list answers JSON rather than a page, so its files
+are `clear.json`, `not_found.json` and `problem*.json`; everything below
+applies to them with that suffix. The build sandbox cannot reach the regulators' sites, so a
 person captures them.
 
 ## How to capture a page
@@ -30,8 +32,12 @@ person captures them.
    the file, where the user agent is the one the app sends
    (`PracticeHR/1.0 (+<SITE_URL>; registration checks)`) and the URL is the
    body's search URL with the number (the `PUBLIC` address in the body's
-   adapter file). Do not save the page from a browser: what a browser
-   shows after its scripts run is not what the app reads.
+   adapter file). The Welsh list is a POST to its `ENDPOINT` with the form
+   fields `fetch()` in `mpl_wales.py` sends (`curl -A "<user agent>" -X POST
+   "<ENDPOINT>" --data-urlencode "search[value]=<number>" …` with the other
+   fields the same way); the reply is JSON. Do not save the page from a
+   browser: what a browser shows after its scripts run is not what the app
+   reads.
 3. Name the file for the outcome the page shows: `clear.html`,
    `problem.html` (any lapsed, suspended, conditions, erased, no-licence
    or not-on-the-GP-register page; several may be saved as
@@ -87,10 +93,13 @@ person captures them.
      "GMC number", "PIN", "Registration number"). The name is read from the
      line just before it and must look like a name.
 
-   The Welsh list (`mpl_wales`) has no `LABELS`, `RESTRICTION_LABELS` or
-   `NAME_MARKER`: it finds the row by the number, and expects the number,
-   the name and the status on consecutive lines. It is tuned by `CLEAR`,
-   `PROBLEM`, `NOT_FOUND` and that row layout.
+   The Welsh list (`mpl_wales`) has no `LABELS`, `RESTRICTION_LABELS`,
+   `NAME_MARKER` or `NOT_FOUND`: it reads the endpoint's JSON reply, finds
+   the row whose registration number is exactly the number, and takes the
+   name and the status from that row's cells (`NUMBER`, `NAME`, `STATUS`
+   name the cell positions). No row is *not found*. It is tuned by `CLEAR`,
+   `PROBLEM` and those positions; if the site changes the endpoint or the
+   columns, `ENDPOINT`, `fetch()` and the positions are what to update.
 
    Keep the tests in `tests/test_registers_adapters.py` passing, and run the
    parser again.

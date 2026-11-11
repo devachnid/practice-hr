@@ -1,8 +1,9 @@
-"""Save a register page exactly as a lookup fetches it, for the person
-capturing fixtures: `manage.py registers_fetch gmc 1234567 clear.html`.
-It checks the number's format, fetches the body's page for it through
-registers.http.get (the app's own user agent, timeout and size cap) and
-writes the reply to the file named, making the file's folder if it is not
+"""Save a register's reply exactly as a lookup fetches it, for the person
+capturing fixtures: `manage.py registers_fetch gmc 1234567 clear.html`
+(`clear.json` for the Welsh list, whose reply is JSON). It checks the
+number's format, fetches the reply through registers.adapters.fetch (the
+body's own search where it has one, else its page; the app's own user
+agent, timeout and size cap) and writes the reply to the file named, making the file's folder if it is not
 there yet (the fixtures folders are not in the repository until a page is
 saved in them), when the reply is a 200 or a status the body uses to say
 "not on the register" (the GMC's 404): that reply is saved with a
@@ -24,7 +25,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("code", choices=sorted(adapters.MODULES))
         parser.add_argument("number")
-        parser.add_argument("path", help="The file to write the page to, such as clear.html.")
+        parser.add_argument("path", help="The file to write the reply to, such as clear.html (clear.json for the "
+                                         "Welsh list).")
 
     def handle(self, *args, **options):
         code, number = options["code"], numbers.normalise(options["number"])
@@ -33,7 +35,7 @@ class Command(BaseCommand):
         except ValidationError as exc:
             raise CommandError(exc.messages[0]) from None
         try:
-            status, body = http.get(adapters.url(code, number))
+            status, body = adapters.fetch(code, number)
         except http.FetchError as exc:
             raise CommandError(f"could not fetch the page: {exc}") from None
         data = body.encode("utf-8")

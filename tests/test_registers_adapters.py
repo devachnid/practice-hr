@@ -134,10 +134,25 @@ def test_gmc_parse(page, outcome, words):
         assert name == "Priya Patel"
 
 
-MPL_PRESENT = """<html><body><table><tr><th>GMC No</th><th>Name</th><th>Status</th></tr>
+def _mpl_reply(rows):
+    """The endpoint's reply: a JSON object sent as a JSON string, one row per performer
+    [chevron, number, name (surname first), type, health board, approved, status, locum, locum, ...]."""
+    import json
+    return json.dumps(json.dumps({"draw": 1, "recordsTotal": len(rows), "recordsFiltered": len(rows), "data": rows,
+                                  "start": 0, "length": 10}))
+
+
+def _mpl_row(number="1234567", name="Patel Priya Anne", status="Included"):
+    return ["<span class='chevron-collapsable'></span>", number, name, "GP", "Cwm Taf Morgannwg HB", "06/03/2008",
+            status, "", "", "1"]
+
+
+MPL_PRESENT = _mpl_reply([_mpl_row()])
+MPL_PRESENT_HTML_UNUSED = """<html><body><table><tr><th>GMC No</th><th>Name</th><th>Status</th></tr>
 <tr><td>1234567</td><td>PATEL, Priya</td><td>Included</td></tr></table></body></html>"""
 MPL_SUSPENDED = MPL_PRESENT.replace("Included", "Suspended")
-MPL_NONE = "<html><body><p>No performers match your search.</p></body></html>"
+MPL_NONE = _mpl_reply([])
+MPL_SUBSTRING = _mpl_reply([_mpl_row(number="61234567")])          # the search matches substrings; the row must not
 MPL_ODD_STATUS = MPL_PRESENT.replace("Included", "Awaiting review")
 MPL_PENDING = MPL_PRESENT.replace("Included", "Pending review")
 
@@ -151,7 +166,7 @@ MPL_PENDING = MPL_PRESENT.replace("Included", "Pending review")
     (GMC_ODD, "unreadable", ""),
 ])
 def test_mpl_wales_parse(page, outcome, words):
-    got, status, name = mpl_wales.parse(mpl_wales.text_of(page), "1234567")
+    got, status, name = mpl_wales.parse(page, "1234567")
     assert got == outcome and words in status
     if outcome in ("clear", "problem"):
         assert name == "Priya PATEL"
@@ -182,6 +197,66 @@ def test_nmc_parse(page, outcome, words):
     assert got == outcome and words in status
     if outcome in ("clear", "problem"):
         assert name == "Priya Patel"
+
+
+def test_mpl_wales_matches_the_number_exactly_and_puts_the_surname_last():
+    got, status, name = mpl_wales.parse(MPL_PRESENT, "1234567")
+    assert (got, status, name) == ("clear", "Included", "Priya Anne Patel")
+    assert mpl_wales.parse(MPL_SUBSTRING, "1234567") == ("not_found", "no performer with this number", "")
+    assert mpl_wales.parse(_mpl_reply([_mpl_row(name="Patel")]), "1234567")[2] == "Patel"
+    import json
+    with pytest.raises(json.JSONDecodeError):
+        mpl_wales.parse("<html>not json</html>", "1234567")
+
+
+def test_mpl_wales_posts_the_pages_own_search_and_links_to_the_public_page(monkeypatch):
+    sent = []
+
+    def post(url, data, timeout=10):
+        sent.append((url, data))
+        return 200, MPL_PRESENT
+    monkeypatch.setattr(http, "post", post)
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: pytest.fail("the Welsh list is not fetched with GET"))
+    r = lookup("mpl_wales", "1234567", "Patel")
+    assert r.outcome == "clear" and r.name_on_register == "Priya Anne Patel" and len(r.page_hash) == 64
+    [(sent_url, data)] = sent
+    assert sent_url == mpl_wales.ENDPOINT and data["search[value]"] == "1234567"
+    assert data["selectedTypeOfPerformer"] == "GP,GP%20Registrar" and data["showLocumsOnly"] == "0"
+    assert data["selectedLHB"].startswith("All,") and "Powys%20Teaching%20LHB" in data["selectedLHB"]
+    assert url("mpl_wales", "1234567") == mpl_wales.PUBLIC and "1234567" not in mpl_wales.PUBLIC
+    assert lookup("mpl_wales", "1234567", "Khan").outcome == "name_mismatch"
+
+
+def test_http_post_sends_a_urlencoded_form_and_reads_the_reply(monkeypatch):
+    seen = {}
+
+    class Reply:
+        status = 200
+
+        class headers:
+            @staticmethod
+            def get_content_charset():
+                return "utf-8"
+
+        def read(self, amount=-1):
+            return b'"{\\"data\\":[]}"'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def urlopen(request, timeout):
+        seen.update(method=request.get_method(), data=request.data, url=request.full_url,
+                    content_type=request.get_header("Content-type"), agent=request.get_header("User-agent"))
+        return Reply()
+    monkeypatch.setattr(http.urllib.request, "urlopen", urlopen)
+    status, body = http.post("https://example.invalid/list?method=x", {"search[value]": "1234567", "a b": "c&d"})
+    assert (status, body) == (200, '"{\\"data\\":[]}"')
+    assert seen["method"] == "POST" and seen["url"] == "https://example.invalid/list?method=x"
+    assert seen["data"] == b"search%5Bvalue%5D=1234567&a+b=c%26d"
+    assert seen["content_type"] == "application/x-www-form-urlencoded" and seen["agent"].startswith("PracticeHR/1.0")
 
 
 GPHC_CLEAR = """<html><body><h2>Priya Patel</h2><p>Registration number: 2012345</p>
@@ -215,6 +290,7 @@ def test_gphc_parse(page, outcome, words):
                                        ("gphc", GPHC_NONE)])
 def test_a_no_results_page_is_not_found(code, page, monkeypatch):
     monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, page))
+    monkeypatch.setattr(http, "post", lambda url, data, timeout=10: (200, page))
     r = lookup(code, "1234567" if code != "nmc" else "12A3456B", "Patel")
     assert r.outcome == "not_found" and r.page_hash != ""
 
@@ -245,6 +321,7 @@ def test_an_http_error_reply_keeps_its_body_and_status(monkeypatch):
 def test_a_404_is_not_found_for_the_gmc_and_unreadable_for_the_others(monkeypatch):
     from registers import adapters
     monkeypatch.setattr(http, "get", lambda url, timeout=10: (404, "<h1>Page not found</h1>"))
+    monkeypatch.setattr(http, "post", lambda url, data, timeout=10: (404, "<h1>Page not found</h1>"))
     r = lookup("gmc", "1234567", "Patel")
     assert r.outcome == "not_found" and r.status_text == "HTTP 404: no page for this number"
     assert len(r.page_hash) == 64 and r.name_on_register == ""
@@ -280,6 +357,7 @@ def test_lookup_matches_the_name_hashes_the_page_and_never_raises(monkeypatch):
 @pytest.mark.parametrize("code", CODES)
 def test_a_page_that_is_neither_a_result_nor_a_not_found_page_is_unreadable(code, monkeypatch):
     monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, GMC_ODD))
+    monkeypatch.setattr(http, "post", lambda url, data, timeout=10: (200, GMC_ODD))
     r = lookup(code, "1234567" if code != "nmc" else "12A3456B", "Patel")
     assert r.outcome == "unreadable" and r.page_hash != ""
 
@@ -326,8 +404,10 @@ def test_a_wrong_name_is_a_mismatch_only_when_a_name_was_found(monkeypatch):
 
 def test_urls_carry_the_number_and_only_the_number():
     assert url("gmc", "1234567").endswith("1234567")
-    for code, number in (("mpl_wales", "1234567"), ("nmc", "12A3456B"), ("gphc", "2012345")):
+    for code, number in (("nmc", "12A3456B"), ("gphc", "2012345")):
         assert number in url(code, number) and " " not in url(code, number)
+    # the Welsh list has no page per number: On the register opens its search page
+    assert url("mpl_wales", "1234567") == mpl_wales.PUBLIC
 
 
 # ---- an unknown or qualified wording is never good news ----------------------------------------
@@ -339,7 +419,7 @@ def _page(code, status, extra=""):
         return NMC_CLEAR.replace("Effective registration", status)
     if code == "gphc":
         return GPHC_CLEAR.replace("<p>Status: Registered</p>", f"<p>Status: {status}</p>")
-    return MPL_PRESENT.replace("Included", status)
+    return _mpl_reply([_mpl_row(status=status)])
 
 
 NEVER_CLEAR = [
@@ -361,9 +441,11 @@ NEVER_CLEAR = [
 def test_a_qualified_status_is_never_clear(code, status, monkeypatch):
     module = {"gmc": gmc, "nmc": nmc, "gphc": gphc, "mpl_wales": mpl_wales}[code]
     number = "12A3456B" if code == "nmc" else "1234567"
-    got, words, _ = module.parse(module.text_of(_page(code, status)), number)
+    body = _page(code, status)
+    got, words, _ = module.parse(body if getattr(module, "RAW", False) else module.text_of(body), number)
     assert got in ("problem", "unreadable") and status in words
-    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, _page(code, status)))
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, body))
+    monkeypatch.setattr(http, "post", lambda url, data, timeout=10: (200, body))
     assert lookup(code, number, "Patel").outcome == "problem"
 
 
@@ -422,7 +504,9 @@ def test_classify_is_clear_only_on_an_exact_phrase(value, expected):
 def _captured():
     out = []
     for code in CODES:
-        for page in sorted((FIXTURES / code).glob("*.html")) if (FIXTURES / code).exists() else []:
+        folder = FIXTURES / code
+        pages = [p for suffix in (".html", ".json") for p in folder.glob(f"*{suffix}")] if folder.exists() else []
+        for page in sorted(pages):
             out.append(pytest.param(code, page, id=f"{code}/{page.name}"))
     return out
 
@@ -439,6 +523,7 @@ def test_captured_fixtures_parse_as_their_file_name_says(code, page, monkeypatch
     status_file = page.with_suffix(".status")            # registers_fetch writes it for a not-found reply
     status = int(status_file.read_text().strip()) if status_file.exists() else 200
     monkeypatch.setattr(http, "get", lambda url, timeout=10: (status, page.read_text()))
+    monkeypatch.setattr(http, "post", lambda url, data, timeout=10: (status, page.read_text()))
     r = lookup(code, number, surname)
     assert r.outcome == expected, r
 
@@ -456,3 +541,8 @@ def test_verified_means_the_clear_not_found_and_a_problem_page_are_captured(tmp_
     assert not verified("gmc")
     (tmp_path / "gmc" / "problem-suspended.html").write_text("x")
     assert verified("gmc")
+    # the Welsh list saves JSON replies: the same stems with a .json suffix count
+    (tmp_path / "mpl_wales").mkdir()
+    for name in ("clear.json", "not_found.json", "problem.json"):
+        (tmp_path / "mpl_wales" / name).write_text("{}")
+    assert verified("mpl_wales")
