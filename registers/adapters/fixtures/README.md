@@ -21,8 +21,9 @@ person captures them.
    DEBUG=1 .venv/bin/python manage.py registers_fetch gmc 1234567 registers/adapters/fixtures/gmc/clear.html
    ```
 
-   It checks the number's format, saves the reply to the file you name and
-   prints only the HTTP status and the size. It writes the file only for a
+   It checks the number's format, saves the reply to the file you name
+   (making the body's folder if it is not there yet) and prints only the
+   HTTP status and the size. It writes the file only for a
    200 reply: an error reply prints its status and leaves any page already
    saved there as it was. The same with curl, if the app
    cannot run there: `curl -A "<user agent>" "<url>"`, saving its output as
@@ -37,7 +38,13 @@ person captures them.
    `problem-suspended.html`, `problem-conditions.html` and so on),
    `not_found.html` (a number that does not exist), and optionally
    `unreadable.html` (a page that is not a result at all, such as an
-   error page).
+   error page). The GMC has one page per doctor and answers a number that
+   is not on its register with HTTP 404: `registers_fetch` saves that
+   reply as `not_found.html` all the same, with a `not_found.status`
+   sidecar holding `404`, which `registers_parse` and the tests read (a
+   lookup treats the GMC's 404 as *not found* without parsing the page).
+   For the other three bodies a 404 is an error and nothing is written:
+   their not-found page is a 200 with the register's own wording.
 4. Beside each `clear` or `problem` page put a `<stem>.surname` file holding
    the surname the page shows, e.g. `clear.surname` containing `Patel`, so
    the name check is tested too. If the number the page was captured for

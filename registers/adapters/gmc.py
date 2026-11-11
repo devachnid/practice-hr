@@ -4,7 +4,9 @@ practise", a "GP Register" entry that is exactly one of GP_REGISTER_CLEAR (or
 "On the GP Register since ..."), and no restriction field (fitness to
 practise, conditions, undertakings, warnings) with a value. Status is read only from
 those labelled fields; a page with no status field and no result-specific
-no-results wording is unreadable, never not found."""
+no-results wording is unreadable, never not found. The one exception is the
+reply itself: the register has one page per doctor, and a number that is
+not on it answers HTTP 404 (NOT_FOUND_STATUSES), which is not found."""
 import re
 
 from registers.adapters.base import (  # noqa: F401 - text_of re-exported for the tests
@@ -12,6 +14,7 @@ from registers.adapters.base import (  # noqa: F401 - text_of re-exported for th
 
 PUBLIC = "https://www.gmc-uk.org/doctors/"
 NOT_FOUND = ("no results were found", "could not find a doctor", "no doctor found")
+NOT_FOUND_STATUSES = (404,)
 LABELS = ("Registration status",)
 GP_LABELS = ("GP Register",)
 GP_REGISTER_CLEAR = ("Yes", "On the GP Register", "GP Register", "Included")

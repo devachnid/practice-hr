@@ -280,13 +280,19 @@ the GP Register". A restriction field is found under its singular or plural
 label ("Warning" or "Warnings", "Condition" or "Conditions"). A page that is not a result
 at all is *unreadable* too, never *not found*: *not found* needs the
 register's own no-results wording, and is looked for only when the page has
-no status field.
+no status field. The GMC is the exception, by the shape of its site: it has
+one page per doctor, and a number that is not on its register answers
+"page not found" (HTTP 404), which a lookup records as *not found* without
+reading the page (the register's words are "HTTP 404: no page for this
+number"). For the other three bodies, whose registers are search pages, a
+404 is a site fault and *unreadable*.
 
 There are five results:
 
 - **Clear** and **Problem**, as above. A problem is the register's words
   (for example "Suspended") and goes to HR and the line manager.
-- **Not found** — the register has no one with that number. Also an alert.
+- **Not found** — the register has no one with that number: its own
+  no-results wording, or, for the GMC, a 404 reply. Also an alert.
 - **Name does not match** — the register found the number but under a
   different surname. It is never treated as that person. The match ignores
   case, accents, apostrophes, hyphens, spaces and name particles ("van",

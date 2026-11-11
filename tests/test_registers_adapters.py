@@ -221,6 +221,39 @@ def test_a_no_results_page_is_not_found(code, page, monkeypatch):
 
 # ---- the shared flow -----------------------------------------------------------------------
 
+def test_an_http_error_reply_keeps_its_body_and_status(monkeypatch):
+    """The GMC answers a number that is not on its register with a 404 and
+    its own page: the body of an error reply is read, bounded as a 200's is."""
+    import io
+    import urllib.error
+    from email.message import Message
+
+    def raising(request, timeout):
+        headers = Message()
+        headers["Content-Type"] = "text/html; charset=utf-8"
+        raise urllib.error.HTTPError(request.full_url, 404, "Not Found", headers, io.BytesIO(b"<p>No such doctor \xc3\xbc</p>"))
+    monkeypatch.setattr(http.urllib.request, "urlopen", raising)
+    assert http.get("https://www.gmc-uk.org/doctors/1234567") == (404, "<p>No such doctor \u00fc</p>")
+
+    def huge(request, timeout):
+        raise urllib.error.HTTPError(request.full_url, 404, "Not Found", Message(), io.BytesIO(b"x" * (http.MAX_BYTES + 1)))
+    monkeypatch.setattr(http.urllib.request, "urlopen", huge)
+    with pytest.raises(http.FetchError, match="too large"):
+        http.get("https://www.gmc-uk.org/doctors/1234567")
+
+
+def test_a_404_is_not_found_for_the_gmc_and_unreadable_for_the_others(monkeypatch):
+    from registers import adapters
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (404, "<h1>Page not found</h1>"))
+    r = lookup("gmc", "1234567", "Patel")
+    assert r.outcome == "not_found" and r.status_text == "HTTP 404: no page for this number"
+    assert len(r.page_hash) == 64 and r.name_on_register == ""
+    for code, number in (("nmc", "12A3456B"), ("gphc", "2012345"), ("mpl_wales", "1234567")):
+        r = lookup(code, number, "Patel")
+        assert r.outcome == "unreadable" and r.status_text == "HTTP 404", code
+    assert adapters.not_found_statuses("gmc") == (404,) and adapters.not_found_statuses("nmc") == ()
+
+
 def test_lookup_matches_the_name_hashes_the_page_and_never_raises(monkeypatch):
     monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, GMC_CLEAR))
     r = lookup("gmc", "1234567", "Patel")
@@ -403,7 +436,9 @@ def test_captured_fixtures_parse_as_their_file_name_says(code, page, monkeypatch
                else "Patel")
     number_file = page.with_suffix(".number")
     number = number_file.read_text().strip() if number_file.exists() else ("1234567" if code != "nmc" else "12A3456B")
-    monkeypatch.setattr(http, "get", lambda url, timeout=10: (200, page.read_text()))
+    status_file = page.with_suffix(".status")            # registers_fetch writes it for a not-found reply
+    status = int(status_file.read_text().strip()) if status_file.exists() else 200
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (status, page.read_text()))
     r = lookup(code, number, surname)
     assert r.outcome == expected, r
 
