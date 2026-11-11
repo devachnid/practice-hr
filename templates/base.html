@@ -25,11 +25,15 @@
   <a href="{% url 'onboarding:getting_started' %}" class="nav-link{% if '/onboarding/' in request.path %} is-active{% endif %}">Getting started</a>
   {% else %}
   <a href="{% url 'people:me' %}" class="nav-link{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  {% if leave_url %}
+  <a href="{{ leave_url }}" class="nav-link">Leave and rota</a>
+  {% else %}
   <a href="{% url 'absence:mine' %}" class="nav-link{% if request.path == '/absence/mine/' or request.path == '/absence/request/' or '/absence/toil/claim/' in request.path %} is-active{% endif %}">Leave</a>
   <a href="{% url 'absence:calendar' %}" class="nav-link{% if request.path == '/absence/calendar/' %} is-active{% endif %}">Calendar</a>
   <a href="{% url 'absence:balances' %}" class="nav-link{% if '/absence/balances/' in request.path or '/absence/ledger/' in request.path %} is-active{% endif %}">Balances</a>
+  {% endif %}
   <a href="{% url 'documents:policies' %}" class="nav-link{% if '/documents/policies/' in request.path %} is-active{% endif %}">Policies</a>
-  {% if can_approve %}
+  {% if can_approve and not leave_url %}
     <a href="{% url 'absence:queue' %}" class="nav-link{% if request.path == '/absence/queue/' or '/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
   {% endif %}
   {% if is_approver or has_todo %}
@@ -79,9 +83,13 @@ no password (accounts/recent_auth.py).{% endcomment %}
   <a href="{% url 'onboarding:getting_started' %}" class="tabbar-item{% if '/onboarding/' in request.path %} is-active{% endif %}">Getting started</a>
   {% else %}
   <a href="{% url 'people:me' %}" class="tabbar-item{% if request.path == '/people/me/' %} is-active{% endif %}">My record</a>
+  {% if leave_url %}
+  <a href="{{ leave_url }}" class="tabbar-item">Leave and rota</a>
+  {% else %}
   <a href="{% url 'absence:mine' %}" class="tabbar-item{% if request.path == '/absence/mine/' or request.path == '/absence/request/' or '/absence/toil/claim/' in request.path %} is-active{% endif %}">Leave</a>
   {% if can_approve %}
     <a href="{% url 'absence:queue' %}" class="tabbar-item{% if request.path == '/absence/queue/' or '/decide/' in request.path %} is-active{% endif %}">Approvals{% if waiting_count %} ({{ waiting_count }}){% endif %}</a>
+  {% endif %}
   {% endif %}
   {% if is_approver or has_todo %}
     <a href="{% url 'people:team' %}" class="tabbar-item{% if request.path == '/people/team/' %} is-active{% endif %}">My team</a>
@@ -91,9 +99,9 @@ no password (accounts/recent_auth.py).{% endcomment %}
     <summary class="tabbar-item">More</summary>
     <div class="tabbar-sheet">
       {% if not pre_start %}
-      <a href="{% url 'absence:balances' %}" class="tabbar-link">Balances</a>
+      {% if not leave_url %}<a href="{% url 'absence:balances' %}" class="tabbar-link">Balances</a>{% endif %}
       <a href="{% url 'documents:policies' %}" class="tabbar-link">Policies</a>
-      <a href="{% url 'absence:calendar' %}" class="tabbar-link">Calendar</a>
+      {% if not leave_url %}<a href="{% url 'absence:calendar' %}" class="tabbar-link">Calendar</a>{% endif %}
       {% if user.is_hr_admin or user.is_superuser %}
         <a href="{% url 'admin:index' %}" class="tabbar-link">Admin</a>
       {% endif %}

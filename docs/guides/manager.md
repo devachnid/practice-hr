@@ -5,6 +5,12 @@ line manager in Practice HR when HR has named you as someone's line manager.
 There is nothing else to switch on: from that day you see **Approvals** and
 **My team** in the menu.
 
+**If your practice keeps leave in AMG Shift Central**, the menu has **Leave
+and rota** in place of Leave, Calendar, Balances and Approvals, and it opens
+Shift Central. You request, approve and record leave there, and the leave
+sections of this guide do not apply. Everything else here still does: your
+record, policies, checks, your To do list and your team's training.
+
 - [Signing in](#signing-in)
 - [Your own leave](#your-own-leave)
 - [Your own policies, checks and documents](#your-own-policies-checks-and-documents)

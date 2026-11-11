@@ -51,6 +51,7 @@ from datetime import date
 from django.http import JsonResponse
 from django.utils import timezone
 
+from absence import elsewhere
 from absence.models import Absence
 from api.auth import token_required
 from people.models import Employee, WorkingPattern
@@ -110,6 +111,9 @@ def absences(request):
         return _bad_request("from and to (YYYY-MM-DD) required")
     if end < start:
         return _bad_request("to is before from")
+    if elsewhere.url():
+        # Leave is held in Shift Central: what is stored here is not the record.
+        return JsonResponse({"absences": []})
     qs = (Absence.objects
           .filter(status__in=(Absence.Status.APPROVED, Absence.Status.REQUESTED),
                   auto_bank_holiday=False, start_date__lte=end, end_date__gte=start)

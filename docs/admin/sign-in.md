@@ -139,7 +139,8 @@ Employment spell is added.
 
 It prints one line per app with what it did. **people:** `logins_disabled`.
 **absence:** the leave-year, pot and bank-holiday counts and `chased`
-([Year end](year-end.md), [Absence](absence.md)). **registrations:** the
+([Year end](year-end.md), [Absence](absence.md)), or `skipped` when
+[leave is held in AMG Shift Central](absence.md#leave-held-in-amg-shift-central). **registrations:** the
 night's [registration lookups](compliance.md#the-schedule), run before the
 reminders so that what they find is in the same morning's digest; this
 step never fails the run (see

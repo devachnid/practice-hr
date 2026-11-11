@@ -6,6 +6,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 
+from absence import elsewhere
 from absence.models import EmailFailure, ToilClaim
 from absence.services import chase
 from accounts.mail import email_is_configured
@@ -81,7 +82,8 @@ def compliance_counts(today):
 
 
 def dashboard(request, context):
-    context["waiting"] = [_row(r) for r in chase.waiting(timezone.localdate())]
+    context["leave_here"] = not elsewhere.url()     # held in Shift Central: no waiting card
+    context["waiting"] = [_row(r) for r in chase.waiting(timezone.localdate())] if context["leave_here"] else []
     context["waiting_claims"] = sum(1 for w in context["waiting"] if "claim" in w)
     context["waiting_requests"] = len(context["waiting"]) - context["waiting_claims"]
     context["chase_after"] = settings.CHASE_AFTER_WORKING_DAYS

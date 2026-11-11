@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% comment %}Every leave page while SHIFT_CENTRAL_URL is set (absence/elsewhere.py).{% endcomment %}
+{% block title %}Leave is now in AMG Shift Central{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Leave is now in AMG Shift Central</h1></div>
+<p>Requesting and approving leave, balances, TOIL and the calendar have moved. Sign in there with the same practice account.</p>
+<p><a class="btn" href="{{ leave_url }}">Open AMG Shift Central</a></p>
+{% endblock %}

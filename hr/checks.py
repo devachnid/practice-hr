@@ -45,6 +45,21 @@ def api_tokens(app_configs, **kwargs):
     )]
 
 
+def shift_central_url(app_configs, **kwargs):
+    """SHIFT_CENTRAL_URL switches leave off here and becomes the link every
+    member of staff follows to their leave, so it has to be an address a
+    browser opens, and over https."""
+    value = settings.SHIFT_CENTRAL_URL
+    if settings.DEBUG or not value or value.startswith("https://"):
+        return []
+    return [checks.Warning(
+        "SHIFT_CENTRAL_URL is not an https address, so the Leave link will not open Shift Central.",
+        hint="Set SHIFT_CENTRAL_URL=https://shiftcentral.example.org (or remove it to keep leave "
+             "here) in /etc/practice-hr.env, and restart.",
+        id="hr.W003",
+    )]
+
+
 def site_url(app_configs, **kwargs):
     """Emailed links (a decision waiting, a request decided) are the site's
     address plus a path. With SITE_URL unset it is "/", so they arrive as
