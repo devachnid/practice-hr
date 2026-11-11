@@ -63,8 +63,16 @@ person captures them.
    lookup would record: the outcome, the status words, the name it found
    and whether the surname matches. If the
    outcome is wrong, the body's adapter needs the page's actual words.
-   Each adapter reads a status only from a labelled field, so adjust these
-   in that body's file, one at a time:
+   The GMC's own page (as captured in November 2026) has no field labels at
+   all: its parser anchors on the line "GMC reference number:", takes the
+   number from the next line and the status from the line after, reads
+   "This doctor is on the GP Register" (or "is not") as a sentence, and
+   looks for restrictions only among the details below the number, up to
+   the "Registrant history" heading (the site's menus above the name
+   mention fitness to practise). Its `LABELS` and `GP_LABELS` still serve
+   the older labelled layout when a page carries no such anchor. The other
+   adapters read a status only from a labelled field, so adjust these in
+   that body's file, one at a time:
 
    - `LABELS`: the field names the status sits under (for example
      "Registration status" or "Status").
