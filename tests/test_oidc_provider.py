@@ -294,3 +294,30 @@ def test_a_sign_out_to_an_unregistered_address_is_refused(capsys, employee_clien
         "id_token_hint": tokens["id_token"], "client_id": client_id,
         "post_logout_redirect_uri": "https://evil.example/"})
     assert not r.get("Location", "").startswith("https://evil.example")
+
+
+DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+
+
+def test_the_device_code_grant_gives_no_token(db, capsys):
+    """oauthlib 4.0.0 (CVE-2026-49272) gave a bearer token for a made-up
+    device_code to a client enabled for the device flow. It cannot be reached
+    here: django-oauth-toolkit looks the code up in its own table first and
+    answers 404, and no code can ever be in that table because the
+    device-authorization endpoint is not mounted (config/urls.py)."""
+    client_id, secret = _register(capsys)
+    r = Client().post("/o/token/", {"grant_type": DEVICE_GRANT, "device_code": "made-up",
+                                    "client_id": client_id, "client_secret": secret})
+    assert r.status_code == 404 and r.json() == {"error": "device_not_found"}
+    assert "access_token" not in r.content.decode()
+
+
+def test_even_a_client_set_to_the_device_grant_gets_no_token_for_a_made_up_code(db, capsys):
+    """The advisory's own case, a client enabled for the device flow (which
+    register_oidc_client never makes): still no token."""
+    client_id, secret = _register(capsys)
+    Application.objects.filter(client_id=client_id).update(authorization_grant_type=DEVICE_GRANT)
+    r = Client().post("/o/token/", {"grant_type": DEVICE_GRANT, "device_code": "made-up",
+                                    "client_id": client_id, "client_secret": secret})
+    assert r.status_code == 404
+    assert "access_token" not in r.content.decode()
