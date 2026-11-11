@@ -25,9 +25,14 @@ def url(code, number):
     return MODULES[code].url(number)
 
 
+def not_found_statuses(code):
+    """The HTTP statuses that mean "not on the register" for a body (the GMC's 404); none for most."""
+    return tuple(getattr(MODULES[code], "NOT_FOUND_STATUSES", ()))
+
+
 def lookup(code, number, surname):
     module = MODULES[code]
-    return base.run(module.url(number), module.parse, number, surname)
+    return base.run(module.url(number), module.parse, number, surname, not_found_statuses(code))
 
 
 def verified(code):

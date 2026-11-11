@@ -69,6 +69,26 @@ def test_registers_fetch_makes_the_fixture_folder_and_names_a_path_it_cannot_wri
         call_command("registers_fetch", "gmc", "1234567", str(blocked / "clear.html"))
 
 
+def test_registers_fetch_saves_the_gmcs_404_as_not_found_with_a_status_sidecar(tmp_path, monkeypatch):
+    from registers import http
+    monkeypatch.setattr(http, "get", lambda url, timeout=10: (404, "<h1>Page not found</h1>"))
+    target = tmp_path / "gmc" / "not_found.html"
+    out = StringIO()
+    call_command("registers_fetch", "gmc", "1234567", str(target), stdout=out)
+    assert target.read_text() == "<h1>Page not found</h1>"
+    assert (tmp_path / "gmc" / "not_found.status").read_text() == "404\n"
+    assert out.getvalue() == "HTTP 404, 23 bytes; this register's not-found reply, saved with not_found.status\n"
+    # the same reply from a body whose register is a search page is an error, as before
+    out = StringIO()
+    call_command("registers_fetch", "nmc", "12A3456B", str(tmp_path / "nmc" / "not_found.html"), stdout=out)
+    assert out.getvalue() == "HTTP 404, 23 bytes; nothing written\n" and not (tmp_path / "nmc").exists()
+    # and the parse command reads the sidecar, so the saved reply parses as not found
+    out = StringIO()
+    call_command("registers_parse", "gmc", str(target), "--surname", "Patel", stdout=out)
+    text = out.getvalue()
+    assert "HTTP status: 404" in text and "outcome: not_found" in text
+
+
 def test_registers_fetch_never_overwrites_a_page_with_an_error_reply(tmp_path, monkeypatch):
     from registers import http
     target = tmp_path / "clear.html"

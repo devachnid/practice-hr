@@ -22,16 +22,27 @@ def user_agent():
     return "PracticeHR/1.0 (registration checks)"
 
 
+def _text(reply):
+    data = reply.read(MAX_BYTES + 1)
+    if len(data) > MAX_BYTES:
+        raise FetchError("too large")      # never parse a page that was cut short
+    return data.decode(reply.headers.get_content_charset() or "utf-8", "replace")
+
+
 def get(url, timeout=TIMEOUT):
-    """(HTTP status, body as text). Raises FetchError when no reply came, or one larger than MAX_BYTES."""
+    """(HTTP status, body as text), for an error reply too: the GMC answers
+    a number that is not on its register with a 404 and its own page.
+    Raises FetchError when no reply came, or one larger than MAX_BYTES."""
     request = urllib.request.Request(url, headers={"User-Agent": user_agent(), "Accept": "text/html"})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as reply:   # noqa: S310 - https URLs built by the adapters
-            data = reply.read(MAX_BYTES + 1)
-            if len(data) > MAX_BYTES:
-                raise FetchError("too large")      # never parse a page that was cut short
-            return reply.status, data.decode(reply.headers.get_content_charset() or "utf-8", "replace")
+            return reply.status, _text(reply)
     except urllib.error.HTTPError as exc:
-        return exc.code, ""
+        try:
+            return exc.code, _text(exc)
+        except FetchError:
+            raise
+        except (OSError, ValueError):
+            return exc.code, ""                 # an error reply whose body cannot be read: the status still can
     except (urllib.error.URLError, socket.timeout, OSError, ValueError) as exc:
         raise FetchError(exc.__class__.__name__) from None
