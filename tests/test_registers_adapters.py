@@ -142,7 +142,7 @@ def _mpl_reply(rows):
                                   "start": 0, "length": 10}))
 
 
-def _mpl_row(number="1234567", name="Patel Priya Anne", status="Included"):
+def _mpl_row(number="1234567", name="PATEL Priya", status="Included"):
     return ["<span class='chevron-collapsable'></span>", number, name, "GP", "Cwm Taf Morgannwg HB", "06/03/2008",
             status, "", "", "1"]
 
@@ -163,9 +163,10 @@ MPL_PENDING = MPL_PRESENT.replace("Included", "Pending review")
     (MPL_NONE, "not_found", ""),
     (MPL_ODD_STATUS, "unreadable", ""),
     (MPL_PENDING, "problem", "Pending review"),
-    (GMC_ODD, "unreadable", ""),
 ])
 def test_mpl_wales_parse(page, outcome, words):
+    """A reply that is not the list's JSON raises inside parse(); run() makes
+    that an unreadable result (test_a_page_that_is_neither…)."""
     got, status, name = mpl_wales.parse(page, "1234567")
     assert got == outcome and words in status
     if outcome in ("clear", "problem"):
@@ -200,7 +201,7 @@ def test_nmc_parse(page, outcome, words):
 
 
 def test_mpl_wales_matches_the_number_exactly_and_puts_the_surname_last():
-    got, status, name = mpl_wales.parse(MPL_PRESENT, "1234567")
+    got, status, name = mpl_wales.parse(_mpl_reply([_mpl_row(name="Patel Priya Anne")]), "1234567")
     assert (got, status, name) == ("clear", "Included", "Priya Anne Patel")
     assert mpl_wales.parse(MPL_SUBSTRING, "1234567") == ("not_found", "no performer with this number", "")
     assert mpl_wales.parse(_mpl_reply([_mpl_row(name="Patel")]), "1234567")[2] == "Patel"
@@ -218,7 +219,7 @@ def test_mpl_wales_posts_the_pages_own_search_and_links_to_the_public_page(monke
     monkeypatch.setattr(http, "post", post)
     monkeypatch.setattr(http, "get", lambda url, timeout=10: pytest.fail("the Welsh list is not fetched with GET"))
     r = lookup("mpl_wales", "1234567", "Patel")
-    assert r.outcome == "clear" and r.name_on_register == "Priya Anne Patel" and len(r.page_hash) == 64
+    assert r.outcome == "clear" and r.name_on_register == "Priya PATEL" and len(r.page_hash) == 64
     [(sent_url, data)] = sent
     assert sent_url == mpl_wales.ENDPOINT and data["search[value]"] == "1234567"
     assert data["selectedTypeOfPerformer"] == "GP,GP%20Registrar" and data["showLocumsOnly"] == "0"
