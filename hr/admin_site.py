@@ -39,6 +39,21 @@ class HrAdminSite(UnfoldAdminSite):
     def has_permission(self, request):
         return is_hr_admin(request)
 
+    # Leave's own admin pages. With leave held in Shift Central
+    # (absence/elsewhere.py) they leave the app list and the menu; they still
+    # open by address, since nothing is deleted. Email failures stay.
+    LEAVE_MODELS = frozenset({"AbsenceType", "Policy", "BankHoliday", "ClosedDay", "Pot", "Absence", "ToilClaim"})
+
+    def get_app_list(self, request, app_label=None):
+        from absence import elsewhere
+        apps = super().get_app_list(request, app_label)
+        if not elsewhere.url():
+            return apps
+        for app in apps:
+            if app["app_label"] == "absence":
+                app["models"] = [m for m in app["models"] if m["object_name"] not in self.LEAVE_MODELS]
+        return [app for app in apps if app["models"]]
+
     def _safe_next(self, request):
         target = request.GET.get("next", "")
         if target and url_has_allowed_host_and_scheme(
@@ -93,6 +108,8 @@ def _nav_item(title, icon, url_name, permission=is_hr_admin):
 
 
 def navigation(request):
+    from absence import elsewhere
+    leave_url = elsewhere.url()
     groups = [
         {"title": "People", "separator": False, "items": [
             _nav_item("Employees", "badge", "admin:people_employee_changelist"),
@@ -102,13 +119,16 @@ def navigation(request):
             _nav_item("Contract types", "description", "admin:people_contracttype_changelist"),
             _nav_item("Audit log", "history", "admin:people_auditentry_changelist"),
         ]},
-        {"title": "Absence", "separator": True, "items": [
+        # With leave held in Shift Central (absence/elsewhere.py) the leave pages
+        # leave the menu; they still open by address, since nothing is deleted.
+        {"title": "Payroll and retention" if leave_url else "Absence", "separator": True, "items": ([] if leave_url else [
             _nav_item("Absence types", "event_busy", "admin:absence_absencetype_changelist"),
             _nav_item("Policies", "policy", "admin:absence_policy_changelist"),
             _nav_item("Bank holidays", "flag", "admin:absence_bankholiday_changelist"),
             _nav_item("Closed days", "event_available", "admin:absence_closedday_changelist"),
             _nav_item("Pots", "savings", "admin:absence_pot_changelist"),
             _nav_item("Absences", "beach_access", "admin:absence_absence_changelist"),
+        ]) + [
             _nav_item("Payroll", "payments", "absence:payroll"),
             _nav_item("Retention", "auto_delete", "people:retention"),
         ]},

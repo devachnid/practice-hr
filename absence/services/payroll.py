@@ -46,6 +46,7 @@ from django.db.models import Q, Sum
 from django.utils import timezone
 from openpyxl import Workbook
 
+from absence import elsewhere
 from absence.models import Absence, AbsenceType, LedgerEntry, PayrollRun
 from absence.services import costing, pots, year_end
 from people.models import Contract, Employment, PayRecord
@@ -100,8 +101,15 @@ def _starters(start, end):
                e.employee.bank_account_name, e.employee.bank_sort_code, e.employee.bank_account_number]
 
 
+def sheets():
+    """The sheets of a report. With leave held in Shift Central
+    (absence/elsewhere.py) only what HR still holds: the absence sheets and
+    the leavers' balances come from Shift Central's own payroll report."""
+    return SHEETS[:4] if elsewhere.url() else SHEETS
+
+
 def _leavers(start, end):
-    types = list(AbsenceType.objects.filter(uses_pot=True))
+    types = [] if elsewhere.url() else list(AbsenceType.objects.filter(uses_pot=True))
     headers = HEADERS["Leavers"] + [f"{t.name} balance" for t in types]
     rows = []
     for e in Employment.objects.filter(end_date__range=(start, end)).select_related("employee"):
@@ -160,7 +168,7 @@ def _toil(start, end):
 
 
 def build(start, end):
-    """The workbook for the period, one sheet per SHEETS entry, in order."""
+    """The workbook for the period, one sheet per sheets() entry, in order."""
     headers = dict(HEADERS)
     rows = {"Starters": list(_starters(start, end))}
     headers["Leavers"], rows["Leavers"] = _leavers(start, end)
@@ -173,11 +181,12 @@ def build(start, end):
         [_name(p.employment), p.from_date, p.get_basis_display(), float(p.amount), p.reason]
         for p in PayRecord.objects.filter(from_date__range=(start, end))
         .select_related("employment__employee").order_by("from_date", "id")]
-    rows.update(_absences(start, end))
-    rows["TOIL"] = _toil(start, end)
+    if not elsewhere.url():
+        rows.update(_absences(start, end))
+        rows["TOIL"] = _toil(start, end)
     wb = Workbook()
     wb.remove(wb.active)
-    for name in SHEETS:
+    for name in sheets():
         ws = wb.create_sheet(name)
         ws.append(headers[name])
         for row in rows[name]:

@@ -167,6 +167,11 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # site" link reads the same value, so the two agree.
 SITE_URL = os.environ.get("SITE_URL", "/")
 
+# Where leave lives when it is not here: AMG Shift Central's address. Set, it
+# switches this app's own leave off (absence/elsewhere.py says what that
+# covers) and the navigation links there instead. Unset, leave is here.
+SHIFT_CENTRAL_URL = os.environ.get("SHIFT_CENTRAL_URL", "").strip().rstrip("/")
+
 # The admin's chrome. Plain values and dotted paths only — unfold resolves
 # the paths per request, so hr.admin_site is never imported here.
 UNFOLD = {

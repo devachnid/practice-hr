@@ -92,6 +92,11 @@ person in `/people`; see [the rate limit](#the-rate-limit).
 
 ## `GET /api/v1/absences?from=YYYY-MM-DD&to=YYYY-MM-DD`
 
+With leave held in AMG Shift Central (`SHIFT_CENTRAL_URL` set; see
+[Absence](absence.md#leave-held-in-amg-shift-central)) this answers
+`{"absences": []}` for any valid window: what is stored here is not the
+record. Read leave from Shift Central's own feed.
+
     {"absences": [{
         "id": 7, "employee": 12,
         "type": "AL", "label": "Leave",

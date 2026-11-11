@@ -7,6 +7,12 @@ month as `YYYY-MM` and generate: the file downloads and is kept.
 On the server, `deploy/manage payroll_report --period 2026-06` does the
 same and prints where the file went.
 
+**With leave held in AMG Shift Central** (`SHIFT_CENTRAL_URL` set; see
+[Absence](absence.md#leave-held-in-amg-shift-central)) the file has only the
+first four sheets below, and the Leavers sheet stops at **Unit**: the absence
+sheets and a leaver's leave balance are in Shift Central's payroll report,
+which is the record of them.
+
 ## The sheets
 
 | Sheet | Holds |

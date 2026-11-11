@@ -6,6 +6,15 @@ after leave rules, keeping track of checks, policies and starter and
 leaver checklists, and producing the monthly payroll file. You are an HR admin when your
 login has **Admin status** ticked.
 
+**If your practice keeps leave in AMG Shift Central**, leave is switched off
+here: staff see **Leave and rota**, which opens Shift Central, and the leave
+pages leave your admin menu. The sections of this guide on leave policies,
+bank holidays, balances, absences, family leave, TOIL and the year end then
+do not apply, and the payroll file holds only starters, leavers, contract
+changes and pay changes. Whoever looks after the server sets this; the
+[admin guide](../admin/absence.md#leave-held-in-amg-shift-central) says exactly
+what it changes.
+
 - [What you can do](#what-you-can-do)
 - [Going live: your first month](#going-live-your-first-month)
 - [Finding your way round the admin](#finding-your-way-round-the-admin)

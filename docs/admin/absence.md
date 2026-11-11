@@ -7,6 +7,40 @@ absences). The year-end job that closes each leave year has [its own
 page](year-end.md); the monthly file for the payroll bureau is on the
 [Payroll page](payroll.md).
 
+## Leave held in AMG Shift Central
+
+**If `SHIFT_CENTRAL_URL` is set in `/etc/practice-hr.env`, none of this page
+is in use.** The practice's leave then lives in AMG Shift Central, and this
+app's own leave is switched off so nobody books in the wrong place or reads
+a second, different balance:
+
+- **Staff:** Leave, Calendar, Balances and Approvals leave the navigation,
+  replaced by one link, **Leave and rota**, that opens Shift Central. Every
+  leave address (`/absence/mine/`, a decide link in an old email, and the
+  rest) shows "Leave is now in AMG Shift Central" with the same link, and
+  nothing can be requested, decided, claimed or cancelled.
+- **HR admins:** the dashboard's waiting card and the leave pages (Absence
+  types, Policies, Bank holidays, Closed days, Pots, Absences) leave the
+  menu and the app list. They still open by their address, because nothing
+  is deleted. **Payroll** and **Retention** stay, under *Payroll and
+  retention*.
+- **The nightly:** its absence step prints `skipped` and does nothing: no
+  leave year is closed, no pot is opened or revised, no bank holiday is
+  charged and nobody is chased.
+- **The payroll file** has four sheets, Starters, Leavers, Contract changes
+  and Pay changes, and the Leavers sheet has no balance columns
+  ([Payroll](payroll.md)). Sickness, unpaid leave, family leave, TOIL and a
+  leaver's leave remaining come from Shift Central's own payroll report.
+- **The feed:** `/api/v1/absences` answers with an empty list
+  ([API](api.md)).
+
+*Setting it:* add `SHIFT_CENTRAL_URL=https://shiftcentral.example.org` (the
+address staff open) and restart. *Wrong address:* the link goes nowhere
+useful; `check --deploy` warns (`hr.W003`) unless it is an `https://`
+address. *Going back:* remove the line and restart. The pots, policies and
+past absences are as they were left, and the next nightly catches the pots
+up.
+
 ## The mental model
 
 **A pot is one person's allowance of one type for one leave year.** It has no

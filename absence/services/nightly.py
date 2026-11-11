@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.core.exceptions import ValidationError
 from django.db.models import Max
 
+from absence import elsewhere
 from absence.models import AbsenceType, BankHoliday, Pot
 from absence.services import balances, bank_holidays, chase, ledger, policies, pots, year_end
 from people.services import contracts, employments
@@ -91,7 +92,12 @@ def run(today):
     entitlement and every open annual-leave pot's automatic bank-holiday
     absences. Idempotent. A pot or employment that cannot be processed (no
     contract, or no policy covers a day) is listed in `failed` and skipped,
-    so one bad row never stops the rest."""
+    so one bad row never stops the rest.
+
+    With leave held in Shift Central (absence/elsewhere.py) none of it runs:
+    no year closes, no pot opens or is revised, nobody is chased."""
+    if elsewhere.url():
+        return {"skipped": "leave is in Shift Central"}
     ended = year_end.run(today)
     failed = list(ended["failed"])
     opened = _open_pots(today, failed)
