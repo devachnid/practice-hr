@@ -153,16 +153,19 @@ def name_near(lines, marker, titles=("Dr", "Professor", "Mr", "Mrs", "Ms", "Miss
     return ""
 
 
-def run(url, parse, number, surname, not_found_statuses=()):
+def run(fetch, parse, number, surname, not_found_statuses=(), raw=False):
     """Fetch the page, parse it, check the name. Returns a Result; never
     raises (an unexpected error is an unreadable result naming its class).
+    `fetch()` returns (HTTP status, body): a GET of the body's page for most
+    registers, a POST to a search endpoint for the Welsh list. `parse` gets
+    the page's text lines, or the body itself when `raw` (a JSON reply).
     An HTTP status in `not_found_statuses` is the body's own way of saying
     the number is not on its register (the GMC's page-per-doctor URL
     answers 404): a not-found result without parsing. Any other non-200
     reply is unreadable."""
     from registers.adapters import Result
     try:
-        status, body = http.get(url)
+        status, body = fetch()
     except http.FetchError:
         return Result("unreadable", "FetchError", "", "")
     except Exception as exc:  # noqa: BLE001 - the class only; the message may carry the number or a name
@@ -173,7 +176,7 @@ def run(url, parse, number, surname, not_found_statuses=()):
     if status != 200:
         return Result("unreadable", f"HTTP {status}", "", "")
     try:
-        outcome, status_text, name = parse(text_of(body), number)
+        outcome, status_text, name = parse(body if raw else text_of(body), number)
     except Exception as exc:  # noqa: BLE001 - as above
         return Result("unreadable", exc.__class__.__name__, "", page_hash)
     if outcome == "clear" and not name:

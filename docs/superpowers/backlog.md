@@ -59,9 +59,11 @@ items can go straight into a tidy-up branch.
   registration so it stops alerting: today a register name that does not
   match the record's surname is a *Name does not match* alert on every
   lookup until the record or the register changes.
-- The Welsh medical performers list URL is plain `http` and, like the
-  other three, unverified against a real page; confirm its address (and an
-  `https` one) when its pages are captured.
+- The Welsh medical performers list is read from the NHS Wales Shared
+  Services Partnership site's list endpoint (the one its own search widget
+  calls), which has no public documentation or terms of its own; if the
+  site changes it, the adapter's `ENDPOINT`, the form fields `fetch()`
+  sends and the row's cell positions are what to update.
 - Alternating-week working patterns (the field exists; the UI and costing
   do not).
 - Delegated approval while a manager is away.

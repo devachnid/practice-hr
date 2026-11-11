@@ -259,7 +259,7 @@ of wording shows as itself.
 | Body | Clear | A problem |
 |---|---|---|
 | **GMC** | The status is "Registered with a licence to practise", the GP Register shows the doctor, and none of fitness to practise, conditions, undertakings or warnings has a value. | Provisionally registered, registered without a licence, suspended, erased, an interim order, conditions, undertakings, administrative erasure or not registered; not on the GP Register; or a restriction noted. Every doctor the practice employs is treated as a GP, so "not on the GP Register" is always a problem. |
-| **Welsh medical performers list** | The GMC number is on the list, with a status of included, active or current. | Suspended, conditional or removed. A number that is not on the list is *not found* only when the page carries the list's own no-results wording; any other page without the number is *unreadable*. |
+| **Welsh medical performers list** | The GMC number is on the list, with a status of included, active or current. | Suspended, conditional or removed. The list is a search widget on the NHS Wales Shared Services Partnership site: a lookup posts the same search the page does (GPs and GP registrars, every health board) and reads the row whose registration number is exactly the GMC number. No such row is *not found*; a reply that is not the list's JSON is *unreadable*. The list writes names surname first; the name check allows for that. |
 | **NMC** | The PIN shows "Effective registration" (or "Registered"), with no restriction, condition of practice or sanction noted. | Lapsed, suspended, struck off, conditions of practice, a caution or interim order, a restriction, not registered or unregistered; or a restriction, condition or sanction noted. |
 | **GPhC** | The number shows "Registered", with no condition, fitness to practise entry or sanction noted. | Suspended, removed, lapsed, conditions, an interim order, not registered or unregistered; or a condition, fitness to practise entry or sanction noted. |
 
@@ -341,6 +341,9 @@ table is first. Each row shows the body, the number, the last result in the
 register's words, the name the register showed, when the register last
 answered (**Checked**) and the next check. Two links end each row:
 
+- **On the register** opens the register's own page for the number (for
+  the Welsh list, the list's search page: type the number into its search
+  box, since the list has no address per number).
 - **Check now** opens a confirmation page ("Check *name*'s *body*
   registration now?"). Nothing happens until you choose **Check now** on
   it, which looks the number up this minute and takes you back to the

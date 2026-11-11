@@ -5,12 +5,10 @@ with the fetch replaced by the file, and the HTTP status from a `<stem>.status`
 sidecar when registers_fetch saved one), so it prints what a lookup would
 record. It reads a file and prints; it writes nothing."""
 from pathlib import Path
-from unittest import mock
-
 from django.core.management.base import BaseCommand, CommandError
 
-from registers import http, names
-from registers.adapters import MODULES, base, not_found_statuses
+from registers import names
+from registers.adapters import MODULES, base, not_found_statuses, raw
 
 
 class Command(BaseCommand):
@@ -32,8 +30,9 @@ class Command(BaseCommand):
             raise CommandError(f"cannot read the page: {exc.__class__.__name__}") from None
         number, surname = options["number"] or "", options["surname"]
         status = _status_beside(Path(options["path"]))
-        with mock.patch.object(http, "get", lambda url, timeout=http.TIMEOUT: (status, html)):
-            result = base.run(module.url(number), module.parse, number, surname, not_found_statuses(options["code"]))
+        code = options["code"]
+        result = base.run(lambda: (status, html), module.parse, number, surname, not_found_statuses(code),
+                          raw=raw(code))
         name = result.name_on_register
         self.stdout.write(f"HTTP status: {status}")
         self.stdout.write(f"outcome: {result.outcome}")
@@ -41,7 +40,8 @@ class Command(BaseCommand):
         self.stdout.write(f"name: {name}")
         matches = "yes" if name and names.surnames_match(name, surname) else "no" if name else "no name found"
         self.stdout.write(f"surname matches: {matches}")
-        self.stdout.write(f"lines of text: {len(base.text_of(html))}")
+        if not raw(code):
+            self.stdout.write(f"lines of text: {len(base.text_of(html))}")
 
 
 def _status_beside(page):
