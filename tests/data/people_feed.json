@@ -1,0 +1,46 @@
+{"people": [
+  {"id": 101, "first_name": "Sam", "last_name": "Patel", "name": "Sam Patel", "email": "sam@practice.example",
+   "contract_type": "Reception", "unit": "hours",
+   "employment": {"start": "2025-06-01", "end": null},
+   "positions": [{"title": "Receptionist", "team": "Reception"}],
+   "contracts": [
+     {"id": 41, "contract_type": "Reception", "unit": "hours", "from": "2025-06-01", "to": "2026-08-31",
+      "weekly_amount": "22.50", "full_time_weekly": "37.50",
+      "leave": {"base": "22.00", "steps": [{"after_years": 1, "total": "23.00"}, {"after_years": 5, "total": "25.00"}]}},
+     {"id": 42, "contract_type": "Reception", "unit": "hours", "from": "2026-09-01", "to": null,
+      "weekly_amount": "30.00", "full_time_weekly": "37.50",
+      "leave": {"base": "22.00", "steps": [{"after_years": 1, "total": "23.00"}, {"after_years": 5, "total": "25.00"}]}}
+   ]},
+  {"id": 102, "first_name": "Alex", "last_name": "Morgan", "name": "Alex Morgan", "email": "alex@practice.example",
+   "contract_type": "Partner", "unit": "sessions",
+   "employment": {"start": "2019-04-01", "end": null},
+   "positions": [{"title": "GP Partner", "team": "GPs"}],
+   "contracts": [
+     {"id": 43, "contract_type": "Partner", "unit": "sessions", "from": "2019-04-01", "to": null,
+      "weekly_amount": "6.00", "full_time_weekly": "8.00",
+      "leave": {"base": "8.00", "steps": []}}
+   ]},
+  {"id": 103, "first_name": "Jo", "last_name": "Okafor", "name": "Jo Okafor", "email": "jo@practice.example",
+   "contract_type": "Management", "unit": "hours",
+   "employment": {"start": "2015-01-05", "end": null},
+   "positions": [{"title": "Practice Manager", "team": "Management"}],
+   "contracts": [
+     {"id": 44, "contract_type": "Management", "unit": "hours", "from": "2015-01-05", "to": null,
+      "weekly_amount": "37.50", "full_time_weekly": "37.50",
+      "leave": {"base": "27.00", "steps": [{"after_years": 10, "total": "30.00"}]}}
+   ]},
+  {"id": 104, "first_name": "Riley", "last_name": "Chen", "name": "Riley Chen", "email": "riley@practice.example",
+   "contract_type": "GP trainee", "unit": "sessions",
+   "employment": {"start": "2026-08-05", "end": null},
+   "positions": [{"title": "GP Trainee", "team": "GPs"}],
+   "contracts": [
+     {"id": 45, "contract_type": "GP trainee", "unit": "sessions", "from": "2026-08-05", "to": null,
+      "weekly_amount": "8.00", "full_time_weekly": "8.00",
+      "leave": null}
+   ]},
+  {"id": 105, "first_name": "Casey", "last_name": "Lee", "name": "Casey Lee", "email": "casey@practice.example",
+   "contract_type": null, "unit": null,
+   "employment": {"start": "2026-10-01", "end": null},
+   "positions": [],
+   "contracts": []}
+]}
