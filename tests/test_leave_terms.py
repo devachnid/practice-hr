@@ -128,3 +128,9 @@ def test_resolved_and_describe_for_each_choice(hr_admin):
     assert leave_terms.describe(own) == "Own: 27.5 days"
     leave_terms.set_contract_terms(hr_admin, own, "none")
     assert leave_terms.resolved(own) is None and leave_terms.describe(own) == "Not worked out"
+
+
+def test_a_step_reads_plainly():
+    assert str(ContractTypeLeaveStep(after_years=1, total=D("23.00"))) == "23 after 1 year"
+    assert str(ContractTypeLeaveStep(after_years=5, total=D("25"))) == "25 after 5 years"
+    assert str(ContractTypeLeaveStep(after_years=10, total=D("27.50"))) == "27.5 after 10 years"

@@ -84,6 +84,7 @@ def test_the_employment_page_shows_each_contracts_terms_with_a_link(admin_client
     body = admin_client.get(f"/admin/people/employment/{emp.pk}/change/").content.decode()
     assert "Usual for Reception: 22 days; 23 after 1 year" in body
     assert f'href="/admin/people/contract/{c.pk}/change/"' in body
+    assert ">Change leave terms</a>" in body
 
 
 def _contract_post(mode, base, *rows, initial=0):

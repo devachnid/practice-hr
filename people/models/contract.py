@@ -90,7 +90,8 @@ class LeaveStep(models.Model):
         ordering = ["after_years"]
 
     def __str__(self):
-        return f"{self.total} after {self.after_years} years"
+        total = format(Decimal(self.total).normalize(), "f")
+        return f"{total} after {self.after_years} year{'' if self.after_years == 1 else 's'}"
 
 
 class ContractTypeLeaveStep(LeaveStep):

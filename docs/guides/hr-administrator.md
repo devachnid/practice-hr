@@ -220,10 +220,13 @@ A new contract takes the usual annual leave for its contract type: days a
 year for staff on hours, weeks a year for GPs, with any steps for length of
 service. After saving, each contract row shows the terms in force.
 
-- If this person's contract says something different, choose **Change**
-  beside the contract, pick **Own terms** and enter their figure and steps.
+- If this person's contract says something different, choose **Change leave
+  terms** beside the contract, pick **Own terms** and enter their figure and steps.
 - For someone whose allowance is given to the practice (a GP trainee),
   pick **Not worked out**.
+
+The steps for length of service count complete years from the employment's
+**Start date**, not the **Continuous service date**.
 
 AMG Shift Central works the allowance out from these terms and lists it for
 a manager to check. Leave itself is booked and approved there.
@@ -360,8 +363,8 @@ contracts only end; add a new row for a change."
 5. Add a new working pattern with **Effective from** the day of the change (see [How to add their working pattern](#how-to-add-their-working-pattern)).
 
 The new contract takes the usual leave terms for its type. If the old
-contract had its own terms, set them again on the new one (**Change**
-beside it).
+contract had its own terms, set them again on the new one (**Change leave
+terms** beside it).
 
 Their entitlement is recalculated as soon as you save the new contract.
 

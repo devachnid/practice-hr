@@ -381,7 +381,7 @@ class ContractInline(TabularInline):
     def leave_terms_in_force(self, obj):
         if obj is None or obj.pk is None:
             return "Usual for the contract type. Save, then use Change to give this contract its own."
-        return format_html('{} <a href="{}">Change</a>', leave_terms.describe(obj),
+        return format_html('{}<br><a href="{}">Change leave terms</a>', leave_terms.describe(obj),
                            reverse("admin:people_contract_change", args=[obj.pk]))
 
 

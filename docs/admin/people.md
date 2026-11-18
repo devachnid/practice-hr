@@ -199,7 +199,9 @@ length is reckoned from — never the start date — so it is the field to set
 when reckonable service carries over from an earlier NHS post or an earlier
 spell here. Leaving it blank on a returner or a transfer understates their
 service; a report that tiers on service length (annual leave entitlement,
-long-service pay points) will get the tier wrong.
+long-service pay points) will get the tier wrong. Only Practice HR's own
+leave policies read it: Shift Central's [service steps](#usual-annual-leave-a-year--service-steps)
+count from the Start date.
 
 ## Position
 
@@ -302,7 +304,9 @@ admin refuses 0.
 The annual leave a contract of this type usually carries: **days a year for
 an hours type, weeks a year for a sessions type**. The steps table beneath
 it says how that grows with service: "after 1 complete year the total
-becomes 23". Service counts from the employment's start date.
+becomes 23". For these steps Shift Central counts complete years from the
+employment's Start date; the Continuous service date is not sent to it and
+does not change a step.
 
 Practice HR does nothing with these figures itself. **AMG Shift Central
 reads them and works each person's leave allowance out**, and it is the
@@ -360,7 +364,7 @@ next.
 ### Leave terms
 
 Each row of the Contracts table shows the leave terms in force, with a
-**Change** link to the contract's own page. There are three choices:
+**Change leave terms** link to the contract's own page. There are three choices:
 
 - **Usual for the contract type** (what a new contract gets): the terms on
   its [contract type](#usual-annual-leave-a-year--service-steps).
