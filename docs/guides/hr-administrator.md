@@ -67,7 +67,11 @@ Work through this in order. The rest of this guide explains each step.
 
 1. **Check the contract types and policies.** Under **People**, open
    **Contract types** and check each kind of staff you employ is there, with
-   the right full-time week. Under **Absence**, open **Policies**. For
+   the right full-time week.
+   If leave is held in AMG Shift Central, also set each type's **Usual
+   annual leave a year** and its service steps here (see
+   [Leave terms](#leave-terms)); leave them blank for GP trainee.
+   Under **Absence**, open **Policies**. For
    each contract type, compare the policy with your contracts. Check the days
    a year, when the leave year starts, how bank holidays are handled, and the
    steps for length of service (see [Leave policies in plain words](#leave-policies-in-plain-words)).
@@ -210,6 +214,20 @@ and comes back gets a second one.
 4. In the **Contracts** section, add a row: **Contract type**, **Basis** (Permanent or Fixed term), **From date**, and **Weekly amount** (hours, or sessions for GPs). A fixed-term contract needs a **To date**.
 5. Choose **Save**.
 
+#### Leave terms
+
+A new contract takes the usual annual leave for its contract type: days a
+year for staff on hours, weeks a year for GPs, with any steps for length of
+service. After saving, each contract row shows the terms in force.
+
+- If this person's contract says something different, choose **Change**
+  beside the contract, pick **Own terms** and enter their figure and steps.
+- For someone whose allowance is given to the practice (a GP trainee),
+  pick **Not worked out**.
+
+AMG Shift Central works the allowance out from these terms and lists it for
+a manager to check. Leave itself is booked and approved there.
+
 ### How to add their working pattern
 
 The working pattern says how many hours (or sessions) they work each
@@ -340,6 +358,10 @@ contracts only end; add a new row for a change."
 3. Add a new contract row from the day of the change with the new **Weekly amount**.
 4. Choose **Save**.
 5. Add a new working pattern with **Effective from** the day of the change (see [How to add their working pattern](#how-to-add-their-working-pattern)).
+
+The new contract takes the usual leave terms for its type. If the old
+contract had its own terms, set them again on the new one (**Change**
+beside it).
 
 Their entitlement is recalculated as soon as you save the new contract.
 
