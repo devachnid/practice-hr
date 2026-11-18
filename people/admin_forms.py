@@ -14,7 +14,7 @@ from unfold.widgets import UnfoldAdminSelectWidget, UnfoldBooleanSwitchWidget
 from accounts.services import logins
 from people import ni
 from people.models import Contract, Employee, Employment, Position
-from people.services import contracts, employments, positions
+from people.services import contracts, employments, leave_terms, positions
 
 ONLY_END = "Existing positions and contracts only end; add a new row for a change."
 
@@ -186,3 +186,47 @@ class ContractInlineFormSet(BaseInlineFormSet):
                     contracts.check_end(Contract.objects.get(pk=form.instance.pk), data.get("to_date"))
             except ValidationError as e:
                 add_error(form, e)
+
+
+def steps_of(formset):
+    """The (after_years, total) pairs a leave-steps formset holds, less the
+    rows ticked for deletion and the blank extra rows."""
+    out = []
+    for form in formset.forms:
+        data = getattr(form, "cleaned_data", None) or {}
+        if data.get("DELETE") or data.get("after_years") is None or data.get("total") is None:
+            continue
+        out.append((data["after_years"], data["total"]))
+    return out
+
+
+class LeaveStepFormSet(BaseInlineFormSet):
+    """The steps table on a contract type and on a contract. The parent
+    object already carries the form's new values when this runs, so the
+    whole of the terms is checked together."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        owner = self.instance
+        mode = getattr(owner, "leave_terms", None)
+        if mode is not None and mode != Contract.LeaveTerms.OWN:
+            return                      # a contract not on its own terms: the service drops whatever is here
+        try:
+            leave_terms.check(owner.leave_base, steps_of(self))
+        except ValidationError as e:
+            raise ValidationError(e.messages) from None
+
+
+class ContractTermsForm(forms.ModelForm):
+    """The contract's own page: only its leave terms can change."""
+    class Meta:
+        model = Contract
+        fields = ["leave_terms", "leave_base"]
+
+    def clean(self):
+        data = super().clean()
+        if data.get("leave_terms") == Contract.LeaveTerms.OWN and data.get("leave_base") is None:
+            self.add_error("leave_base", "Own terms need a figure.")
+        return data
