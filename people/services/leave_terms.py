@@ -14,7 +14,26 @@ from people.models import Contract, ContractLeaveStep, ContractType, ContractTyp
 from people.services import audit
 
 MOST = Decimal("99")
+CENT = Decimal("0.01")
 Terms = Contract.LeaveTerms
+UNIT_CHANGE = "Clear this type's leave terms, and its contracts' own terms, before changing the unit."
+TWO_PLACES = "At most 2 decimal places."
+
+
+def unit_word(unit):
+    """What a base and its totals are counted in."""
+    return "days" if unit == ContractType.Unit.HOURS else "weeks"
+
+
+def check_unit_change(contract_type, new_unit):
+    """ValidationError when the stored unit would change under leave terms
+    counted in it: 24 days would become 24 weeks."""
+    stored = ContractType.objects.get(pk=contract_type.pk)
+    if new_unit == stored.unit:
+        return
+    if (stored.leave_base is not None or stored.leave_steps.exists()
+            or stored.contracts.filter(leave_terms=Terms.OWN).exists()):
+        raise ValidationError(UNIT_CHANGE)
 
 
 def check(base, steps):
@@ -27,12 +46,16 @@ def check(base, steps):
         return []
     if not Decimal("0") < base <= MOST:
         raise ValidationError({"leave_base": "More than 0 and at most 99."})
+    if base != base.quantize(CENT):
+        raise ValidationError({"leave_base": TWO_PLACES})
     if len({years for years, _ in steps}) != len(steps):
         raise ValidationError("Two steps have the same number of years.")
     before = base
     for years, total in steps:
         if years < 1:
             raise ValidationError("A step starts after at least 1 complete year.")
+        if total != total.quantize(CENT):
+            raise ValidationError(TWO_PLACES)
         if total <= before:
             raise ValidationError(f"The total after {_years(years)} must be more than the figure before it ({_plain(before)}).")
         if total > MOST:
@@ -73,8 +96,7 @@ def _steps_text(steps):
 
 
 def _text(terms, unit):
-    word = "days" if unit == ContractType.Unit.HOURS else "weeks"
-    base = f"{_plain(terms['base'])} {word}"
+    base = f"{_plain(terms['base'])} {unit_word(unit)}"
     return f"{base}; {_steps_text(terms['steps'])}" if terms["steps"] else base
 
 

@@ -380,7 +380,7 @@ class ContractInline(TabularInline):
     @admin.display(description="Leave terms")
     def leave_terms_in_force(self, obj):
         if obj is None or obj.pk is None:
-            return "Usual for the contract type. Save, then use Change to give this contract its own."
+            return "Usual for the contract type. Save, then use Change leave terms to give this contract its own."
         return format_html('{}<br><a href="{}">Change leave terms</a>', leave_terms.describe(obj),
                            reverse("admin:people_contract_change", args=[obj.pk]))
 
@@ -556,8 +556,14 @@ class ContractTypeLeaveStepInline(TabularInline):
 
 @admin.register(ContractType)
 class ContractTypeAdmin(ModelAdmin):
+    form = admin_forms.ContractTypeForm
     list_display = ("name", "unit", "full_time_weekly", "leave_base", "display_order")
     inlines = [ContractTypeLeaveStepInline]
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        if obj is not None:         # the unit is chosen once the type is saved
+            kwargs["labels"] = {"leave_base": f"Usual annual leave a year ({leave_terms.unit_word(obj.unit)})"}
+        return super().get_form(request, obj, change=change, **kwargs)
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -571,6 +577,8 @@ class ContractTypeAdmin(ModelAdmin):
         super().save_model(request, obj, form, change)
 
     def save_formset(self, request, form, formset, change):
+        if formset.model is not ContractTypeLeaveStep:
+            return super().save_formset(request, form, formset, change)
         formset.save(commit=False)      # sets what the admin's change message reads; writes nothing
         try:
             leave_terms.set_type_terms(request.user, form.instance, request._leave_base, admin_forms.steps_of(formset))
@@ -615,7 +623,14 @@ class ContractAdmin(ModelAdmin):
     def save_model(self, request, obj, form, change):
         request._leave_terms = (form.cleaned_data["leave_terms"], form.cleaned_data.get("leave_base"))
 
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        if obj is not None:
+            kwargs["labels"] = {"leave_base": f"Annual leave a year ({leave_terms.unit_word(obj.contract_type.unit)})"}
+        return super().get_form(request, obj, change=change, **kwargs)
+
     def save_formset(self, request, form, formset, change):
+        if formset.model is not ContractLeaveStep:
+            return super().save_formset(request, form, formset, change)
         formset.save(commit=False)
         mode, base = request._leave_terms
         try:

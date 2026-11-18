@@ -1,10 +1,11 @@
 """Leave terms in the admin: the usual terms on a contract type, a
 contract's own on its own page, and the line on the employment page."""
+from datetime import timedelta
 from decimal import Decimal as D
 
 import pytest
 
-from people.models import AuditEntry, Contract
+from people.models import AuditEntry, Contract, ContractType, Employment
 from people.services import leave_terms
 from tests.factories import make_contract, make_contract_type, make_employment
 
@@ -128,7 +129,7 @@ def test_a_contract_cannot_be_added_deleted_or_otherwise_edited_from_its_page(ad
     assert admin_client.post(f"/admin/people/contract/{c.pk}/delete/", {"post": "yes"}).status_code == 403
     data = _contract_post("usual", "")
     data.update({"weekly_amount": "10", "from_date": "2020-01-01"})
-    admin_client.post(f"/admin/people/contract/{c.pk}/change/", data)
+    assert admin_client.post(f"/admin/people/contract/{c.pk}/change/", data).status_code == 302
     c.refresh_from_db()
     assert c.weekly_amount == D("30") and Contract.objects.count() == 1
 
@@ -145,3 +146,65 @@ def test_a_third_decimal_place_is_refused_not_saved(admin_client):
     assert r.status_code == 200 and "decimal places" in r.content.decode()
     ct.refresh_from_db()
     assert ct.leave_base is None and not AuditEntry.objects.exists()
+
+
+def test_a_contract_that_starts_before_its_employment_still_saves_its_terms(admin_client):
+    emp = make_employment()
+    c = make_contract(emp)
+    Employment.objects.filter(pk=emp.pk).update(start_date=c.from_date + timedelta(days=30))
+    r = admin_client.post(f"/admin/people/contract/{c.pk}/change/", _contract_post("own", "27"))
+    assert r.status_code == 302, r.content.decode()[:3000]
+    c.refresh_from_db()
+    assert (c.leave_terms, c.leave_base) == ("own", D("27"))
+
+
+def test_the_base_label_names_the_unit_and_one_request_does_not_change_the_next(admin_client):
+    hours = make_contract_type("Reception")
+    sessions = make_contract_type("Salaried GP", unit="sessions", full_time=D("8"))
+    type_url = "/admin/people/contracttype/{}/change/"
+    for ct, word in ((hours, "days"), (sessions, "weeks"), (hours, "days")):
+        assert f"Usual annual leave a year ({word})" in admin_client.get(type_url.format(ct.pk)).content.decode()
+    add = admin_client.get("/admin/people/contracttype/add/").content.decode()
+    assert "Usual annual leave a year" in add and "Usual annual leave a year (" not in add
+    ch, cs = make_contract(make_employment(), hours), make_contract(make_employment(), sessions, amount=D("8"))
+    for c, word in ((ch, "days"), (cs, "weeks"), (ch, "days")):
+        assert f"Annual leave a year ({word})" in admin_client.get(f"/admin/people/contract/{c.pk}/change/").content.decode()
+
+
+def test_the_unit_cannot_change_under_a_usual_figure(admin_client, hr_admin):
+    ct = make_contract_type()
+    leave_terms.set_type_terms(hr_admin, ct, D("22"))
+    data = {**_type_post(ct, "22"), "unit": "sessions"}
+    r = admin_client.post(f"/admin/people/contracttype/{ct.pk}/change/", data)
+    assert r.status_code == 200 and leave_terms.UNIT_CHANGE.replace("'", "&#x27;") in r.content.decode()
+    ct.refresh_from_db()
+    assert ct.unit == "hours"
+
+
+def test_the_unit_cannot_change_under_a_contract_on_own_terms(admin_client, hr_admin):
+    ct = make_contract_type()
+    leave_terms.set_contract_terms(hr_admin, make_contract(make_employment(), ct), "own", D("27"))
+    r = admin_client.post(f"/admin/people/contracttype/{ct.pk}/change/", {**_type_post(ct, ""), "unit": "sessions"})
+    assert r.status_code == 200 and "before changing the unit" in r.content.decode()
+    ct.refresh_from_db()
+    assert ct.unit == "hours"
+
+
+def test_the_unit_can_change_when_no_terms_depend_on_it(admin_client):
+    ct = make_contract_type()
+    make_contract(make_employment(), ct)
+    r = admin_client.post(f"/admin/people/contracttype/{ct.pk}/change/", {**_type_post(ct, ""), "unit": "sessions"})
+    assert r.status_code == 302, r.content.decode()[:3000]
+    ct.refresh_from_db()
+    assert ct.unit == "sessions"
+
+
+def test_the_type_add_page_saves_a_usual_figure_and_a_step_audited_to_the_admin(admin_client, hr_admin):
+    data = {"name": "Locum", "unit": "hours", "full_time_weekly": "37.5", "display_order": 100,
+            "leave_base": "22", "_save": "Save", **_steps(("", 5, "25", False))}
+    r = admin_client.post("/admin/people/contracttype/add/", data)
+    assert r.status_code == 302, r.content.decode()[:3000]
+    ct = ContractType.objects.get(name="Locum")
+    assert ct.leave_base == D("22") and [(s.after_years, s.total) for s in ct.leave_steps.all()] == [(5, D("25"))]
+    audited = AuditEntry.objects.filter(model="people.contracttype", object_id=ct.pk)
+    assert {a.field for a in audited} == {"leave_base", "leave_steps"} and {a.actor for a in audited} == {hr_admin}

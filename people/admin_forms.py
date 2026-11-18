@@ -7,13 +7,13 @@ write; these only move the refusal to where it can be shown."""
 
 from django import forms
 from django.core.exceptions import ValidationError
-from django.forms.models import BaseInlineFormSet
+from django.forms.models import BaseInlineFormSet, construct_instance
 
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldBooleanSwitchWidget
 
 from accounts.services import logins
 from people import ni
-from people.models import Contract, Employee, Employment, Position
+from people.models import Contract, ContractType, Employee, Employment, Position
 from people.services import contracts, employments, leave_terms, positions
 
 ONLY_END = "Existing positions and contracts only end; add a new row for a change."
@@ -219,11 +219,40 @@ class LeaveStepFormSet(BaseInlineFormSet):
             raise ValidationError(e.messages) from None
 
 
+class ContractTypeForm(forms.ModelForm):
+    """The contract type page: the unit cannot change under leave terms
+    that are counted in it."""
+    class Meta:
+        model = ContractType
+        fields = ["name", "unit", "full_time_weekly", "leave_base", "display_order"]
+
+    def clean(self):
+        data = super().clean()
+        if self.instance.pk is not None and data.get("unit"):
+            try:
+                leave_terms.check_unit_change(self.instance, data["unit"])
+            except ValidationError as e:
+                self.add_error("unit", e)
+        return data
+
+
 class ContractTermsForm(forms.ModelForm):
     """The contract's own page: only its leave terms can change."""
     class Meta:
         model = Contract
         fields = ["leave_terms", "leave_base"]
+
+    def _post_clean(self):
+        # Validate the two fields only. Contract.clean() judges dates this
+        # page does not show (and an employment's dates can move after a
+        # contract was added), and the service does the writing and its
+        # own checks.
+        self.instance = construct_instance(self, self.instance, self._meta.fields, self._meta.exclude)
+        exclude = {f.name for f in self.instance._meta.fields} - set(self.fields) | set(self._errors)
+        try:
+            self.instance.clean_fields(exclude=exclude)
+        except ValidationError as e:
+            self._update_errors(e)
 
     def clean(self):
         data = super().clean()

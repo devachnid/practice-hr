@@ -209,7 +209,7 @@ An employment is one spell of working at the practice. Someone who leaves
 and comes back gets a second one.
 
 1. Under **People**, open **Employments** and choose **+** (Add employment).
-2. Choose the **Employee** and the **Start date**. Set **Continuous service date** only if their service counts from earlier (for example, from another NHS post). Longer service can give more leave, and it is counted from this date.
+2. Choose the **Employee** and the **Start date**. Set **Continuous service date** only if their service counts from earlier (for example, from another NHS post). Where leave is held in Practice HR, longer service can give more leave and is counted from this date; where it is held in AMG Shift Central, service steps count from the **Start date**.
 3. In the **Positions** section, add a row: choose the **Title** from the list (it is the list under **People**, **Position titles**: if their title is not there, add it there first), then the **Team**, **Line manager**, tick **Primary**, and the **From date**. The line manager of the primary position is the person who decides their requests. Leave **Line manager** blank for someone whose requests should go to the HR admins.
 4. In the **Contracts** section, add a row: **Contract type**, **Basis** (Permanent or Fixed term), **From date**, and **Weekly amount** (hours, or sessions for GPs). A fixed-term contract needs a **To date**.
 5. Choose **Save**.
@@ -228,8 +228,9 @@ service. After saving, each contract row shows the terms in force.
 The steps for length of service count complete years from the employment's
 **Start date**, not the **Continuous service date**.
 
-AMG Shift Central works the allowance out from these terms and lists it for
-a manager to check. Leave itself is booked and approved there.
+If leave is held in AMG Shift Central, it works the allowance out from these
+terms and lists it for a manager to check, and leave itself is booked and
+approved there.
 
 ### How to add their working pattern
 

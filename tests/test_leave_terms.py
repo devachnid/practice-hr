@@ -134,3 +134,22 @@ def test_a_step_reads_plainly():
     assert str(ContractTypeLeaveStep(after_years=1, total=D("23.00"))) == "23 after 1 year"
     assert str(ContractTypeLeaveStep(after_years=5, total=D("25"))) == "25 after 5 years"
     assert str(ContractTypeLeaveStep(after_years=10, total=D("27.50"))) == "27.5 after 10 years"
+
+
+@pytest.mark.parametrize("base,steps", [(D("22.005"), []), (D("22"), [(1, D("23.005"))])])
+def test_check_refuses_more_than_two_decimal_places(base, steps):
+    with pytest.raises(ValidationError, match="At most 2 decimal places"):
+        leave_terms.check(base, steps)
+    assert leave_terms.check(D("22.01"), [(1, D("23.50"))]) == [(1, D("23.50"))]
+
+
+def test_migration_0019_leaves_a_gp_type_someone_already_changed():
+    import importlib
+
+    from django.apps import apps
+    migration = importlib.import_module("people.migrations.0019_gp_full_time_week_is_8")
+    for name, week in (("Partner", D("9")), ("Salaried GP", D("7")), ("GP trainee", D("9"))):
+        ContractType.objects.update_or_create(name=name, defaults={"unit": "sessions", "full_time_weekly": week})
+    migration.to_eight(apps, None)
+    weeks = dict(ContractType.objects.filter(name__in=migration.GP_TYPES).values_list("name", "full_time_weekly"))
+    assert weeks == {"Partner": D("8"), "Salaried GP": D("7"), "GP trainee": D("8")}

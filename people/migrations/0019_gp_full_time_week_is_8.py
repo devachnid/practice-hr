@@ -1,5 +1,6 @@
 """The practice's full-time GP week is 8 sessions. The three GP types were
-seeded at 9 (0008); a type someone has already changed is left alone."""
+seeded at 9 (0008); a type someone has already changed is left alone. The reverse is
+deliberately a no-op: unapplying leaves the week at 8."""
 from decimal import Decimal
 
 from django.db import migrations

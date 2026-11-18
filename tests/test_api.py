@@ -415,3 +415,14 @@ def test_a_leavers_contracts_are_those_of_their_last_employment(api, db):
     row = api("/api/v1/people").json()["people"][0]
     assert row["employment"]["end"] == "2024-12-31"
     assert [c["id"] for c in row["contracts"]] == [emp.contracts.get().pk]
+
+
+def test_contracts_come_oldest_first_by_date_not_by_id(api, db):
+    emp = hours_employee(start=date(2024, 1, 1))
+    later = emp.contracts.get()
+    earlier = make_contract(emp, start=date(2024, 1, 1), amount=D("10"))
+    later.from_date = date(2024, 6, 1)
+    later.save()
+    assert earlier.pk > later.pk
+    row = api("/api/v1/people").json()["people"][0]
+    assert [c["id"] for c in row["contracts"]] == [earlier.pk, later.pk]

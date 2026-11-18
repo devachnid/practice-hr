@@ -194,9 +194,9 @@ longer than the log allows.
 
 ### Continuous service date
 
-**Defaults to the start date; only set it earlier.** This is what service
-length is reckoned from — never the start date — so it is the field to set
-when reckonable service carries over from an earlier NHS post or an earlier
+**Defaults to the start date; only set it earlier.** For Practice HR's own
+leave policies this is what service length is reckoned from, not the start
+date, so it is the field to set when reckonable service carries over from an earlier NHS post or an earlier
 spell here. Leaving it blank on a returner or a transfer understates their
 service; a report that tiers on service length (annual leave entitlement,
 long-service pay points) will get the tier wrong. Only Practice HR's own
@@ -311,7 +311,7 @@ does not change a step.
 Practice HR does nothing with these figures itself. **AMG Shift Central
 reads them and works each person's leave allowance out**, and it is the
 record of the result. Every contract of this type follows them unless the
-contract has [its own terms](#leave-terms). A change here reaches those
+contract has [its own terms](#leave-terms) or is set to Not worked out. A change here reaches those
 contracts at Shift Central's next read, for this leave year and the next;
 check the figures it lists for confirmation there.
 
@@ -373,7 +373,7 @@ Each row of the Contracts table shows the leave terms in force, with a
 - **Not worked out**: Shift Central leaves this person's allowances for a
   manager to type.
 
-The terms are the only thing about an existing contract that can be edited,
+The terms are the only thing besides the end date about an existing contract that can be edited,
 and editing them corrects them for the whole contract. **Terms that change
 from a date are a new contract from that date**: end the old one the day
 before, as for any other contractual change.

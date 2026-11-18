@@ -41,7 +41,8 @@ class Employment(models.Model):
         blank=True,
         help_text="Defaults to the start date. Earlier when reckonable service "
                   "carries over from elsewhere in the NHS or an earlier spell. "
-                  "Service tiers read this, never the start date.")
+                  "Practice HR's own leave policies read it for service tiers; "
+                  "AMG Shift Central counts service from the start date.")
 
     class Meta:
         ordering = ["-start_date"]
