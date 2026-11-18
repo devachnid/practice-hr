@@ -35,3 +35,96 @@ def test_the_seeded_gp_types_are_full_time_at_8_sessions():
     for name in ("Partner", "Salaried GP", "GP trainee"):
         assert ContractType.objects.get(name=name).full_time_weekly == D("8"), name
     assert ContractType.objects.get(name="Reception").full_time_weekly == D("37.5")
+
+
+# --- the service ---------------------------------------------------------------------------------
+
+from django.core.exceptions import ValidationError  # noqa: E402
+
+from people.models import AuditEntry  # noqa: E402
+from people.services import leave_terms  # noqa: E402
+
+
+def test_check_sorts_good_steps():
+    assert leave_terms.check(D("22"), [(5, D("25")), (1, D("23"))]) == [(1, D("23")), (5, D("25"))]
+    assert leave_terms.check(None, []) == [] and leave_terms.check(D("0.5"), []) == []
+
+
+@pytest.mark.parametrize("base,steps,says", [
+    (None, [(1, D("23"))], "need the figure they step up from"),
+    (D("0"), [], "More than 0"),
+    (D("99.5"), [], "at most 99"),
+    (D("22"), [(0, D("23"))], "at least 1 complete year"),
+    (D("22"), [(1, D("23")), (1, D("24"))], "same number of years"),
+    (D("22"), [(1, D("22"))], "more than the figure before it"),
+    (D("22"), [(1, D("24")), (5, D("23"))], "more than the figure before it"),
+    (D("22"), [(1, D("100"))], "at most 99"),
+])
+def test_check_refuses(base, steps, says):
+    with pytest.raises(ValidationError) as e:
+        leave_terms.check(base, steps)
+    assert says in "; ".join(e.value.messages)
+
+
+def test_setting_a_types_terms_replaces_them_and_is_audited(hr_admin):
+    ct = make_contract_type()
+    leave_terms.set_type_terms(hr_admin, ct, D("22"), [(1, D("23")), (5, D("25"))])
+    ct.refresh_from_db()
+    assert ct.leave_base == D("22") and [(s.after_years, s.total) for s in ct.leave_steps.all()] == [(1, D("23")), (5, D("25"))]
+    rows = {a.field: (a.before, a.after) for a in AuditEntry.objects.filter(model="people.contracttype", object_id=ct.pk)}
+    assert rows == {"leave_base": ("", "22"), "leave_steps": ("", "23 after 1 year; 25 after 5 years")}
+    AuditEntry.objects.all().delete()
+    leave_terms.set_type_terms(hr_admin, ct, D("22.00"), [(5, D("25")), (1, D("23"))])      # the same again
+    assert not AuditEntry.objects.exists()
+    leave_terms.set_type_terms(hr_admin, ct, None)
+    ct.refresh_from_db()
+    assert ct.leave_base is None and not ct.leave_steps.exists()
+
+
+def test_a_refused_change_writes_nothing(hr_admin):
+    ct = make_contract_type()
+    leave_terms.set_type_terms(hr_admin, ct, D("22"), [(1, D("23"))])
+    AuditEntry.objects.all().delete()
+    with pytest.raises(ValidationError):
+        leave_terms.set_type_terms(hr_admin, ct, D("25"), [(1, D("24"))])
+    ct.refresh_from_db()
+    assert ct.leave_base == D("22") and ct.leave_steps.count() == 1 and not AuditEntry.objects.exists()
+
+
+def test_a_contracts_own_terms_and_what_clears_them(hr_admin):
+    c = make_contract(make_employment())
+    with pytest.raises(ValidationError) as e:
+        leave_terms.set_contract_terms(hr_admin, c, "own")
+    assert "need a figure" in "; ".join(e.value.messages)
+    with pytest.raises(ValidationError):
+        leave_terms.set_contract_terms(hr_admin, c, "sometimes")
+    leave_terms.set_contract_terms(hr_admin, c, "own", D("27"), [(10, D("30"))])
+    c.refresh_from_db()
+    assert (c.leave_terms, c.leave_base, c.leave_steps.count()) == ("own", D("27"), 1)
+    fields = set(AuditEntry.objects.filter(model="people.contract", object_id=c.pk).values_list("field", flat=True))
+    assert fields == {"leave_terms", "leave_base", "leave_steps"}
+    leave_terms.set_contract_terms(hr_admin, c, "none", D("27"), [(10, D("30"))])       # a figure sent with another choice is dropped
+    c.refresh_from_db()
+    assert (c.leave_terms, c.leave_base, c.leave_steps.count()) == ("none", None, 0)
+
+
+def test_resolved_and_describe_for_each_choice(hr_admin):
+    reception = make_contract_type()
+    trainee = make_contract_type("GP trainee", "sessions", D("8"))
+    partner = make_contract_type("Partner", "sessions", D("8"))
+    leave_terms.set_type_terms(hr_admin, reception, D("22"), [(1, D("23")), (5, D("25"))])
+    leave_terms.set_type_terms(hr_admin, partner, D("8"))
+    usual = make_contract(make_employment(), reception)
+    assert leave_terms.resolved(usual) == {"base": D("22"), "steps": [(1, D("23")), (5, D("25"))]}
+    assert leave_terms.describe(usual) == "Usual for Reception: 22 days; 23 after 1 year; 25 after 5 years"
+    gp = make_contract(make_employment(), partner, D("6"))
+    assert leave_terms.describe(gp) == "Usual for Partner: 8 weeks"
+    blank = make_contract(make_employment(), trainee, D("8"))
+    assert leave_terms.resolved(blank) is None
+    assert leave_terms.describe(blank) == "Usual for GP trainee: none set, so not worked out"
+    own = make_contract(make_employment(), reception)
+    leave_terms.set_contract_terms(hr_admin, own, "own", D("27.5"))
+    assert leave_terms.resolved(own) == {"base": D("27.5"), "steps": []}
+    assert leave_terms.describe(own) == "Own: 27.5 days"
+    leave_terms.set_contract_terms(hr_admin, own, "none")
+    assert leave_terms.resolved(own) is None and leave_terms.describe(own) == "Not worked out"
