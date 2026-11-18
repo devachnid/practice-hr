@@ -7,14 +7,14 @@ write; these only move the refusal to where it can be shown."""
 
 from django import forms
 from django.core.exceptions import ValidationError
-from django.forms.models import BaseInlineFormSet
+from django.forms.models import BaseInlineFormSet, construct_instance
 
 from unfold.widgets import UnfoldAdminSelectWidget, UnfoldBooleanSwitchWidget
 
 from accounts.services import logins
 from people import ni
-from people.models import Contract, Employee, Employment, Position
-from people.services import contracts, employments, positions
+from people.models import Contract, ContractType, Employee, Employment, Position
+from people.services import contracts, employments, leave_terms, positions
 
 ONLY_END = "Existing positions and contracts only end; add a new row for a change."
 
@@ -186,3 +186,76 @@ class ContractInlineFormSet(BaseInlineFormSet):
                     contracts.check_end(Contract.objects.get(pk=form.instance.pk), data.get("to_date"))
             except ValidationError as e:
                 add_error(form, e)
+
+
+def steps_of(formset):
+    """The (after_years, total) pairs a leave-steps formset holds, less the
+    rows ticked for deletion and the blank extra rows."""
+    out = []
+    for form in formset.forms:
+        data = getattr(form, "cleaned_data", None) or {}
+        if data.get("DELETE") or data.get("after_years") is None or data.get("total") is None:
+            continue
+        out.append((data["after_years"], data["total"]))
+    return out
+
+
+class LeaveStepFormSet(BaseInlineFormSet):
+    """The steps table on a contract type and on a contract. The parent
+    object already carries the form's new values when this runs, so the
+    whole of the terms is checked together."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        owner = self.instance
+        mode = getattr(owner, "leave_terms", None)
+        if mode is not None and mode != Contract.LeaveTerms.OWN:
+            return                      # a contract not on its own terms: the service drops whatever is here
+        try:
+            leave_terms.check(owner.leave_base, steps_of(self))
+        except ValidationError as e:
+            raise ValidationError(e.messages) from None
+
+
+class ContractTypeForm(forms.ModelForm):
+    """The contract type page: the unit cannot change under leave terms
+    that are counted in it."""
+    class Meta:
+        model = ContractType
+        fields = ["name", "unit", "full_time_weekly", "leave_base", "display_order"]
+
+    def clean(self):
+        data = super().clean()
+        if self.instance.pk is not None and data.get("unit"):
+            try:
+                leave_terms.check_unit_change(self.instance, data["unit"])
+            except ValidationError as e:
+                self.add_error("unit", e)
+        return data
+
+
+class ContractTermsForm(forms.ModelForm):
+    """The contract's own page: only its leave terms can change."""
+    class Meta:
+        model = Contract
+        fields = ["leave_terms", "leave_base"]
+
+    def _post_clean(self):
+        # Validate the two fields only. Contract.clean() judges dates this
+        # page does not show (and an employment's dates can move after a
+        # contract was added), and the service does the writing and its
+        # own checks.
+        self.instance = construct_instance(self, self.instance, self._meta.fields, self._meta.exclude)
+        exclude = {f.name for f in self.instance._meta.fields} - set(self.fields) | set(self._errors)
+        try:
+            self.instance.clean_fields(exclude=exclude)
+        except ValidationError as e:
+            self._update_errors(e)
+
+    def clean(self):
+        data = super().clean()
+        if data.get("leave_terms") == Contract.LeaveTerms.OWN and data.get("leave_base") is None:
+            self.add_error("leave_base", "Own terms need a figure.")
+        return data

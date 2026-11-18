@@ -67,7 +67,11 @@ Work through this in order. The rest of this guide explains each step.
 
 1. **Check the contract types and policies.** Under **People**, open
    **Contract types** and check each kind of staff you employ is there, with
-   the right full-time week. Under **Absence**, open **Policies**. For
+   the right full-time week.
+   If leave is held in AMG Shift Central, also set each type's **Usual
+   annual leave a year** and its service steps here (see
+   [Leave terms](#leave-terms)); leave them blank for GP trainee.
+   Under **Absence**, open **Policies**. For
    each contract type, compare the policy with your contracts. Check the days
    a year, when the leave year starts, how bank holidays are handled, and the
    steps for length of service (see [Leave policies in plain words](#leave-policies-in-plain-words)).
@@ -205,10 +209,28 @@ An employment is one spell of working at the practice. Someone who leaves
 and comes back gets a second one.
 
 1. Under **People**, open **Employments** and choose **+** (Add employment).
-2. Choose the **Employee** and the **Start date**. Set **Continuous service date** only if their service counts from earlier (for example, from another NHS post). Longer service can give more leave, and it is counted from this date.
+2. Choose the **Employee** and the **Start date**. Set **Continuous service date** only if their service counts from earlier (for example, from another NHS post). Where leave is held in Practice HR, longer service can give more leave and is counted from this date; where it is held in AMG Shift Central, service steps count from the **Start date**.
 3. In the **Positions** section, add a row: choose the **Title** from the list (it is the list under **People**, **Position titles**: if their title is not there, add it there first), then the **Team**, **Line manager**, tick **Primary**, and the **From date**. The line manager of the primary position is the person who decides their requests. Leave **Line manager** blank for someone whose requests should go to the HR admins.
 4. In the **Contracts** section, add a row: **Contract type**, **Basis** (Permanent or Fixed term), **From date**, and **Weekly amount** (hours, or sessions for GPs). A fixed-term contract needs a **To date**.
 5. Choose **Save**.
+
+#### Leave terms
+
+A new contract takes the usual annual leave for its contract type: days a
+year for staff on hours, weeks a year for GPs, with any steps for length of
+service. After saving, each contract row shows the terms in force.
+
+- If this person's contract says something different, choose **Change leave
+  terms** beside the contract, pick **Own terms** and enter their figure and steps.
+- For someone whose allowance is given to the practice (a GP trainee),
+  pick **Not worked out**.
+
+The steps for length of service count complete years from the employment's
+**Start date**, not the **Continuous service date**.
+
+If leave is held in AMG Shift Central, it works the allowance out from these
+terms and lists it for a manager to check, and leave itself is booked and
+approved there.
 
 ### How to add their working pattern
 
@@ -340,6 +362,10 @@ contracts only end; add a new row for a change."
 3. Add a new contract row from the day of the change with the new **Weekly amount**.
 4. Choose **Save**.
 5. Add a new working pattern with **Effective from** the day of the change (see [How to add their working pattern](#how-to-add-their-working-pattern)).
+
+The new contract takes the usual leave terms for its type. If the old
+contract had its own terms, set them again on the new one (**Change leave
+terms** beside it).
 
 Their entitlement is recalculated as soon as you save the new contract.
 

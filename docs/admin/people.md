@@ -194,12 +194,14 @@ longer than the log allows.
 
 ### Continuous service date
 
-**Defaults to the start date; only set it earlier.** This is what service
-length is reckoned from — never the start date — so it is the field to set
-when reckonable service carries over from an earlier NHS post or an earlier
+**Defaults to the start date; only set it earlier.** For Practice HR's own
+leave policies this is what service length is reckoned from, not the start
+date, so it is the field to set when reckonable service carries over from an earlier NHS post or an earlier
 spell here. Leaving it blank on a returner or a transfer understates their
 service; a report that tiers on service length (annual leave entitlement,
-long-service pay points) will get the tier wrong.
+long-service pay points) will get the tier wrong. Only Practice HR's own
+leave policies read it: Shift Central's [service steps](#usual-annual-leave-a-year--service-steps)
+count from the Start date.
 
 ## Position
 
@@ -275,7 +277,7 @@ a problem.
 
 `/admin/people/contracttype/` — configurable: adding a kind of staff is a
 row here, not a code change. Eight are seeded: Partner, Salaried GP and GP
-trainee (sessions, full time 9 a week); Practice nurse, HCA, Reception,
+trainee (sessions, full time 8 a week); Practice nurse, HCA, Reception,
 Administration and Management (hours, full time 37.5 a week).
 
 ### Name
@@ -291,11 +293,36 @@ contract at the same time.
 
 ### Full time weekly
 
-What a full working week is, in this type's unit — 9 sessions, 37.5 hours.
+What a full working week is, in this type's unit — 8 sessions, 37.5 hours.
 This is the only input to FTE: `contracts.fte()` divides an employment's
 summed contracted amount by this figure. Set it wrong and every FTE figure
 for that type of staff is wrong, silently. It must be more than zero; the
 admin refuses 0.
+
+### Usual annual leave a year / Service steps
+
+The annual leave a contract of this type usually carries: **days a year for
+an hours type, weeks a year for a sessions type**. The steps table beneath
+it says how that grows with service: "after 1 complete year the total
+becomes 23". For these steps Shift Central counts complete years from the
+employment's Start date; the Continuous service date is not sent to it and
+does not change a step.
+
+Practice HR does nothing with these figures itself. **AMG Shift Central
+reads them and works each person's leave allowance out**, and it is the
+record of the result. Every contract of this type follows them unless the
+contract has [its own terms](#leave-terms) or is set to Not worked out. A change here reaches those
+contracts at Shift Central's next read, for this leave year and the next;
+check the figures it lists for confirmation there.
+
+Leave both blank for a type whose allowances are typed into Shift Central
+by hand: GP trainee is one, because NWSSP tells the practice each trainee's
+allowance.
+
+What is refused: steps with no starting figure; a figure of 0 or over 99; a
+total that is not more than the one before it; two steps for the same
+number of years. Bank holidays are not entered here: Shift Central gives
+one day for each (2 sessions for a GP, pro rata).
 
 ### Display order
 
@@ -333,6 +360,23 @@ return, review June". Nothing depends on it: it appears on the
 [payroll changes report](payroll.md) and nothing else in the app reads it,
 so there is nothing to get wrong beyond being unhelpful to whoever reads it
 next.
+
+### Leave terms
+
+Each row of the Contracts table shows the leave terms in force, with a
+**Change leave terms** link to the contract's own page. There are three choices:
+
+- **Usual for the contract type** (what a new contract gets): the terms on
+  its [contract type](#usual-annual-leave-a-year--service-steps).
+- **Own terms**: this contract's own figure and steps, in the same units.
+  Use it when one person's contract differs from the rest of their type.
+- **Not worked out**: Shift Central leaves this person's allowances for a
+  manager to type.
+
+The terms are the only thing besides the end date about an existing contract that can be edited,
+and editing them corrects them for the whole contract. **Terms that change
+from a date are a new contract from that date**: end the old one the day
+before, as for any other contractual change.
 
 ### The one-unit-at-a-time rule
 

@@ -211,7 +211,7 @@ left as it was: to move a type in use, see
 ### Entitlement: full-time days or weeks (`days_per_year`, `weeks_per_year`)
 
 The policy stores the entitlement in **weeks**, multiplied by each
-person's contracted weekly amount (37.5 hours, 9 sessions…).
+person's contracted weekly amount (37.5 hours, 8 sessions…).
 
 - **Hours contract types:** the page asks for **Full-time days per year**
   (`days_per_year`) instead, the days someone full time gets before bank

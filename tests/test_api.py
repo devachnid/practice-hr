@@ -352,3 +352,77 @@ def test_the_warning_is_logged_once_per_window(client, settings, db, caplog):
             _hit(client)
     limited = [r for r in caplog.records if "rate limit" in r.getMessage()]
     assert len(limited) == 1 and "10.0.0.1" in limited[0].getMessage()
+
+
+# --- contracts and leave terms in /people (Shift Central's allowance spec, 4.4) ------------------
+
+import json  # noqa: E402
+from decimal import Decimal as D  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from people.services import leave_terms  # noqa: E402
+from tests.factories import make_employee  # noqa: E402
+
+SAMPLE = Path(__file__).parent / "data" / "people_feed.json"
+
+
+def _sample_world():
+    """The people in tests/data/people_feed.json. Every date is in the past,
+    so the feed for them is the same whatever today is."""
+    reception, management = make_contract_type("Reception"), make_contract_type("Management")
+    partner = make_contract_type("Partner", "sessions", D("8"))
+    trainee = make_contract_type("GP trainee", "sessions", D("8"))
+    leave_terms.set_type_terms(None, reception, D("22"), [(1, D("23")), (5, D("25"))])
+    leave_terms.set_type_terms(None, partner, D("8"))
+    gps = make_team("GPs")
+
+    sam = make_employment(make_employee("Sam", "Patel", "sam@practice.example", pk=101), start=date(2025, 6, 1))
+    make_position(sam, title="Receptionist", team=make_team("Reception"))
+    make_contract(sam, reception, D("22.5"), pk=41, to_date=date(2026, 8, 31))
+    make_contract(sam, reception, D("30"), start=date(2026, 9, 1), pk=42)
+
+    alex = make_employment(make_employee("Alex", "Morgan", "alex@practice.example", pk=102), start=date(2019, 4, 1))
+    make_position(alex, title="GP Partner", team=gps)
+    make_contract(alex, partner, D("6"), pk=43)
+
+    jo = make_employment(make_employee("Jo", "Okafor", "jo@practice.example", pk=103), start=date(2015, 1, 5))
+    make_position(jo, title="Practice Manager", team=make_team("Management"))
+    leave_terms.set_contract_terms(None, make_contract(jo, management, D("37.5"), pk=44), "own", D("27"), [(10, D("30"))])
+
+    riley = make_employment(make_employee("Riley", "Chen", "riley@practice.example", pk=104), start=date(2026, 8, 5))
+    make_position(riley, title="GP Trainee", team=gps)
+    make_contract(riley, trainee, D("8"), pk=45)
+
+    make_employment(make_employee("Casey", "Lee", "casey@practice.example", pk=105), start=date(2026, 10, 1))
+
+
+def test_the_feed_is_the_sample_both_apps_test_against(api, db):
+    _sample_world()
+    got = sorted(api("/api/v1/people").json()["people"], key=lambda r: r["id"])
+    assert got == json.loads(SAMPLE.read_text())["people"]
+
+
+def test_a_change_to_the_usual_terms_reaches_every_contract_on_them(api, db):
+    _sample_world()
+    leave_terms.set_type_terms(None, make_contract_type("Reception"), D("24"))
+    rows = {r["id"]: r for r in api("/api/v1/people").json()["people"]}
+    assert [c["leave"] for c in rows[101]["contracts"]] == [{"base": "24.00", "steps": []}] * 2
+    assert rows[103]["contracts"][0]["leave"]["base"] == "27.00"          # own terms are untouched
+
+
+def test_a_leavers_contracts_are_those_of_their_last_employment(api, db):
+    emp = hours_employee(start=date(2024, 1, 1), end_date=date(2024, 12, 31))
+    row = api("/api/v1/people").json()["people"][0]
+    assert row["employment"]["end"] == "2024-12-31"
+    assert [c["id"] for c in row["contracts"]] == [emp.contracts.get().pk]
+
+
+def test_contracts_come_oldest_first_by_date_not_by_id(api, db):
+    emp = hours_employee(start=date(2024, 1, 1))
+    later = emp.contracts.get()
+    earlier = make_contract(emp, start=date(2024, 1, 1), amount=D("10"))
+    later.from_date = date(2024, 6, 1)
+    later.save()
+    assert earlier.pk > later.pk
+    row = api("/api/v1/people").json()["people"][0]
+    assert [c["id"] for c in row["contracts"]] == [earlier.pk, later.pk]

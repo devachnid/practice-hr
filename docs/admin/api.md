@@ -1,8 +1,11 @@
 # The read API for the rota
 
-Three read-only JSON endpoints under `/api/v1/` that the rota polls for
-people, working patterns and absences. Nothing here is written to, and
-nothing is pushed: the rota asks. Sign-in for the rota's users is separate
+Three read-only JSON endpoints under `/api/v1/` that the rota and AMG Shift
+Central poll for people, working patterns and absences. Besides names and
+when people are away, the people feed carries each person's contracts (dates
+and weekly amount) and the leave terms in force, for leavers too, and every
+token in `HR_API_TOKENS` can read all of it. Nothing here is written to, and
+nothing is pushed: the clients ask. Sign-in for the rota's users is separate
 (the [OpenID Connect provider](sign-in.md#the-openid-connect-provider)).
 
 ## The token
@@ -26,7 +29,7 @@ add the new token beside the old, change the rota, then remove the old one.
 A missing or wrong token is `401 {"error": "unauthorised"}` with
 `WWW-Authenticate: Bearer`; with a valid token, anything but GET is `405`; a bad query string is
 `400 {"error": "<what is wrong>"}`. Every response is
-`Cache-Control: no-store` (it is people's names and when they are away).
+`Cache-Control: no-store` (it is people's names, contracts and when they are away).
 Dates are ISO (`YYYY-MM-DD`).
 
 ## The rate limit
@@ -71,11 +74,25 @@ there is one, otherwise the latest.
         "contract_type": "Reception" | null,
         "unit": "hours" | "sessions" | null,
         "employment": {"start": "2026-04-01", "end": null},
-        "positions": [{"title": "Receptionist", "team": "Reception"}]
+        "positions": [{"title": "Receptionist", "team": "Reception"}],
+        "contracts": [{
+            "id": 41, "contract_type": "Reception", "unit": "hours",
+            "from": "2025-06-01", "to": null,
+            "weekly_amount": "22.50", "full_time_weekly": "37.50",
+            "leave": {"base": "22.00",
+                      "steps": [{"after_years": 1, "total": "23.00"}]} | null
+        }]
     }]}
 
 `contract_type` and `unit` are those of today's first contract (null if
 none); `positions` are today's.
+
+`contracts` is every contract of that employment, oldest first, with the
+[leave terms](people.md#leave-terms) in force for each. `leave` is `null`
+when the contract's allowances are not worked out. `base` and each `total`
+are days a year for an hours contract and weeks a year for a sessions one;
+amounts are strings with two decimal places. AMG Shift Central works leave
+allowances out from this field.
 
 ## `GET /api/v1/patterns?employee=<id>`
 
