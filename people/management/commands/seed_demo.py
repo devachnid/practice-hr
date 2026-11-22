@@ -51,7 +51,7 @@ TEAMS = {"GPs": 10, "Reception": 20, "Admin/Secretarial": 30, "Nursing": 40,
 
 # Contract types made only when missing (the first eight are seeded by the app).
 CONTRACT_TYPES = {
-    "Partner": (SESSIONS, "9"), "Salaried GP": (SESSIONS, "9"),
+    "Partner": (SESSIONS, "8"), "Salaried GP": (SESSIONS, "8"),
     "Practice nurse": (HOURS, "37.5"), "HCA": (HOURS, "37.5"), "Reception": (HOURS, "37.5"),
     "Administration": (HOURS, "37.5"), "Management": (HOURS, "37.5"),
     "Pharmacy": (HOURS, "37.5"), "Cleaning": (HOURS, "37.5"),

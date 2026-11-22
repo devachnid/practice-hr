@@ -1,4 +1,4 @@
-"""The read-only JSON API the rota polls. Every endpoint is a GET, needs
+"""The read-only JSON API the rota and AMG Shift Central poll. Every endpoint is a GET, needs
 `Authorization: Bearer <token>` with the token in HR_API_TOKENS (api/auth.py),
 and answers 401 `{"error": "unauthorised"}` (with `WWW-Authenticate: Bearer`)
 otherwise, and 400 `{"error": "<what is wrong>"}` for a bad query string.
@@ -12,7 +12,14 @@ GET /api/v1/people
         "contract_type": "Reception" | null,       # the first contract as of the date below; null if none
         "unit": "hours" | "sessions" | ... | null, # that contract type's unit
         "employment": {"start": "2026-04-01", "end": null},
-        "positions": [{"title": "Receptionist", "team": "Reception"}]   # as of the date below
+        "positions": [{"title": "Receptionist", "team": "Reception"}],  # as of the date below
+        "contracts": [{                # every contract of that employment, oldest first
+            "id": 41, "contract_type": "Reception", "unit": "hours",
+            "from": "2025-06-01", "to": null,
+            "weekly_amount": "22.50", "full_time_weekly": "37.50",
+            "leave": {"base": "22.00",             # null when allowances are not worked out
+                      "steps": [{"after_years": 1, "total": "23.00"}]}
+        }]
     }]}
     Everyone with an employment, past leavers included: today's employment
     if there is one, otherwise the latest. The contract and positions are
@@ -20,6 +27,12 @@ GET /api/v1/people
     a starter entered ahead of their first day already carries the team and
     unit that hold from that day (a consumer sets starters up before they
     start).
+
+    `leave` is the annual leave terms in force for the contract (its own,
+    or its type's usual terms): `base` and each `total` are days a year
+    for an hours contract and weeks a year for a sessions one, and a step
+    applies after that many complete years. AMG Shift Central works the
+    allowances out from them; nothing here does.
 
 GET /api/v1/patterns?employee=<id>
     {"patterns": [{                    # oldest first; each holds from its date
@@ -43,7 +56,8 @@ GET /api/v1/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
     Not returned: declined and cancelled absences, and the automatic
     bank-holiday rows (the rota has its own bank-holiday calendar). `label`
     is the type's calendar_label, except that a health-sensitive type is
-    always "Sick". No field carries the illness category.
+    always "Sick". No field carries the illness category. With
+    SHIFT_CENTRAL_URL set it answers an empty list (absence/elsewhere.py).
 """
 
 from datetime import date
@@ -55,7 +69,7 @@ from absence import elsewhere
 from absence.models import Absence
 from api.auth import token_required
 from people.models import Employee, WorkingPattern
-from people.services import contracts, employments, positions
+from people.services import contracts, employments, leave_terms, positions
 
 
 def _iso(d):
@@ -64,6 +78,18 @@ def _iso(d):
 
 def _bad_request(message):
     return JsonResponse({"error": message}, status=400)
+
+
+def _contract(c):
+    terms = leave_terms.resolved(c)
+    return {
+        "id": c.pk, "contract_type": c.contract_type.name, "unit": c.contract_type.unit,
+        "from": _iso(c.from_date), "to": _iso(c.to_date),
+        "weekly_amount": str(c.weekly_amount), "full_time_weekly": str(c.contract_type.full_time_weekly),
+        "leave": None if terms is None else {
+            "base": str(terms["base"]),
+            "steps": [{"after_years": years, "total": str(total)} for years, total in terms["steps"]]},
+    }
 
 
 @token_required
@@ -82,6 +108,8 @@ def people(request):
             "contract_type": c.contract_type.name if c else None, "unit": c.contract_type.unit if c else None,
             "employment": {"start": _iso(emp.start_date), "end": _iso(emp.end_date)},
             "positions": [{"title": p.title.name, "team": p.team.name} for p in positions.on(emp, on)],
+            "contracts": [_contract(c) for c in emp.contracts.select_related("contract_type")
+                          .prefetch_related("leave_steps", "contract_type__leave_steps")],
         })
     return JsonResponse({"people": out})
 

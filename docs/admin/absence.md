@@ -34,6 +34,10 @@ a second, different balance:
 - **The feed:** `/api/v1/absences` answers with an empty list
   ([API](api.md)).
 
+Contract leave terms are still entered here, in People, because Shift
+Central works allowances out from them: see
+[Leave terms](people.md#leave-terms).
+
 *Setting it:* add `SHIFT_CENTRAL_URL=https://shiftcentral.example.org` (the
 address staff open) and restart. *Wrong address:* the link goes nowhere
 useful; `check --deploy` warns (`hr.W003`) unless it is an `https://`
@@ -53,7 +57,10 @@ lines.
 year starts, what carries over and how bank holidays are charged are rows
 under **Absence › Policies**, not code. Nothing in the code tests a type's
 name, apart from four codes the services look up (`AL`, `BH`, `SICK`,
-`TOIL`) and the family-leave codes.
+`TOIL`) and the family-leave codes. These policies are Practice HR's own.
+They do not read a contract type's **Usual annual leave a year** or a
+contract's leave terms, which are for AMG Shift Central
+([People](people.md#leave-terms)).
 
 **The nightly job does the housekeeping.** Pots are opened, entitlements
 recalculated, bank holidays charged, the year closed and waiting requests
@@ -211,7 +218,7 @@ left as it was: to move a type in use, see
 ### Entitlement: full-time days or weeks (`days_per_year`, `weeks_per_year`)
 
 The policy stores the entitlement in **weeks**, multiplied by each
-person's contracted weekly amount (37.5 hours, 9 sessions…).
+person's contracted weekly amount (37.5 hours, 8 sessions…).
 
 - **Hours contract types:** the page asks for **Full-time days per year**
   (`days_per_year`) instead, the days someone full time gets before bank

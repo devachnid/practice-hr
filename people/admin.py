@@ -6,6 +6,7 @@ from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -17,9 +18,10 @@ from accounts.admin_messages import report_send
 from accounts.mail import send_password_link
 from accounts.services import logins
 from people import admin_forms
-from people.models import (AuditEntry, Contract, ContractType, EmergencyContact, Employee,
-                           Employment, PatternDay, PayRecord, Position, PositionTitle, Team, WorkingPattern)
-from people.services import access, audit, contracts, employees, employments, pay, positions
+from people.models import (AuditEntry, Contract, ContractLeaveStep, ContractType, ContractTypeLeaveStep,
+                           EmergencyContact, Employee, Employment, PatternDay, PayRecord, Position,
+                           PositionTitle, Team, WorkingPattern)
+from people.services import access, audit, contracts, employees, employments, leave_terms, pay, positions
 from registers.models import Registration
 
 
@@ -373,6 +375,14 @@ class ContractInline(TabularInline):
     formset = admin_forms.ContractInlineFormSet
     extra = 0
     can_delete = False
+    readonly_fields = ("leave_terms_in_force",)
+
+    @admin.display(description="Leave terms")
+    def leave_terms_in_force(self, obj):
+        if obj is None or obj.pk is None:
+            return "Usual for the contract type. Save, then use Change leave terms to give this contract its own."
+        return format_html('{}<br><a href="{}">Change leave terms</a>', leave_terms.describe(obj),
+                           reverse("admin:people_contract_change", args=[obj.pk]))
 
 
 class PatternDayInline(TabularInline):
@@ -533,12 +543,104 @@ class PositionTitleAdmin(ModelAdmin):
         return False
 
 
+STEPS_TITLE = "Service steps: after this many complete years, the total becomes"
+
+
+class ContractTypeLeaveStepInline(TabularInline):
+    model = ContractTypeLeaveStep
+    formset = admin_forms.LeaveStepFormSet
+    extra = 0
+    verbose_name = "step"
+    verbose_name_plural = STEPS_TITLE
+
+
 @admin.register(ContractType)
 class ContractTypeAdmin(ModelAdmin):
-    list_display = ("name", "unit", "full_time_weekly", "display_order")
+    form = admin_forms.ContractTypeForm
+    list_display = ("name", "unit", "full_time_weekly", "leave_base", "display_order")
+    inlines = [ContractTypeLeaveStepInline]
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        if obj is not None:         # the unit is chosen once the type is saved
+            kwargs["labels"] = {"leave_base": f"Usual annual leave a year ({leave_terms.unit_word(obj.unit)})"}
+        return super().get_form(request, obj, change=change, **kwargs)
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def save_model(self, request, obj, form, change):
+        # The usual leave terms are written by the service in save_formset,
+        # with the steps, so one audit entry covers both. Here the type is
+        # saved with the figure it already had.
+        request._leave_base = form.cleaned_data.get("leave_base")
+        obj.leave_base = ContractType.objects.get(pk=obj.pk).leave_base if change else None
+        super().save_model(request, obj, form, change)
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not ContractTypeLeaveStep:
+            return super().save_formset(request, form, formset, change)
+        formset.save(commit=False)      # sets what the admin's change message reads; writes nothing
+        try:
+            leave_terms.set_type_terms(request.user, form.instance, request._leave_base, admin_forms.steps_of(formset))
+        except ValidationError as e:    # LeaveStepFormSet has run the same check: a backstop
+            messages.error(request, "; ".join(e.messages))
+
+
+class ContractLeaveStepInline(TabularInline):
+    model = ContractLeaveStep
+    formset = admin_forms.LeaveStepFormSet
+    extra = 0
+    verbose_name = "step"
+    verbose_name_plural = STEPS_TITLE + " (Own terms only)"
+
+
+@admin.register(Contract)
+class ContractAdmin(ModelAdmin):
+    """A contract's own page, reached from the Contracts table on its
+    employment. Only the leave terms change here: contracts are added and
+    ended on the employment page, and nothing else about one is edited."""
+    form = admin_forms.ContractTermsForm
+    CONTRACT = ("employment", "contract_type", "basis", "from_date", "to_date", "weekly_amount", "notes")
+    fields = (*CONTRACT, "leave_terms_in_force", "leave_terms", "leave_base")
+    readonly_fields = (*CONTRACT, "leave_terms_in_force")
+    inlines = [ContractLeaveStepInline]
+    list_display = ("employment", "contract_type", "from_date", "to_date", "weekly_amount", "leave_terms")
+    list_select_related = ("employment__employee", "contract_type")
+
+    @admin.display(description="Leave terms in force")
+    def leave_terms_in_force(self, obj):
+        return leave_terms.describe(obj)
+
+    def has_module_permission(self, request):
+        return False                    # not on the index or the menu: it is reached from an employment
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        request._leave_terms = (form.cleaned_data["leave_terms"], form.cleaned_data.get("leave_base"))
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        if obj is not None:
+            kwargs["labels"] = {"leave_base": f"Annual leave a year ({leave_terms.unit_word(obj.contract_type.unit)})"}
+        return super().get_form(request, obj, change=change, **kwargs)
+
+    def save_formset(self, request, form, formset, change):
+        if formset.model is not ContractLeaveStep:
+            return super().save_formset(request, form, formset, change)
+        formset.save(commit=False)
+        mode, base = request._leave_terms
+        try:
+            leave_terms.set_contract_terms(request.user, Contract.objects.get(pk=form.instance.pk), mode, base,
+                                           admin_forms.steps_of(formset))
+        except ValidationError as e:
+            messages.error(request, "; ".join(e.messages))
+
+    def response_post_save_change(self, request, obj):
+        return HttpResponseRedirect(reverse("admin:people_employment_change", args=[obj.employment_id]))
 
 
 @admin.register(AuditEntry)

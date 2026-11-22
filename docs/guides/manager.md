@@ -2,8 +2,8 @@
 
 This guide is for anyone who has people reporting to them. You count as a
 line manager in Practice HR when HR has named you as someone's line manager.
-There is nothing else to switch on: from that day you see **Approvals** and
-**My team** in the menu.
+There is nothing else to switch on: from that day you see **My team** in the menu,
+and **Approvals** where leave is held in Practice HR.
 
 **If your practice keeps leave in AMG Shift Central**, the menu has **Leave
 and rota** in place of Leave, Calendar, Balances and Approvals, and it opens
@@ -404,6 +404,10 @@ Ask an HR admin to:
 - mark a starter or leaver job as not needed;
 - tell you which of someone's checks is due or has lapsed;
 - send a new login link to someone who cannot sign in.
+
+The leave items above, and the keeping-in-touch days below, apply only where
+leave is held in Practice HR. Where it is held in AMG Shift Central, they are
+done there.
 
 Keeping-in-touch days during maternity, paternity, shared parental or
 adoption leave are added by the employee on their own **Leave** page.

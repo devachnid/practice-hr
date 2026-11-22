@@ -8,8 +8,12 @@ items can go straight into a tidy-up branch.
 
 1. **Go live.** Deploy both systems, run the login migration (rota
    `export_logins` → HR `import_logins`), switch the rota to HR sign-in,
-   enter people and contracts, let the first nightly run, then opening
-   balances as adjustments. The HR guide's first-month checklist is the
+   set each contract type's usual leave terms (GP trainee blank), enter
+   people and contracts with their leave terms, set `SHIFT_CENTRAL_URL` and
+   give Shift Central its own `HR_API_TOKENS` token, and register Shift
+   Central as a relying party. Real contracts and none of the demo data must
+   be in before Shift Central's allowance work goes to production (allowance
+   spec section 11, in `devachnid/shift-central`). The HR guide's first-month checklist is the
    sequence. For spec 3 (merged as #16): de-duplicate position-title
    variants before migrating, read the NI-number migration's report,
    make the media root writable by the app user, and record everyone's
@@ -26,10 +30,10 @@ items can go straight into a tidy-up branch.
    the everyone tick (the HR guide's going-live step 8); done the other
    way round, the next morning's email tells everyone their training is
    missing.
-2. **Rota integration (spec 2).** The rota reads people, working patterns
-   and approved absences from the HR read API instead of Breathe, and sends
-   sessions worked back as TOIL earned lines. The HR side of the API exists;
-   the rota side and the TOIL feed do not.
+2. **Rota integration (spec 2).** The rota reads people and working patterns
+   from the HR read API instead of Breathe. Leave, TOIL included, is in AMG
+   Shift Central, so absences and sessions worked are not sent here. The HR
+   side of the API exists; the rota side does not.
 3. **Later.** Sickness case management, appraisals, restricted case files.
    The GMC sells a full-register download service; if the practice ever
    wants a sanctioned machine interface in place of reading the public
@@ -66,11 +70,13 @@ items can go straight into a tidy-up branch.
   sends and the row's cell positions are what to update.
 - Alternating-week working patterns (the field exists; the UI and costing
   do not).
-- Delegated approval while a manager is away.
+- Delegated approval while a manager is away (only if leave returns to
+  Practice HR).
 - A screen for entering opening balances as carry-in rather than
-  adjustments, so the carry-over expiry rule applies to them.
+  adjustments, so the carry-over expiry rule applies to them (only if leave
+  returns to Practice HR).
 - A page where HR sees another person's absences with a Cancel control
-  (today only the admin page has it).
+  (today only the admin page has it), only if leave returns to Practice HR.
 - Reminder emails to the manager as well as HR.
 - An employee user guide to match the two written (the manager guide now
   has a "your own" section covering policies, checks, documents and the
@@ -110,8 +116,10 @@ items can go straight into a tidy-up branch.
   while HR sign-in is on (the links they send open the invalid-link page).
 - An HR-side note that a rota whose hashes used an unconfigured algorithm
   would be refused wholesale by `import_logins`.
-- A Breathe CSV import, only if typing opening balances is too slow.
-- Anniversary-year policy moves that straddle a window.
+- A Breathe CSV import, only if typing opening balances is too slow (and only
+  if leave returns to Practice HR).
+- Anniversary-year policy moves that straddle a window (only if leave returns
+  to Practice HR).
 - An **Admin status** tick on the employee add page, so an HR admin's
   login need not be edited under Login accounts after it is made.
 - Reopen or re-invite from the employee page: a **Send invitation again**

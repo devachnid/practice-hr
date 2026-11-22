@@ -7,11 +7,15 @@ professional registrations (looked up on the GMC, NMC and GPhC registers
 and the Welsh performers list, with an email when one is not clear),
 training compliance (courses by role, staff-recorded certificates verified
 by HR or the manager, group sessions, and the matrix an inspector asks for),
-and the sign-in for the practice's apps. Replaces BreatheHR.
+and the sign-in for the practice's apps. Replaces BreatheHR. Leave can be
+held in AMG Shift Central instead, which is the practice's plan; the leave
+parts of this README then do not apply.
 
 The design specs live in `docs/superpowers/specs/`, one per piece of work in
-the order it was built. The first is the foundation and absence system. The
-rota (`devachnid/rota`) reads people, patterns and absences from here.
+the order it was built. The first is the foundation and absence system. Two
+apps read from here. The rota (`devachnid/rota`) reads people and patterns,
+and absences while leave is held here. AMG Shift Central reads people with
+their contracts and leave terms, and works leave allowances out from them.
 
 ## Develop
 
@@ -51,7 +55,10 @@ Plain-language guides: [for HR administrators](docs/guides/hr-administrator.md) 
 2. Sign in and open **Admin**. Eight [contract types](docs/admin/people.md#contract-type)
    are seeded already (Partner, Salaried GP, GP trainee, Practice nurse,
    HCA, Reception, Administration, Management); add or edit them to match
-   the practice, then create [teams](docs/admin/people.md#team).
+   the practice. Set each type's **Usual annual leave a year** and service
+   steps ([Contract type](docs/admin/people.md#usual-annual-leave-a-year--service-steps))
+   before you add staff. Leave them blank for GP trainee. Then create
+   [teams](docs/admin/people.md#team).
 3. Create everyone's records under **People › Employees › Add**, and each
    employee's first [Employment](docs/admin/people.md#employment) with its
    [Position](docs/admin/people.md#position),
@@ -63,7 +70,10 @@ Plain-language guides: [for HR administrators](docs/guides/hr-administrator.md) 
    password an admin ever types. **Login accounts › Add** remains for an
    admin with no employee record, and the **Admin status** tick lives
    there. See [Login accounts](docs/admin/sign-in.md#login-accounts).
-4. Set up [absence and leave](docs/admin/absence.md): check each contract
+4. Decide where leave is held. In AMG Shift Central (the practice's plan):
+   set `SHIFT_CENTRAL_URL` (below) and skip the rest of this step; still set
+   each person's line manager. In Practice HR: set up
+   [absence and leave](docs/admin/absence.md): check each contract
    type's annual-leave [policy](docs/admin/absence.md#policies) (the seeded
    ones carry nothing over until you set a
    [carry cap](docs/admin/absence.md#carry-over-max-weeks-carry_over_max_weeks)),
@@ -129,8 +139,8 @@ files the app has to read unreadable:
 | `CSRF_TRUSTED_ORIGINS` | Comma-separated `https://` origins allowed to POST. |
 | `SITE_URL` | The address the site is served at, `https://hr.example.org`. The links in emails (a request waiting for a decision) are built from it; unset they are relative and unusable, and `check --deploy` warns (`hr.W002`). |
 | `SHIFT_CENTRAL_URL` | AMG Shift Central's address, `https://shiftcentral.example.org`, when **leave is held there** and not here. Set, it [switches this app's own leave off](docs/admin/absence.md#leave-held-in-amg-shift-central): the leave pages say where leave is and link there, the nightly leaves the pots alone, the payroll file keeps only Starters, Leavers, Contract changes and Pay changes, and `/api/v1/absences` is empty. Nothing is deleted, and removing the line brings it all back. Unset (the default), leave is here. Anything but an `https://` address draws a `check --deploy` warning (`hr.W003`). |
-| `HR_API_TOKENS` | Comma-separated bearer tokens the rota's read API accepts (`openssl rand -hex 32` makes one). Unset, the API refuses everything and `check --deploy` warns (`hr.W001`). See [the read API](docs/admin/api.md). |
-| `API_RATE_LIMIT_PER_MINUTE` | The most requests one client address may make to the rota's read API in a minute, counted before the token is checked so a guessing client is slowed too. Default `600`; `0` turns the limit off. A full poll by the rota costs 2 plus the number of people in `/people` requests, so keep the limit above that. See [the read API](docs/admin/api.md#the-rate-limit). |
+| `HR_API_TOKENS` | Comma-separated bearer tokens the read API accepts: one for the rota and one for AMG Shift Central. Every token reads everything the API sends, contracts and leave terms included (`openssl rand -hex 32` makes one). Unset, the API refuses everything and `check --deploy` warns (`hr.W001`). See [the read API](docs/admin/api.md). |
+| `API_RATE_LIMIT_PER_MINUTE` | The most requests one client address may make to the read API in a minute, counted before the token is checked so a guessing client is slowed too. Default `600`; `0` turns the limit off. The rota's full poll costs 2 plus the number of people in `/people` requests, so keep the limit above that. Shift Central reads `/people` alone. See [the read API](docs/admin/api.md#the-rate-limit). |
 | `CHASE_AFTER_WORKING_DAYS` | A leave request undecided after this many working days (weekends, England and Wales bank holidays and closed days excluded) is shown on the admin dashboard and the HR admins are emailed once. Default `3`. |
 | `RETENTION_DAYS_PERSONAL`, `RETENTION_DAYS_PAY`, `RETENTION_DAYS_HEALTH`, `RETENTION_DAYS_AUDIT`, `RETENTION_DAYS_CHECKS`, `RETENTION_DAYS_FILES`, `RETENTION_DAYS_SIGNATURES` | Days after an employment ends that the [retention report](docs/admin/people.md#retention-report) starts listing that kind of record. Defaults 2190 for each (six years), except 2555 for the audit log (seven). It only lists; nothing is deleted. |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | The outgoing mail relay. `EMAIL_HOST` blank means unset: invitations and password links are shown on screen instead of sent. |
@@ -184,6 +194,7 @@ Once `OIDC_RSA_PRIVATE_KEY_FILE` is set and the service restarted, register each
 relying party:
 
     deploy/manage register_oidc_client --name rota --redirect-uri https://rota.example.org/oidc/callback/
+    deploy/manage register_oidc_client --name shift-central --redirect-uri https://shifts.example.org/oidc/callback/
 
 See [Registering a relying party](docs/admin/sign-in.md#registering-a-relying-party)
 for `--rotate` and what the command prints.
@@ -201,7 +212,7 @@ reports; until it exists the backup skips it rather than failing). Expired sessi
 cleared nightly too (`hr-clearsessions.timer`), and `hr-nightly.timer`
 runs `manage.py hr_nightly`, which disables the login of anyone whose
 employment has ended, closes each leave year that has ended, opens this
-year's and next year's leave pots, charges bank holidays, chases waiting leave requests and sends the
+year's and next year's leave pots, charges bank holidays, chases waiting leave requests (none of the leave steps run while leave is held in AMG Shift Central) and sends the
 morning compliance reminders
 — see [Nightly housekeeping](docs/admin/sign-in.md#nightly-housekeeping) and
 [Year end](docs/admin/year-end.md). `deploy/manage absence_year_end` runs

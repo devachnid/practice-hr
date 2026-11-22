@@ -12,12 +12,13 @@ row representing one spell of work. A returner gets a *new* Employment row;
 the old one, and everything under it, is left exactly as it was.
 
 **Positions, contracts and pay records only end.** None of them can be
-edited once saved except to set their end date — see [Changing something](#changing-something)
+edited once saved except to set their end date, and a contract's [leave terms](#leave-terms) — see [Changing something](#changing-something)
 below. A change is a new row, not an edit to the old one, so the record
 always shows what was true on any past day, not just what is true now.
 
 **Nothing is deleted.** There is no delete button anywhere in this section
-of the admin. An Employee, Employment, Position, Position title, Contract,
+of the admin, except for the service steps of a contract type or contract,
+which can be removed. An Employee, Employment, Position, Position title, Contract,
 Team, Contract type or Working pattern stays in the database forever; ending a spell or
 role is done with its end date, never by removing the row.
 
@@ -194,12 +195,14 @@ longer than the log allows.
 
 ### Continuous service date
 
-**Defaults to the start date; only set it earlier.** This is what service
-length is reckoned from — never the start date — so it is the field to set
-when reckonable service carries over from an earlier NHS post or an earlier
+**Defaults to the start date; only set it earlier.** For Practice HR's own
+leave policies this is what service length is reckoned from, not the start
+date, so it is the field to set when reckonable service carries over from an earlier NHS post or an earlier
 spell here. Leaving it blank on a returner or a transfer understates their
 service; a report that tiers on service length (annual leave entitlement,
-long-service pay points) will get the tier wrong.
+long-service pay points) will get the tier wrong. Only Practice HR's own
+leave policies read it: Shift Central's [service steps](#usual-annual-leave-a-year--service-steps)
+count from the Start date.
 
 ## Position
 
@@ -275,7 +278,7 @@ a problem.
 
 `/admin/people/contracttype/` — configurable: adding a kind of staff is a
 row here, not a code change. Eight are seeded: Partner, Salaried GP and GP
-trainee (sessions, full time 9 a week); Practice nurse, HCA, Reception,
+trainee (sessions, full time 8 a week); Practice nurse, HCA, Reception,
 Administration and Management (hours, full time 37.5 a week).
 
 ### Name
@@ -289,13 +292,42 @@ counted in, and it is what the [one-unit-at-a-time rule](#unit) on Contract
 enforces: an employment cannot hold a sessions contract and an hours
 contract at the same time.
 
+**The unit cannot change while the type has leave terms**, or while any of
+its contracts has its own: 24 days would become 24 weeks. Clear the terms
+first.
+
 ### Full time weekly
 
-What a full working week is, in this type's unit — 9 sessions, 37.5 hours.
+What a full working week is, in this type's unit — 8 sessions, 37.5 hours.
 This is the only input to FTE: `contracts.fte()` divides an employment's
 summed contracted amount by this figure. Set it wrong and every FTE figure
 for that type of staff is wrong, silently. It must be more than zero; the
 admin refuses 0.
+
+### Usual annual leave a year / Service steps
+
+The annual leave a contract of this type usually carries: **days a year for
+an hours type, weeks a year for a sessions type**. The steps table beneath
+it says how that grows with service: "after 1 complete year the total
+becomes 23". For these steps Shift Central counts complete years from the
+employment's Start date; the Continuous service date is not sent to it and
+does not change a step.
+
+Practice HR does nothing with these figures itself. **AMG Shift Central
+reads them and works each person's leave allowance out**, and it is the
+record of the result. Every contract of this type follows them unless the
+contract has [its own terms](#leave-terms) or is set to Not worked out. A change here reaches those
+contracts at Shift Central's next read, for this leave year and the next;
+check the figures it lists for confirmation there.
+
+Leave both blank for a type whose allowances are typed into Shift Central
+by hand: GP trainee is one, because NWSSP tells the practice each trainee's
+allowance.
+
+What is refused: steps with no starting figure; a figure of 0 or over 99; a
+total that is not more than the one before it; two steps for the same
+number of years. Bank holidays are not entered here: Shift Central gives
+one day for each (2 sessions for a GP, pro rata).
 
 ### Display order
 
@@ -333,6 +365,23 @@ return, review June". Nothing depends on it: it appears on the
 [payroll changes report](payroll.md) and nothing else in the app reads it,
 so there is nothing to get wrong beyond being unhelpful to whoever reads it
 next.
+
+### Leave terms
+
+Each row of the Contracts table shows the leave terms in force, with a
+**Change leave terms** link to the contract's own page. There are three choices:
+
+- **Usual for the contract type** (what a new contract gets): the terms on
+  its [contract type](#usual-annual-leave-a-year--service-steps).
+- **Own terms**: this contract's own figure and steps, in the same units.
+  Use it when one person's contract differs from the rest of their type.
+- **Not worked out**: Shift Central leaves this person's allowances for a
+  manager to type.
+
+The terms are the only thing besides the end date about an existing contract that can be edited,
+and editing them corrects them for the whole contract. **Terms that change
+from a date are a new contract from that date**: end the old one the day
+before, as for any other contractual change.
 
 ### The one-unit-at-a-time rule
 
@@ -410,7 +459,9 @@ title, a team, a line manager, a contract type or an amount: end the old
 row with the day before the change, and add a new row starting the day of
 the change. This is what keeps the history honest — a title that changed on
 1 April shows as two rows, not one row that silently reads differently for
-dates before and after the edit.
+dates before and after the edit. The one exception is a contract's leave
+terms, changed with **Change leave terms** on its own page (see
+[Leave terms](#leave-terms)).
 
 **A refused row stops the whole save.** When a row breaks a rule — an
 overlapping spell, a second primary position, a contract in the other
@@ -418,7 +469,7 @@ unit, an edit to a row that only ends — the page comes back with the
 message beside that row and everything as it was typed, and nothing on the
 page is saved. Fix the row, or remove it, and save again.
 
-Employment itself is the one row that can be amended directly (its dates
+Employment itself is the one row besides a contract's leave terms that can be amended directly (its dates
 and continuous service date) rather than only ended, because it is not
 dated data hanging off itself the way Positions and Contracts are.
 
@@ -514,6 +565,10 @@ annual leave each for Sophie Brennan and Callum Ross in the next two months and
 one approved sick day for Liam Doyle last month. Existing teams, contract
 types and position titles are used as they are and never renamed or changed;
 a team or type that is missing is created.
+
+**No leave terms.** The demo contract types carry no leave terms. On a staging
+box, set **Usual annual leave a year** on a few types by hand to see Shift
+Central work allowances out.
 
 **It sends nothing.** The logins are made with no usable password and the
 invitation, which is the separate step in the People admin

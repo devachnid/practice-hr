@@ -4,6 +4,11 @@ What happens when a leave year ends, how it is run, and how HR puts a line
 right. The rules it applies come from each [policy](absence.md#policies): the
 carry cap, the carry-in expiry and the TOIL expiry.
 
+**With leave held in AMG Shift Central** (`SHIFT_CENTRAL_URL` set; see
+[Absence](absence.md#leave-held-in-amg-shift-central)) the nightly closes no
+leave year and none of this page applies. The year end is done in Shift
+Central.
+
 ## What the nightly does
 
 `hr_nightly` (01:30 daily; see [Nightly housekeeping](sign-in.md#nightly-housekeeping))

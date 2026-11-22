@@ -283,9 +283,9 @@ TRUSTED_PROXY_IPS = frozenset(
     ).split(",") if h.strip()
 )
 
-# Bearer tokens for the read API the rota polls (api/). From the environment
-# only, comma-separated so one can be rotated in beside another. Empty means
-# the API refuses every request; hr/checks.py warns about that.
+# Bearer tokens for the read API (the rota and AMG Shift Central poll it; api/).
+# From the environment only, comma-separated so one can be rotated in beside
+# another. Empty means the API refuses every request; hr/checks.py warns about that.
 HR_API_TOKENS = frozenset(t.strip() for t in os.environ.get("HR_API_TOKENS", "").split(",") if t.strip())
 
 # The most requests one client address may make to the read API in a minute,
@@ -425,7 +425,7 @@ LOGGING = {
     },
 }
 
-# OpenID Connect provider for the practice's other apps (the rota). With no
+# OpenID Connect provider for the practice's other apps (the rota and AMG Shift Central). With no
 # key the provider is off and /o/ answers 404 (config/urls.py).
 #
 # In production the key is a PEM file of its own, named by

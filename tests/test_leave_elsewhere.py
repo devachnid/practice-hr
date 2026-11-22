@@ -87,7 +87,17 @@ def test_nothing_can_be_requested_or_decided(elsewhere, employee_client, employe
 
 def test_the_payroll_page_stays(elsewhere, admin_client):
     r = admin_client.get("/absence/payroll/")
-    assert r.status_code == 200 and "Leave is now in AMG Shift Central" not in r.content.decode()
+    body = r.content.decode()
+    assert r.status_code == 200 and "Leave is now in AMG Shift Central" not in body
+    assert "Starters, leavers, contract changes and pay changes for the month." in body
+    assert "AMG Shift Central's own payroll report" in body
+    assert "sickness dates, unpaid leave" not in body
+
+
+def test_the_payroll_page_without_the_setting_lists_every_sheet(admin_client):
+    body = admin_client.get("/absence/payroll/").content.decode()
+    assert "sickness dates, unpaid leave, family leave and TOIL for the month" in body
+    assert "own payroll report" not in body
 
 
 # --- the admin -----------------------------------------------------------------------------------

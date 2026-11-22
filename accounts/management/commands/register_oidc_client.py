@@ -23,7 +23,7 @@ def _default_post_logout(redirect_uri):
 
 
 class Command(BaseCommand):
-    help = ("Register a relying party (the rota). Prints the client id and the "
+    help = ("Register a relying party (the rota or AMG Shift Central). Prints the client id and the "
             "secret once; the secret is stored hashed and cannot be shown again.")
 
     def add_arguments(self, parser):

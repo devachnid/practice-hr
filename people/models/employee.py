@@ -12,7 +12,7 @@ class Employee(models.Model):
     preferred_name = models.CharField(max_length=60, blank=True, default="")
     work_email = models.EmailField(
         help_text="The practice email address, unique whatever its case. It is the email "
-                  "the rota's read API sends for this person; at sign-in the rota receives the "
+                  "the read API sends for this person; at sign-in the rota receives the "
                   "login account's email instead, so keep the two the same. Sign-in does not "
                   "read it: the User field below is what links this record to a login account.")
     personal_email = models.EmailField(blank=True, default="")

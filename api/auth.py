@@ -55,8 +55,8 @@ def _over_limit(request):
 
 def token_required(view):
     """Only a request with `Authorization: Bearer <token>`, the token one of
-    HR_API_TOKENS, reaches the view. No session, no CSRF: the rota is a
-    server, not a signed-in person, so the view is exempt from
+    HR_API_TOKENS, reaches the view. No session, no CSRF: each client (the
+    rota, Shift Central) is a server, not a signed-in person, so the view is exempt from
     CsrfViewMiddleware (nothing here reads the session or a cookie) and a
     wrong-method request reaches the JSON 405 rather than Django's CSRF page.
     The scheme is case-insensitive (RFC 7235). With no tokens configured nothing gets
