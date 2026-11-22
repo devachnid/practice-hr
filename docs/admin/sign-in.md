@@ -156,7 +156,7 @@ error so the timer's status shows it.
 ## The OpenID Connect provider
 
 This system is an OpenID Connect **provider** for the practice's other
-apps — currently the rota. Once a relying party (an app like the rota) is
+apps — currently the rota and AMG Shift Central. Once a relying party (an app like the rota) is
 registered, that app's own login page can offer "sign in with the practice
 account": a person authenticates here, and the relying party trusts the
 `email`, `employee_id` and `admin` claims this system returns

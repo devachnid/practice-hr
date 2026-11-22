@@ -1,4 +1,4 @@
-# The read API for the rota
+# The read API
 
 Three read-only JSON endpoints under `/api/v1/` that the rota and AMG Shift
 Central poll for people, working patterns and absences. Besides names and
@@ -19,12 +19,12 @@ retired alone. Generate a token with
 
 then
 
-    HR_API_TOKENS=<token for the rota>
+    HR_API_TOKENS=<token for the rota>,<token for Shift Central>
 
 (`<first>,<second>` for more than one), and restart the service. Tokens are
 compared in constant time and never logged. With none set, **every request
 is refused with 401**, and `check --deploy` warns (`hr.W001`). To rotate,
-add the new token beside the old, change the rota, then remove the old one.
+add the new token beside the old, change that client, then remove the old one.
 
 A missing or wrong token is `401 {"error": "unauthorised"}` with
 `WWW-Authenticate: Bearer`; with a valid token, anything but GET is `405`; a bad query string is
@@ -46,9 +46,10 @@ logs one warning for that address per minute. The count is kept in each
 gunicorn worker's memory, so the effective limit is the setting times the
 number of workers; it exists to slow a guessing client, not to meter a good one.
 
-A full poll of the API costs **2 + the number of people in `/people`** requests: one to
+The rota's full poll of the API costs **2 + the number of people in `/people`** requests: one to
 `/people`, one to `/patterns` for each person listed (leavers included), and one to
 `/absences`. The rota does this every 15 minutes, so keep the limit above that number.
+Shift Central reads `/people` alone.
 A client should honour `Retry-After` on a 429 and wait that long before trying again.
 
 ## Matching people: `id`, not `email`

@@ -12,12 +12,13 @@ row representing one spell of work. A returner gets a *new* Employment row;
 the old one, and everything under it, is left exactly as it was.
 
 **Positions, contracts and pay records only end.** None of them can be
-edited once saved except to set their end date — see [Changing something](#changing-something)
+edited once saved except to set their end date, and a contract's [leave terms](#leave-terms) — see [Changing something](#changing-something)
 below. A change is a new row, not an edit to the old one, so the record
 always shows what was true on any past day, not just what is true now.
 
 **Nothing is deleted.** There is no delete button anywhere in this section
-of the admin. An Employee, Employment, Position, Position title, Contract,
+of the admin, except for the service steps of a contract type or contract,
+which can be removed. An Employee, Employment, Position, Position title, Contract,
 Team, Contract type or Working pattern stays in the database forever; ending a spell or
 role is done with its end date, never by removing the row.
 
@@ -291,6 +292,10 @@ counted in, and it is what the [one-unit-at-a-time rule](#unit) on Contract
 enforces: an employment cannot hold a sessions contract and an hours
 contract at the same time.
 
+**The unit cannot change while the type has leave terms**, or while any of
+its contracts has its own: 24 days would become 24 weeks. Clear the terms
+first.
+
 ### Full time weekly
 
 What a full working week is, in this type's unit — 8 sessions, 37.5 hours.
@@ -454,7 +459,9 @@ title, a team, a line manager, a contract type or an amount: end the old
 row with the day before the change, and add a new row starting the day of
 the change. This is what keeps the history honest — a title that changed on
 1 April shows as two rows, not one row that silently reads differently for
-dates before and after the edit.
+dates before and after the edit. The one exception is a contract's leave
+terms, changed with **Change leave terms** on its own page (see
+[Leave terms](#leave-terms)).
 
 **A refused row stops the whole save.** When a row breaks a rule — an
 overlapping spell, a second primary position, a contract in the other
@@ -462,7 +469,7 @@ unit, an edit to a row that only ends — the page comes back with the
 message beside that row and everything as it was typed, and nothing on the
 page is saved. Fix the row, or remove it, and save again.
 
-Employment itself is the one row that can be amended directly (its dates
+Employment itself is the one row besides a contract's leave terms that can be amended directly (its dates
 and continuous service date) rather than only ended, because it is not
 dated data hanging off itself the way Positions and Contracts are.
 
@@ -558,6 +565,10 @@ annual leave each for Sophie Brennan and Callum Ross in the next two months and
 one approved sick day for Liam Doyle last month. Existing teams, contract
 types and position titles are used as they are and never renamed or changed;
 a team or type that is missing is created.
+
+**No leave terms.** The demo contract types carry no leave terms. On a staging
+box, set **Usual annual leave a year** on a few types by hand to see Shift
+Central work allowances out.
 
 **It sends nothing.** The logins are made with no usable password and the
 invitation, which is the separate step in the People admin

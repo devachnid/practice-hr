@@ -61,6 +61,9 @@ for you are:
 - **Admin** in the menu opens the admin, where everything in the rest of this
   guide is done.
 
+If leave is held in AMG Shift Central, Approvals, Balances and Calendar are
+not here: they are in Shift Central.
+
 ## Going live: your first month
 
 Work through this in order. The rest of this guide explains each step.
@@ -71,7 +74,7 @@ Work through this in order. The rest of this guide explains each step.
    If leave is held in AMG Shift Central, also set each type's **Usual
    annual leave a year** and its service steps here (see
    [Leave terms](#leave-terms)); leave them blank for GP trainee.
-   Under **Absence**, open **Policies**. For
+   If leave is held in Practice HR, under **Absence**, open **Policies**. For
    each contract type, compare the policy with your contracts. Check the days
    a year, when the leave year starts, how bank holidays are handled, and the
    steps for length of service (see [Leave policies in plain words](#leave-policies-in-plain-words)).
@@ -108,6 +111,9 @@ Work through this in order. The rest of this guide explains each step.
    course](#how-to-say-who-needs-a-course)). Done the other way round, the
    next morning's reminder email tells every member of staff their
    training is missing.
+   Steps 9 to 11 are only for leave held in Practice HR. If leave is held in
+   AMG Shift Central, skip them: opening balances and allowances are checked
+   there.
 9. **Wait for the overnight run.** The next morning, everyone's balances
    for this leave year and next have opened, and bank holidays have been
    charged.
@@ -121,7 +127,8 @@ Work through this in order. The rest of this guide explains each step.
 12. **Tell staff how to sign in.** Under **Access**, **Login accounts**, tick
     everyone and choose **Send invitation or reset link**. Tell them to look
     for an email called "Set up your Practice HR login", and that their
-    requests now go to their line manager through Practice HR.
+    leave requests go through AMG Shift Central (or Practice HR, if leave is
+    held here).
 
 ## Finding your way round the admin
 
@@ -130,7 +137,8 @@ Choose **Admin** in the menu. The menu down the left has four groups:
 - **People**: Employees, Employments, Position titles, Teams, Contract
   types, Audit log.
 - **Absence**: Absence types, Policies, Bank holidays, Closed days, Pots,
-  Absences, Payroll, Retention.
+  Absences, Payroll, Retention. If leave is held in AMG Shift Central, this
+  group is called **Payroll and retention** and holds only those two.
 - **Compliance**: Check types, Checks, Files, Policies, Signatures, Courses,
   Training records, Training sessions, Training matrix, Checklist
   templates, Checklists, Starters and leavers, Reminder settings.
@@ -145,10 +153,13 @@ A pot is one person's balance of one kind of leave for one leave year.
 Three pages are not in that menu: **Working patterns**, **TOIL claims** and
 **Email failures**. Find them on the admin home page, the page that opens
 when you choose **Admin**. It lists pages by group: **Working patterns** is
-under **People**, and the other two are under **Absence**.
+under **People**, and the other two are under **Absence** (where leave is
+held in Practice HR; **Email failures** stays when it is in Shift Central, and
+**TOIL claims** goes).
 
-The admin home page also shows **Leave requests and TOIL claims waiting**
-(anything undecided for more than three working days), a **Compliance** card
+The admin home page also shows, where leave is held in Practice HR, **Leave
+requests and TOIL claims waiting** (anything undecided for more than three
+working days), a **Compliance** card
 and **Emails that did not go**. The **Compliance** card has seven numbers:
 **Lapsed checks**, **Missing checks**, **Overdue signatures**, **Overdue
 checklist items**, **Registration problems**, **Training lapsed or missing**
@@ -260,6 +271,10 @@ So a new starter's balances appear the morning after you set them up. The
 same run closes leave years that have ended, expires old TOIL, switches off
 leavers' logins, and emails you about requests that have waited too long.
 
+That is only where leave is held in Practice HR. With leave in AMG Shift
+Central, the overnight run only switches off leavers' logins, looks up
+professional registrations and sends the compliance reminders.
+
 ## Setting someone up before day one
 
 Set a new starter up as soon as they accept the job. Practice HR then gives
@@ -351,8 +366,8 @@ login yet", choose their login in **User** on their employee record.
 
 ## Changing someone's hours, pattern or manager
 
-You never edit a position or contract once saved. You end the old one and
-add a new one. If you try to edit it, you see "Existing positions and
+You never edit a position or contract once saved, apart from a contract's
+leave terms. For anything else you end the old one and add a new one. If you try to edit it, you see "Existing positions and
 contracts only end; add a new row for a change."
 
 ### How to change someone's hours
@@ -367,7 +382,9 @@ The new contract takes the usual leave terms for its type. If the old
 contract had its own terms, set them again on the new one (**Change leave
 terms** beside it).
 
-Their entitlement is recalculated as soon as you save the new contract.
+Where leave is held in Practice HR, their entitlement is recalculated as soon
+as you save the new contract. Where it is held in AMG Shift Central, Shift
+Central works the new allowance out from the new contract.
 
 Bank holidays from the change on (but not ones already past) are re-costed overnight. Other leave
 already approved keeps the cost it had when it was approved. If that matters,
@@ -418,6 +435,9 @@ What happens:
 - A TOIL claim still waiting can still be decided. After their last day it
   appears only in the HR admins' **Approvals**. Decide it before you run
   their final payroll.
+
+Where leave is held in AMG Shift Central, only the audit and login points
+apply here. Their leave and final balance are dealt with in Shift Central.
 
 If someone comes back, add a new employment for them, and tick **Active** on
 their login account again.
@@ -775,7 +795,8 @@ holidays.
 A **tier** is a step up in leave for length of service, such as "23 days
 after 1 year". It is counted from the **Continuous service date** on their
 employment. The highest tier reached replaces the lower ones; they do not add
-up.
+up. (This is Practice HR's own leave. AMG Shift Central's service steps count
+from the **Start date**: see [Leave terms](#leave-terms).)
 
 **Monthly twelfths** means a person earns a twelfth of the year's leave for
 each month they are employed on any day of it. Part months count as whole
@@ -788,7 +809,10 @@ months, for starters and leavers alike.
 
 **Staff on older terms** (for example, people who joined under TUPE) have
 their own contract type, such as "Reception (TUPE 2019)", with its own
-policy. Everyone else keeps the standard contract.
+policy. Everyone else keeps the standard contract. If leave is held in AMG
+Shift Central, give their contract **Own terms** instead (see
+[Leave terms](#leave-terms)), or give such a type its own **Usual annual
+leave a year**.
 
 ### How to change a policy
 
@@ -1003,13 +1027,17 @@ self-certified, never the kind), **Unpaid**, **Family leave** (with
 keeping-in-touch days) and **TOIL**. Leave that runs across a month end is
 split between the months. Bank holidays are not listed.
 
+If leave is held in AMG Shift Central, **Payroll** is under **Payroll and
+retention**. The file has only Starters, Leavers (no balances), Contract
+changes and Pay changes.
+
 Generating a month again replaces its file with the latest figures, so you
 can rerun it after late changes.
 
 ## Sickness and confidentiality
 
-- Staff record their own sickness from **Leave**, or their manager records it.
-  It needs no approval.
+- Staff record their own sickness from **Leave** (in AMG Shift Central, if
+  leave is held there), or their manager records it. It needs no approval.
 - They choose a **Kind of sickness** in broad terms (Illness, Injury, Mental
   health, Surgery or procedure, Pregnancy-related, Other). Only HR admins can
   see it, on the absence's page in the admin. Opening that page is written
@@ -1023,7 +1051,8 @@ can rerun it after late changes.
 
 ## Retention
 
-Under **Absence**, choose **Retention**. It lists people whose records are
+Under **Absence** (**Payroll and retention** if leave is held in AMG Shift
+Central), choose **Retention**. It lists people whose records are
 past the time the practice keeps them. By default that is six years after
 their last employment ended for personal, pay and health records, checks,
 stored files and policy signatures, and seven years for the audit log. It only lists them. Nothing is deleted automatically, and
@@ -1066,6 +1095,9 @@ They can add a new one from their **Account** page.
 It takes effect the next time they sign in to the rota. To take it away,
 untick the box and save. Anyone with a login can use the rota; this box
 only decides who is an admin there.
+
+AMG Shift Central has the matching tick, **Admin of shift-central**, in the
+same place. It works the same way for Shift Central.
 
 ### How to stop someone signing in
 
