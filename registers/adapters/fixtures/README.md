@@ -104,10 +104,16 @@ person captures them.
    The Welsh list (`mpl_wales`) has no `LABELS`, `RESTRICTION_LABELS`,
    `NAME_MARKER` or `NOT_FOUND`: it reads the endpoint's JSON reply, finds
    the row whose registration number is exactly the number, and takes the
-   name and the status from that row's cells (`NUMBER`, `NAME`, `STATUS`
-   name the cell positions). No row is *not found*. It is tuned by `CLEAR`,
-   `PROBLEM` and those positions; if the site changes the endpoint or the
-   columns, `ENDPOINT`, `fetch()` and the positions are what to update.
+   name, the type and the status from that row's cells (`NUMBER`, `NAME`,
+   `TYPE`, `STATUS` name the cell positions). No row is *not found*. A row
+   is clear only when its type is one of `TYPES` (GP, GP Registrar) and its
+   status is one of `CLEAR` (just Included); anything else is a problem,
+   including a status the list has not used before, and a row with no
+   status at all is unreadable. So a `problem*` page is any real row whose
+   status is not Included or whose type is not GP or GP Registrar. It is
+   tuned by `CLEAR`, `TYPES` and those positions; if the site changes the
+   endpoint or the columns, `ENDPOINT`, `fetch()` and the positions are
+   what to update.
 
    Keep the tests in `tests/test_registers_adapters.py` passing, and run the
    parser again.
