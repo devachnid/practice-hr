@@ -1,13 +1,18 @@
 """Each person's registration numbers: which bodies their title needs, and
 the one writer of Registration rows. The Welsh medical performers list is
 keyed by the GMC number, so setting the GMC number also sets (or makes) the
-Welsh row when the title needs it, and clearing it clears both."""
+Welsh row when the title needs it, and clearing it clears both. A title
+that comes to need the list after the GMC number was entered gets its row
+from fill_shared: called wherever the need can change (the body's page, a
+person's positions, a save of their record) and by the nightly for
+everyone, so the row never waits on someone re-saving a number."""
 from dataclasses import dataclass
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from people.models import Employee
 from people.services import audit, employments, positions
 from registers import numbers
 from registers.models import RegisterBody, Registration
@@ -56,10 +61,15 @@ def rows(employee, today):
 
 def number_fields(employee, today):
     """(form field name, body, label) for each number the Details tab
-    shows: one per needed body, except a body that shares another's number."""
+    shows: one per needed body, except a body that shares the number of
+    another the title also needs (that one's box covers both). A title that
+    needs the sharing body alone gets a box for it, labelled by the number
+    it uses, so there is always somewhere to enter it."""
+    need = needed(employee, today)
+    codes = {b.code for b in need}
     out = []
-    for b in needed(employee, today):
-        if b.code in numbers.SHARES_NUMBER_WITH:
+    for b in need:
+        if numbers.SHARES_NUMBER_WITH.get(b.code) in codes:
             continue
         out.append((f"registration_{b.code}", b, f"{numbers.label(b.code)} number"))
     return out
@@ -96,6 +106,28 @@ def set_number(actor, employee, body, number):
     if twin is not None:
         set_number(actor, employee, twin, value)
     return reg
+
+
+@transaction.atomic
+def fill_shared(actor, employee, today):
+    """Make the row of each body the title needs that uses another body's
+    number (the Welsh list, the GMC number) when that number is held and the
+    row is not; checked tonight, audited like any number. `actor` is None
+    from the nightly. Returns the rows made."""
+    held = {r.body.code: r for r in employee.registrations.select_related("body")}
+    made = []
+    for body in needed(employee, today):
+        source = held.get(numbers.SHARES_NUMBER_WITH.get(body.code))
+        if source is not None and body.code not in held:
+            made.append(set_number(actor, employee, body, source.number))
+    return made
+
+
+def fill_all_shared(actor, today):
+    """fill_shared for everyone employed today who holds a shared number; the count of rows made."""
+    employed = employments.active_on(today).values("employee_id")
+    holders = Employee.objects.filter(pk__in=employed, registrations__body__code__in=TWINS).distinct()
+    return sum(len(fill_shared(actor, e, today)) for e in holders)
 
 
 @transaction.atomic

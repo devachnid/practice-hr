@@ -126,6 +126,14 @@ def test_a_missing_number_is_hrs_from_the_employment_start(hr_admin, gmc):
     assert item.url.endswith(reverse("admin:people_employee_change", args=[e.pk]))
 
 
+def test_a_missing_welsh_row_asks_for_the_gmc_number_the_list_uses(hr_admin, gmc):
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    _gp(hr_admin)
+    assert sorted(i.label for i in _items()) == ["GMC number not recorded",
+                                                 "Welsh medical performers list: GMC number not recorded"]
+
+
 def test_unreadable_is_hrs_only_after_fourteen_days_or_a_pause(hr_admin, gmc, monkeypatch):
     e = _gp(hr_admin)
     r = registrations.set_number(hr_admin, e, gmc, "1234567")
@@ -199,6 +207,21 @@ def test_the_nightly_step_runs_the_schedule_syncs_verified_and_never_fails_the_c
     call_command("hr_nightly")                       # no CommandError
     out = capsys.readouterr().out
     assert "compliance: {" in out and "registrations: failed" in out
+
+
+def test_the_nightly_step_fills_a_welsh_row_the_title_now_needs_and_looks_it_up(hr_admin, gmc, monkeypatch):
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    mpl.positions.add(titles.get_or_create("Salaried GP"))          # after the number was entered
+    monkeypatch.setattr(adapters, "lookup", lambda *a: CLEAR)
+    monkeypatch.setattr(adapters, "verified", lambda code: True)
+    result = nightly.run(timezone.localdate())
+    assert result["filled"] == 1 and result["run"] == 2 and result["clear"] == 2
+    welsh = Registration.objects.get(employee=e, body=mpl)
+    assert welsh.number == "1234567" and welsh.last_outcome == "clear"
+    assert not [i for i in _items() if i.state == "missing"]
+    assert nightly.run(timezone.localdate())["filled"] == 0
 
 
 def test_the_nightly_output_has_a_registrations_line(db, capsys):

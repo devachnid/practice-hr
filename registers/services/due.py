@@ -14,6 +14,7 @@ from absence.services.notify import hr_admin_addresses
 from compliance.due import DueItem, active_email, link
 from people.models import Employee
 from people.services import access, employments
+from registers import numbers
 from registers.models import RegisterBody
 from registers.services import lookups, registrations
 from registers.services.nightly import UNREADABLE_AFTER_DAYS
@@ -41,8 +42,11 @@ def due_items(today, sched):
         for row in rows:
             reg = row.registration
             if reg is None:
+                # a body with no number of its own (the Welsh list) names the one it uses
+                what = (f"{row.body.name}: {numbers.label(row.body.code)} number not recorded"
+                        if row.body.code in numbers.SHARES_NUMBER_WITH else f"{row.body.name} number not recorded")
                 for r in hr:
-                    out.append(DueItem(e, r, KIND, f"{row.body.name} number not recorded", emp.start_date, "missing",
+                    out.append(DueItem(e, r, KIND, what, emp.start_date, "missing",
                                        hr_url, f"registration:{e.pk}:{row.body.code}:missing"))
                 continue
             if reg.last_checked_at is None and reg.last_unreadable_at is None:   # not looked up yet: tonight

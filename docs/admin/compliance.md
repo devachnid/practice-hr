@@ -189,7 +189,12 @@ one, nobody needs a registration.
 
 *One number per person per body.* The Welsh list is searched by the GMC
 number, so a title that needs both is given one number, once, and both
-bodies use it.
+bodies use it. The Welsh list has no number or box of its own. Whenever a
+title comes to need the list and the person's GMC number is already
+recorded, the list takes that number without anyone typing it again: when
+you add the title to the list on its [Register bodies](#register-bodies)
+page, when you give the person a position with such a title, and in the
+overnight run for anything else.
 
 *A lookup reads the body's public search page.* None of the four offers
 a free, sanctioned machine interface, so the page is read as a person would
@@ -229,7 +234,11 @@ plus a seed. What you set:
 
 - **Positions** — the titles that need a registration with this body. Move
   each across, as for a check type. A GP's title usually needs both the GMC
-  and the Welsh list.
+  and the Welsh list. Saving the Welsh list's page gives it the GMC number
+  of everyone whose title now needs it, and says how many ("Welsh medical
+  performers list now uses the GMC number of 3 people: checked on the
+  register tonight."). A title on the Welsh list but not on the GMC still
+  gets a **GMC number** box, for the list alone.
 - **Active** — tick it off to stop looking up, and stop alerting about, that
   body. Its numbers are kept. Also the way to stop altogether if a regulator
   objects (see [Terms of use](#terms-of-use)).
@@ -323,6 +332,9 @@ format is refused and nothing is saved:
 | **NMC PIN number** | Two digits, a letter, four digits and a letter | 12A3456B |
 | **GPhC number** | Seven digits | 2012345 |
 
+A title that needs the Welsh list but not the GMC has a **GMC number** box
+too: the number is then used for the list only.
+
 Saving a new or changed number checks it that night (and **Check now**
 checks it at once). Emptying a box removes the number and its lookups (for the GMC number, the
 Welsh list's as well). A number already recorded for someone else is accepted, with a warning
@@ -332,7 +344,9 @@ field `registration:<code>` (for example `registration:gmc`), with the old
 and new number.
 
 A title that needs a body but has no number recorded is listed to HR as
-"<Body> number not recorded", from the day their employment starts.
+"<Body> number not recorded", from the day their employment starts. The
+Welsh list's line reads "Welsh medical performers list: GMC number not
+recorded", since the GMC number is the one to add.
 
 ### Check now and On the register
 
@@ -361,7 +375,12 @@ answered (**Checked**) and the next check. Two links end each row:
   can read it yourself.
 
 A row for a body the title needs with no number reads "No number recorded"
-with a link to the Details tab. A body that is paused or not verified says
+with a link to the Details tab. The Welsh list's row reads "No GMC number
+recorded", with the link "Add the GMC number under Details", because the
+GMC number is the one it uses. If the GMC number is recorded and the title
+came to need the list only today, the row shows that number and "Not
+checked yet: it uses the GMC number, from tonight": nothing needs doing.
+A body that is paused or not verified says
 so after the result. The last result is the latest one the register
 answered: when the latest lookup could not read the page, the row reads
 "Could not be read on <date>; last result: <words>", and the earlier
@@ -1019,11 +1038,12 @@ three are 0 with no outgoing email configured. If the step fails it prints
 The registrations come before it, on a **registrations:** line printed as the
 step finishes, such as `registrations: {'run': 4, 'clear': 3, 'problem': 1,
 'not_found': 0, 'name_mismatch': 0, 'unreadable': 0, 'skipped': 0,
-'verified': 4}`. `run` is the lookups made tonight and the next five
+'verified': 4, 'filled': 0}`. `run` is the lookups made tonight and the next five
 counts say how they came out; `skipped` is registrations that were due but
 not looked up (the person is no longer employed, the title no longer needs
 the body, or the body is inactive, not verified or paused); `verified` is how many of
-the four bodies are verified. All are 0 until a body is verified. A failure
+the four bodies are verified; `filled` is Welsh list rows made tonight from
+a GMC number already recorded. All but `filled` are 0 until a body is verified. A failure
 of this step prints `registrations: failed`, logs the error's class and
 does not fail the run: the reminders still go, and the next night tries
 again. A lookup that fails for one registration is logged with the error's

@@ -580,7 +580,9 @@ guide.
 A GMC number is seven digits. An NMC PIN is two digits, a letter, four digits
 and a letter, such as 12A3456B. A GPhC number is seven digits. Spaces and
 small letters do not matter. The **GMC number** is also used for the Welsh
-list, so a GP needs only the one box.
+list, so a GP needs only the one box. The Welsh list has no box of its own. If
+a title is added to the Welsh list after the GMC numbers were typed in, the
+list takes those numbers by itself: you do not type them again.
 
 What you will see: if the number is not in that form, the page says so (for
 example "A GMC number is seven digits.") and nothing is saved. If someone
