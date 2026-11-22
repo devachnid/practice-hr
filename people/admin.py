@@ -170,15 +170,31 @@ class EmployeeAdmin(ModelAdmin):
                 link = _link(f"{reverse('admin:checks_check_add')}?employee={obj.pk}&check_type={r.check_type.pk}",
                              "Record")
             check_rows.append((r.check_type, r.label, _day(r.expires_on), link))
-        from registers import adapters
+        from registers import adapters, numbers
         from registers.services import registrations
         reg_rows = []
-        for row in registrations.rows(obj, today):
+        rows = registrations.rows(obj, today)
+        held = {r.body.code: r.registration for r in rows if r.registration is not None}
+        details = reverse("admin:people_employee_change", args=[obj.pk])
+        for row in rows:
             reg, body = row.registration, row.body
             note = "" if row.needed else " (their title no longer needs it)"
+            shares = numbers.SHARES_NUMBER_WITH.get(body.code)
+            if reg is None and shares in held:
+                # The number it uses is held (their title came to need this
+                # body today): the nightly makes the row and looks it up.
+                reg_rows.append((body.name, held[shares].number,
+                                 f"Not checked yet: it uses the {numbers.label(body.code)} number, from tonight",
+                                 "", "", "", ""))
+                continue
+            if reg is None and shares:
+                label = numbers.label(body.code)          # the Welsh list has no number of its own
+                reg_rows.append((body.name, f"No {label} number recorded", "", "", "", "",
+                                 _link(details, f"Add the {label} number under Details")))
+                continue
             if reg is None:
-                reg_rows.append((body.name + note, "No number recorded", "", "", "", "",
-                                 _link(reverse("admin:people_employee_change", args=[obj.pk]), "Add it under Details")))
+                reg_rows.append((body.name, "No number recorded", "", "", "", "",
+                                 _link(details, "Add it under Details")))
                 continue
             state = ("paused" if body.paused else "") or ("not verified" if not body.verified else "")
             outcome = (f"{reg.last_status_text}" if reg.last_outcome in ("clear", "problem")
@@ -276,21 +292,22 @@ class EmployeeAdmin(ModelAdmin):
             employees.update(request.user, fresh, **data)
             obj.refresh_from_db()
             from registers.services import registrations
-            # a twin the title now needs (the Welsh list after the GMC number) is made on any save
-            missing = {b.code for b in registrations.missing(fresh, timezone.localdate())}
             for name, body, _ in form.registration_fields:
-                changed = name in form.changed_data
+                if name not in form.changed_data:
+                    continue
                 value = form.cleaned_data.get(name) or ""
-                if value and (changed or registrations.TWINS.get(body.code) in missing):
-                    registrations.set_number(request.user, fresh, body, value)
-                    others = (Registration.objects.filter(body=body, number=value).exclude(employee=fresh)
-                              .select_related("employee"))
-                    for other in others if changed else ():
-                        messages.warning(request, f"The {body.name} number {value} is also recorded for "
-                                                  f"{other.employee.name}. The register's name check will "
-                                                  "tell them apart; check the numbers if that is not intended.")
-                elif changed and not value:
+                if not value:
                     registrations.clear_number(request.user, fresh, body)
+                    continue
+                registrations.set_number(request.user, fresh, body, value)
+                others = (Registration.objects.filter(body=body, number=value).exclude(employee=fresh)
+                          .select_related("employee"))
+                for other in others:
+                    messages.warning(request, f"The {body.name} number {value} is also recorded for "
+                                              f"{other.employee.name}. The register's name check will "
+                                              "tell them apart; check the numbers if that is not intended.")
+            # a row that uses a number already held (the Welsh list, the GMC number) is made on any save
+            registrations.fill_shared(request.user, fresh, timezone.localdate())
         else:
             data = {k: v for k, v in form.cleaned_data.items() if k in employees.EDITABLE}
             new = employees.create(request.user, **data)
@@ -464,6 +481,15 @@ class EmploymentAdmin(ModelAdmin):
                                     obj.continuous_service_date, obj.end_date,
                                     obj.leaving_reason)
             obj.pk = new.pk
+
+    def save_related(self, request, form, formsets, change):
+        # A position added or ended here can change the title, and with it
+        # the registers needed: one that uses a number already held (the
+        # Welsh list, the GMC number) gets its row now, not at the next
+        # save of the number.
+        super().save_related(request, form, formsets, change)
+        from registers.services import registrations
+        registrations.fill_shared(request.user, form.instance.employee, timezone.localdate())
 
     def save_formset(self, request, form, formset, change):
         # PositionInlineFormSet and ContractInlineFormSet have run these

@@ -1,15 +1,19 @@
 """Register bodies (which titles need each; Unpause after a site change)
 and the read-only lookup log. Bodies are code plus a seed: never added or
-deleted here, made inactive instead."""
+deleted here, made inactive instead. Saving a body that uses another's
+number (the Welsh list) makes its row for everyone who holds that number
+and now needs it."""
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from unfold.admin import ModelAdmin
+from django.utils import timezone
 from unfold.decorators import action
 
+from registers import numbers
 from registers.models import Lookup, RegisterBody
-from registers.services import lookups
+from registers.services import lookups, registrations
 
 
 @admin.register(RegisterBody)
@@ -34,6 +38,17 @@ class RegisterBodyAdmin(ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def save_related(self, request, form, formsets, change):
+        # After the positions are saved (and from the list, after Active):
+        # the titles that need this body may just have changed.
+        super().save_related(request, form, formsets, change)
+        body = form.instance
+        if body.code in numbers.SHARES_NUMBER_WITH:
+            made = registrations.fill_all_shared(request.user, timezone.localdate())
+            if made:
+                messages.success(request, f"{body.name} now uses the {numbers.label(body.code)} number of {made} "
+                                          f"{'person' if made == 1 else 'people'}: checked on the register tonight.")
 
     @action(description="Unpause", url_path="unpause", permissions=["change"])
     def unpause(self, request, object_id):

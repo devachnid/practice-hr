@@ -1,12 +1,14 @@
 """The registrations step of hr_nightly: sync each body's verified flag
-from its adapter's fixtures, then run tonight's lookups. Never raises out
+from its adapter's fixtures, make any row that uses a number already held
+(the Welsh list, for a title that came to need it), then run tonight's
+lookups. Never raises out
 of the command, which runs it before the morning digest: the digest still
 goes, and the next night retries."""
 import logging
 
 from registers import adapters
 from registers.models import RegisterBody
-from registers.services import lookups
+from registers.services import lookups, registrations
 
 log = logging.getLogger("hr.registers")
 UNREADABLE_AFTER_DAYS = 14
@@ -27,5 +29,6 @@ def sync_verified():
 
 def run(today):
     verified = sync_verified()
+    filled = registrations.fill_all_shared(None, today)
     counts = lookups.scheduled(today)
-    return {**counts, "verified": verified}
+    return {**counts, "verified": verified, "filled": filled}

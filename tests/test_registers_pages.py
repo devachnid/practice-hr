@@ -116,6 +116,83 @@ def test_saving_the_record_unchanged_makes_the_welsh_row_a_title_now_needs(admin
     assert AuditEntry.objects.filter(field="registration:gmc").count() == 1      # the GMC number did not change
 
 
+def test_a_title_needing_the_welsh_list_alone_has_a_gmc_number_box_that_saves_the_welsh_row(admin_client, hr_admin):
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    e = _gp(hr_admin)
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert 'name="registration_mpl_wales"' in body and "GMC number" in body
+    assert "No GMC number recorded" in body and "Add the GMC number under Details" in body
+    r = admin_client.post(f"/admin/people/employee/{e.pk}/change/", _change_post(e, registration_mpl_wales="1234567"))
+    assert r.status_code == 302
+    assert Registration.objects.get(employee=e, body=mpl).number == "1234567"
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "No GMC number recorded" not in body and "Not checked yet" in body
+
+
+def _body_post(body, title_pks, **extra):
+    data = {"name": body.name, "positions": title_pks, "display_order": body.display_order, "_save": "Save"}
+    if body.active:
+        data["active"] = "on"
+    data.update(extra)
+    return data
+
+
+def test_adding_a_title_to_the_welsh_list_makes_the_row_for_everyone_holding_a_gmc_number(admin_client, hr_admin):
+    gmc, mpl = RegisterBody.objects.get(code="gmc"), RegisterBody.objects.get(code="mpl_wales")
+    title = titles.get_or_create("Salaried GP")
+    gmc.positions.add(title)
+    e, other = _gp(hr_admin), _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    r = admin_client.post(f"/admin/registers/registerbody/{mpl.pk}/change/", _body_post(mpl, [title.pk]),
+                          follow=True)
+    assert r.status_code == 200 and list(mpl.positions.all()) == [title]
+    assert Registration.objects.get(employee=e, body=mpl).number == "1234567"
+    assert not Registration.objects.filter(employee=other).exists()
+    assert "now uses the GMC number of 1 person" in r.content.decode()
+    entry = AuditEntry.objects.get(model="people.employee", object_id=e.pk, field="registration:mpl_wales")
+    assert entry.actor == hr_admin
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "No GMC number recorded" not in body and "No number recorded" not in body
+
+
+def test_making_the_welsh_list_active_again_makes_the_rows_it_now_needs(admin_client, hr_admin):
+    gmc, mpl = RegisterBody.objects.get(code="gmc"), RegisterBody.objects.get(code="mpl_wales")
+    title = titles.get_or_create("Salaried GP")
+    gmc.positions.add(title)
+    mpl.positions.add(title)
+    mpl.active = False
+    mpl.save()
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc, "1234567")
+    assert not Registration.objects.filter(employee=e, body=mpl).exists()
+    mpl.active = True                     # as the form will send it
+    r = admin_client.post(f"/admin/registers/registerbody/{mpl.pk}/change/", _body_post(mpl, [title.pk]))
+    assert r.status_code == 302 and Registration.objects.get(employee=e, body=mpl).number == "1234567"
+
+
+def test_a_new_position_whose_title_needs_the_welsh_list_makes_the_row_from_the_gmc_number(admin_client, hr_admin,
+                                                                                         gp_bodies):
+    gmc, mpl = gp_bodies
+    e = make_employee(first="Priya", last="Patel")
+    emp = employments.start(hr_admin, e, timezone.localdate() - timedelta(days=400))
+    Registration.objects.create(employee=e, body=gmc, number="1234567", next_check_on=timezone.localdate())
+    team = Team.objects.get_or_create(name="Reception")[0]
+    r = admin_client.post(f"/admin/people/employment/{emp.pk}/change/", {
+        "start_date": str(emp.start_date), "end_date": "", "leaving_reason": "",
+        "continuous_service_date": str(emp.continuous_service_date),
+        "positions-TOTAL_FORMS": 1, "positions-INITIAL_FORMS": 0,
+        "positions-0-id": "", "positions-0-employment": emp.pk,
+        "positions-0-title": titles.get_or_create("Salaried GP").pk, "positions-0-team": team.pk,
+        "positions-0-line_manager": "", "positions-0-primary": "on",
+        "positions-0-from_date": str(emp.start_date), "positions-0-to_date": "",
+        "contracts-TOTAL_FORMS": 0, "contracts-INITIAL_FORMS": 0,
+        "patterns-TOTAL_FORMS": 0, "patterns-INITIAL_FORMS": 0,
+        "pay_records-TOTAL_FORMS": 0, "pay_records-INITIAL_FORMS": 0, "_save": "Save"})
+    assert r.status_code == 302, r.content.decode()[:2000]
+    assert Registration.objects.get(employee=e, body=mpl).number == "1234567"
+
+
 # ---- the Compliance tab -------------------------------------------------------------------------
 
 def test_the_compliance_tab_lists_registrations_with_check_now_and_the_register_link(admin_client, hr_admin,
@@ -133,6 +210,19 @@ def test_the_compliance_tab_lists_registrations_with_check_now_and_the_register_
     reg = Registration.objects.get(employee=e, body=gmc)
     assert f'href="/registers/{reg.pk}/check/"' in body and "Check now" in body
     assert f'href="{adapters.url("gmc", "1234567")}"' in body and "On the register" in body
+
+
+def test_the_welsh_row_names_the_gmc_number_it_wants_or_the_one_it_will_use(admin_client, hr_admin, gp_bodies):
+    gmc, mpl = gp_bodies
+    e = _gp(hr_admin)
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "No number recorded" in body and "Add it under Details" in body                # the GMC row
+    assert "No GMC number recorded" in body and "Add the GMC number under Details" in body   # the Welsh row
+    # a GMC number held with no Welsh row yet (a position that began today): the nightly makes it
+    Registration.objects.create(employee=e, body=gmc, number="1234567", next_check_on=timezone.localdate())
+    body = admin_client.get(f"/admin/people/employee/{e.pk}/change/").content.decode()
+    assert "No GMC number recorded" not in body and "No number recorded" not in body
+    assert "Not checked yet: it uses the GMC number, from tonight" in body
 
 
 def test_the_tab_says_when_a_body_is_paused_or_not_verified(admin_client, hr_admin, gp_bodies):

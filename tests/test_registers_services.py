@@ -136,6 +136,47 @@ def test_a_number_kept_after_the_title_no_longer_needs_it_shows_as_not_needed(hr
     assert rows["mpl_wales"].needed is False and rows["mpl_wales"].registration is not None
 
 
+def test_a_held_gmc_number_fills_the_welsh_row_once_the_title_needs_the_list(hr_admin, gmc_only):
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    e = _gp(hr_admin)
+    registrations.set_number(hr_admin, e, gmc_only, "1234567")
+    today = timezone.localdate()
+    assert registrations.fill_shared(hr_admin, e, today) == []           # the title does not need the list
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    made = registrations.fill_shared(None, e, today)
+    assert [(r.body.code, r.number, r.next_check_on) for r in made] == [("mpl_wales", "1234567", today)]
+    entry = AuditEntry.objects.get(model="people.employee", object_id=e.pk, field="registration:mpl_wales")
+    assert (entry.before, entry.after, entry.actor) == ("", "1234567", None)
+    assert registrations.fill_shared(None, e, today) == []               # made once
+    assert AuditEntry.objects.filter(field="registration:gmc").count() == 1      # the GMC number did not change
+
+
+def test_filling_shared_numbers_covers_everyone_employed_who_holds_the_number(hr_admin, gmc_only):
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    today = timezone.localdate()
+    held, none, left = _gp(hr_admin), _gp(hr_admin, last="Khan"), _gp(hr_admin, last="Jones",
+                                                                     end=today - timedelta(days=30))
+    registrations.set_number(hr_admin, held, gmc_only, "1234567")
+    registrations.set_number(hr_admin, left, gmc_only, "7654321")
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    assert registrations.fill_all_shared(None, today) == 1
+    assert list(Registration.objects.filter(body=mpl).values_list("employee_id", flat=True)) == [held.pk]
+    assert [b.code for b in registrations.missing(none, today)] == ["gmc", "mpl_wales"]
+    assert registrations.fill_all_shared(None, today) == 0
+
+
+def test_a_title_that_needs_the_welsh_list_alone_gets_the_gmc_number_box_for_it(hr_admin):
+    mpl = RegisterBody.objects.get(code="mpl_wales")
+    mpl.positions.add(titles.get_or_create("Salaried GP"))
+    e = _gp(hr_admin)
+    today = timezone.localdate()
+    assert registrations.number_fields(e, today) == [("registration_mpl_wales", mpl, "GMC number")]
+    registrations.set_number(hr_admin, e, mpl, "1234567")
+    assert registrations.missing(e, today) == []
+    registrations.clear_number(hr_admin, e, mpl)
+    assert [b.code for b in registrations.missing(e, today)] == ["mpl_wales"]
+
+
 # ---- running one lookup ----------------------------------------------------------------------
 
 def test_a_clear_lookup_records_a_professional_registration_check(hr_admin, gmc_only, monkeypatch):

@@ -73,7 +73,8 @@ beyond being wrong on a report that reads it.
 **Visible to HR admins only**, like the NI number. Below **NI number** there
 is one box for each professional register the person's current position
 title needs: **GMC number** (which also covers the Welsh medical performers
-list), **NMC PIN number** or **GPhC number**. A title that needs none shows
+list, and is shown for a title that needs the list alone), **NMC PIN
+number** or **GPhC number**. A title that needs none shows
 none. The format is checked when you save, and a number that does not fit
 is refused. Each change is written to the [audit log](#audit-log) as field
 `registration:<code>`, such as `registration:gmc`, with the old and new
