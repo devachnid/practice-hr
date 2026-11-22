@@ -192,8 +192,8 @@ def _mpl_reply(rows):
                                   "start": 0, "length": 10}))
 
 
-def _mpl_row(number="1234567", name="PATEL Priya", status="Included"):
-    return ["<span class='chevron-collapsable'></span>", number, name, "GP", "Cwm Taf Morgannwg HB", "06/03/2008",
+def _mpl_row(number="1234567", name="PATEL Priya", status="Included", kind="GP"):
+    return ["<span class='chevron-collapsable'></span>", number, name, kind, "Cwm Taf Morgannwg HB", "06/03/2008",
             status, "", "", "1"]
 
 
@@ -205,14 +205,26 @@ MPL_NONE = _mpl_reply([])
 MPL_SUBSTRING = _mpl_reply([_mpl_row(number="61234567")])          # the search matches substrings; the row must not
 MPL_ODD_STATUS = MPL_PRESENT.replace("Included", "Awaiting review")
 MPL_PENDING = MPL_PRESENT.replace("Included", "Pending review")
+MPL_FURTHER_DETAILS = MPL_PRESENT.replace("Included", "Seek further details")     # the list's own wording, seen live
+MPL_NO_STATUS = _mpl_reply([_mpl_row(status="")])
+MPL_REGISTRAR = _mpl_reply([_mpl_row(kind="GP Registrar")])
+MPL_OTHER_TYPE = _mpl_reply([_mpl_row(kind="Locum")])
+MPL_OTHER_TYPE_NOT_INCLUDED = _mpl_reply([_mpl_row(kind="Locum", status="Suspended")])
+MPL_NO_TYPE = _mpl_reply([_mpl_row(kind="")])
 
 
 @pytest.mark.parametrize("page,outcome,words", [
     (MPL_PRESENT, "clear", "Included"),
+    (MPL_REGISTRAR, "clear", "Included"),
     (MPL_SUSPENDED, "problem", "Suspended"),
     (MPL_NONE, "not_found", ""),
-    (MPL_ODD_STATUS, "unreadable", ""),
+    (MPL_ODD_STATUS, "problem", "Awaiting review"),            # a status other than Included is never left unread
     (MPL_PENDING, "problem", "Pending review"),
+    (MPL_FURTHER_DETAILS, "problem", "Seek further details"),
+    (MPL_NO_STATUS, "unreadable", ""),                         # nothing to read: not a failed check
+    (MPL_OTHER_TYPE, "problem", "listed as Locum, not GP or GP Registrar"),
+    (MPL_OTHER_TYPE_NOT_INCLUDED, "problem", "Suspended; listed as Locum"),
+    (MPL_NO_TYPE, "problem", "listed as no type"),
 ])
 def test_mpl_wales_parse(page, outcome, words):
     """A reply that is not the list's JSON raises inside parse(); run() makes
@@ -221,6 +233,17 @@ def test_mpl_wales_parse(page, outcome, words):
     assert got == outcome and words in status
     if outcome in ("clear", "problem"):
         assert name == "Priya PATEL"
+
+
+@pytest.mark.parametrize("status", ["Active", "Current"])
+def test_mpl_wales_only_included_is_clear(status):
+    """Active and Current were clear before the list's real wording was captured; only Included is now."""
+    assert mpl_wales.parse(_mpl_reply([_mpl_row(status=status)]), "1234567")[0] == "problem"
+
+
+def test_mpl_wales_type_and_status_match_whatever_the_case_or_spacing():
+    row = _mpl_reply([_mpl_row(status=" included ", kind="gp  registrar")])
+    assert mpl_wales.parse(row, "1234567")[0] == "clear"
 
 
 NMC_CLEAR = """<html><body><h2>Priya Patel</h2><p>PIN 12A3456B</p>
