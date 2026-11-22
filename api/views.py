@@ -1,4 +1,4 @@
-"""The read-only JSON API the rota polls. Every endpoint is a GET, needs
+"""The read-only JSON API the rota and AMG Shift Central poll. Every endpoint is a GET, needs
 `Authorization: Bearer <token>` with the token in HR_API_TOKENS (api/auth.py),
 and answers 401 `{"error": "unauthorised"}` (with `WWW-Authenticate: Bearer`)
 otherwise, and 400 `{"error": "<what is wrong>"}` for a bad query string.
@@ -56,7 +56,8 @@ GET /api/v1/absences?from=YYYY-MM-DD&to=YYYY-MM-DD
     Not returned: declined and cancelled absences, and the automatic
     bank-holiday rows (the rota has its own bank-holiday calendar). `label`
     is the type's calendar_label, except that a health-sensitive type is
-    always "Sick". No field carries the illness category.
+    always "Sick". No field carries the illness category. With
+    SHIFT_CENTRAL_URL set it answers an empty list (absence/elsewhere.py).
 """
 
 from datetime import date

@@ -5,9 +5,11 @@
 <div class="page-head"><h1>Payroll changes</h1></div>
 <section class="card">
   <h2>Generate a month</h2>
-  <p>Starters, leavers, contract and pay changes, sickness dates, unpaid leave, family leave and TOIL for the
-     month, as a spreadsheet for the payroll bureau. Generating a month again replaces its file with the
-     latest figures and is recorded as another run.</p>
+  <p>{% if leave_url %}Starters, leavers, contract changes and pay changes for the month. Sickness, unpaid and
+     family leave and TOIL are in AMG Shift Central's own payroll report.{% else %}Starters, leavers, contract and
+     pay changes, sickness dates, unpaid leave, family leave and TOIL for the month, as a spreadsheet for the
+     payroll bureau.{% endif %} Generating a month again replaces its file with the latest figures and is
+     recorded as another run.</p>
   <form method="post">{% csrf_token %}
     {% for e in form.non_field_errors %}<p class="flash flash-error" role="alert">{{ e }}</p>{% endfor %}
     {{ form.period.as_field_group }}
