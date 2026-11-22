@@ -281,17 +281,42 @@ locally.
        install -D deploy/hr-backup-pbs.conf /etc/systemd/system/hr-backup.service.d/pbs.conf
        systemctl daemon-reload
 
-4. **Test it, including a restore.** Run a backup, check the snapshot appears
-   under the `practice-hr` namespace, then restore it on another machine with
-   only the key, and open the copy:
+5. **Test it, including a restore.** Run a backup and check the push worked,
+   then restore it on another machine with only the key.
 
        systemctl start hr-backup.service && journalctl -u hr-pbs -n 20 --no-pager
-       proxmox-backup-client snapshot list --ns practice-hr
-       proxmox-backup-client restore host/practice-hr/<timestamp> data.pxar ./restore-test --ns practice-hr --keyfile practice-hr.key
-       sqlite3 restore-test/db-<date>.sqlite3 'select count(*) from django_session'
 
    A failed push shows in `journalctl -u hr-pbs` and `systemctl status
    hr-pbs`; nothing else tells you, so look after the first night.
+
+   The push finds the PBS through its unit's environment file and token
+   file, so a client you start by hand knows neither. On the other machine,
+   install the client (step 1), put the key you copied off the host in a
+   private directory as `practice-hr.key`, and say where the PBS is:
+
+       mkdir -p ~/pbs-restore-test && cd ~/pbs-restore-test
+       chmod 600 practice-hr.key
+       export PBS_REPOSITORY='<your PBS user>@<pbs address>:8007:<datastore>'
+       export PBS_FINGERPRINT='<fingerprint>'
+
+   Use an address of the PBS that this machine can reach: the WireGuard
+   address in step 4 exists only on the tunnel between the host and the PBS.
+   Log in as yourself (an admin, or a user with `DatastoreReader` on
+   `/datastore/<datastore>/practice-hr`), not as the host's token, whose
+   secret is lost with the host. That is the login a real restore would have.
+   With `PBS_PASSWORD` unset the client asks for the password. The
+   fingerprint is the one from step 3. Then list the snapshots (which needs
+   no key), restore one (which does) and open the copy:
+
+       proxmox-backup-client snapshot list --ns practice-hr
+       proxmox-backup-client restore host/practice-hr/<timestamp> data.pxar ./restore-test --ns practice-hr --keyfile practice-hr.key --ignore-ownership true
+       sqlite3 restore-test/db-<date>.sqlite3 'select count(*) from django_session'
+
+   The files were saved owned by the host's `practice-hr` user. A restore
+   run as anyone but root cannot give them to that user, and stops with
+   `failed to set ownership`; `--ignore-ownership true` skips that step.
+   The copy holds staff and pay data and the key opens every backup, so
+   delete both when you have looked: `rm -rf ~/pbs-restore-test`.
 
 `systemd-analyze security practice-hr` scores the sandbox.
 
